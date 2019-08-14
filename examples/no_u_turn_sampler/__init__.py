@@ -13,32 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Edward2 probabilistic programming language.
-
-For user guides, see:
-
-+ [Overview](
-   https://github.com/google/edward2/blob/master/README.md)
-+ [Upgrading from Edward to Edward2](
-   https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md)
-
-"""
+"""No-U-Turn Sampler."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2 import numpy
-from edward2 import tensorflow
-from edward2.tensorflow import *  # pylint: disable=wildcard-import
-from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
+from edward2.examples.no_u_turn_sampler.nuts import kernel
+
+from tensorflow.python.util.all_util import remove_undocumented
 
 _allowed_symbols = [
-    "numpy",
-    "tensorflow",
+    "kernel",
 ]
-# By default, `import edward2 as ed` uses the TensorFlow backend's namespace.
-for name in dir(tensorflow):
-  _allowed_symbols.append(name)
 
 remove_undocumented(__name__, _allowed_symbols)
