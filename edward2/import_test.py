@@ -20,7 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed  # pylint: disable=unused-import
-import tensorflow as tf
+import tensorflow.compat.v2 as tf
 
 
 class ImportTest(tf.test.TestCase):

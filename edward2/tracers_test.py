@@ -21,16 +21,17 @@ from __future__ import print_function
 
 import edward2 as ed
 import six
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 @tfe.run_all_tests_in_graph_and_eager_modes
 class TracersTest(tf.test.TestCase):
 
   def testCondition(self):
-    tf.set_random_seed(358758)
+    tf.random.set_seed(358758)
     def model():
       x = ed.Normal(loc=-5., scale=1e-8, name="x")
       y = ed.Normal(loc=x, scale=1e-8, name="y")

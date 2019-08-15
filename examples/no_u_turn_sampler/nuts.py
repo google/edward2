@@ -36,11 +36,12 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 __all__ = [
     "kernel",
@@ -53,7 +54,7 @@ def kernel(target_log_prob_fn,
            seed=None,
            current_target_log_prob=None,
            current_grads_target_log_prob=None,
-           name=None):
+           name="nuts_kernel"):
   """Simulates a No-U-Turn Sampler (NUTS) trajectory.
 
   Args:
@@ -85,11 +86,7 @@ def kernel(target_log_prob_fn,
   if not tf.executing_eagerly():
     raise NotImplementedError("`kernel` is only available in Eager mode.")
 
-  with tf.name_scope(name,
-                     default_name="nuts_kernel",
-                     values=[current_state, step_size, seed,
-                             current_target_log_prob,
-                             current_grads_target_log_prob]):
+  with tf.name_scope(name):
     with tf.name_scope("initialize"):
       current_state = [tf.convert_to_tensor(s) for s in current_state]
       step_size = [tf.convert_to_tensor(s) for s in step_size]
@@ -105,7 +102,7 @@ def kernel(target_log_prob_fn,
       seed_stream = tfd.SeedStream(seed, "nuts_kernel")
       current_momentum = []
       for state_tensor in current_state:
-        momentum_tensor = tf.random_normal(shape=tf.shape(state_tensor),
+        momentum_tensor = tf.random.normal(shape=tf.shape(state_tensor),
                                            dtype=state_tensor.dtype,
                                            seed=seed_stream())
         current_momentum.append(momentum_tensor)
@@ -114,7 +111,7 @@ def kernel(target_log_prob_fn,
       # momentum)) and compute log u. For numerical stability, we perform this
       # in log space where log u = log (u' * p(...)) = log u' + log
       # p(...) and u' ~ Uniform(0, 1).
-      log_slice_sample = tf.log(tf.random_uniform([], seed=seed_stream()))
+      log_slice_sample = tf.math.log(tf.random.uniform([], seed=seed_stream()))
       log_slice_sample += _log_joint(current_target_log_prob,
                                      current_momentum)
 
@@ -504,9 +501,13 @@ def _log_joint(current_target_log_prob, current_momentum):
   return current_target_log_prob + momentum_log_prob
 
 
-def _random_bernoulli(shape, probs, dtype=tf.int32, seed=None, name=None):
+def _random_bernoulli(shape,
+                      probs,
+                      dtype=tf.int32,
+                      seed=None,
+                      name="random_bernoulli"):
   """Returns samples from a Bernoulli distribution."""
-  with tf.name_scope(name, "random_bernoulli", [shape, probs]):
+  with tf.name_scope(name):
     probs = tf.convert_to_tensor(probs)
-    random_uniform = tf.random_uniform(shape, dtype=probs.dtype, seed=seed)
+    random_uniform = tf.random.uniform(shape, dtype=probs.dtype, seed=seed)
     return tf.cast(tf.less(random_uniform, probs), dtype)

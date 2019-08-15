@@ -25,6 +25,7 @@ import os
 import pstats
 import time
 
+from absl import app
 from absl import flags
 import edward2 as ed
 import no_u_turn_sampler  # local file import
@@ -32,9 +33,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
-import tensorflow as tf
-
-tfe = tf.contrib.eager
+import sklearn.datasets
+import tensorflow.compat.v2 as tf
 
 flags.DEFINE_integer("max_steps",
                      default=5,
@@ -78,7 +78,6 @@ def logistic_regression(features):
 
 def covertype():
   """Builds the Covertype data set."""
-  import sklearn.datasets  # pylint: disable=g-import-not-at-top
   data = sklearn.datasets.covtype.fetch_covtype()
   features = data.data
   labels = data.target
@@ -99,18 +98,18 @@ def covertype():
 
 def main(argv):
   del argv  # unused
-  if tf.gfile.Exists(FLAGS.model_dir):
+  if tf.io.gfile.isdir(FLAGS.model_dir):
     tf.logging.warning(
         "Warning: deleting old log directory at {}".format(FLAGS.model_dir))
-    tf.gfile.DeleteRecursively(FLAGS.model_dir)
-  tf.gfile.MakeDirs(FLAGS.model_dir)
+    tf.io.gfile.rmtree(FLAGS.model_dir)
+  tf.io.gfile.makedirs(FLAGS.model_dir)
 
-  tf.enable_eager_execution()
-  print("Number of available GPUs", tfe.num_gpus())
+  tf.enable_v2_behavior()
+  print("GPU(s) available", tf.test.is_gpu_available())
 
   if FLAGS.fake_data:
-    features = tf.random_normal([20, 55])
-    labels = tf.random_uniform([20], minval=0, maxval=2, dtype=tf.int32)
+    features = tf.random.normal([20, 55])
+    labels = tf.random.uniform([20], minval=0, maxval=2, dtype=tf.int32)
   else:
     features, labels = covertype()
   print("Data set size", features.shape[0])
@@ -169,4 +168,4 @@ def main(argv):
   plt.close()
 
 if __name__ == "__main__":
-  tf.app.run()
+  app.run(main)

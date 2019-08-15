@@ -23,11 +23,12 @@ import inspect
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
 from tensorflow_probability import distributions as tfd
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
@@ -159,7 +160,7 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
 
   def testValueUnknownShape(self):
     # should not raise error
-    ed.Bernoulli(probs=0.5, value=tf.placeholder(tf.int32))
+    ed.Bernoulli(probs=0.5, value=tf1.placeholder(tf.int32))
 
   @tfe.run_test_in_graph_and_eager_modes
   def testMakeRandomVariable(self):

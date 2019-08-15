@@ -22,7 +22,7 @@ from __future__ import print_function
 import inspect
 from edward2.trace import trace
 import six
-import tensorflow as tf
+import tensorflow.compat.v2 as tf
 
 __all__ = [
     "make_log_joint_fn",
@@ -59,9 +59,9 @@ def make_log_joint_fn(model):
 
   log_joint = ed.make_log_joint_fn(logistic_regression)
 
-  features = tf.random_normal([3, 2])
-  coeffs_value = tf.random_normal([2])
-  outcomes_value = tf.round(tf.random_uniform([3]))
+  features = tf.random.normal([3, 2])
+  coeffs_value = tf.random.normal([2])
+  outcomes_value = tf.round(tf.random.uniform([3]))
   output = log_joint(features, coeffs=coeffs_value, outcomes=outcomes_value)
   ```
 

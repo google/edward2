@@ -23,10 +23,11 @@ import re
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class FakeDistribution(tfp.distributions.Distribution):
@@ -344,7 +345,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
   def testSessionEval(self):
     with self.cached_session() as sess:
       x = ed.RandomVariable(tfp.distributions.Normal(0.0, 0.1))
-      x_ph = tf.placeholder(tf.float32, [])
+      x_ph = tf1.placeholder(tf.float32, [])
       y = ed.RandomVariable(tfp.distributions.Normal(x_ph, 0.1))
       self.assertLess(x.eval(), 5.0)
       self.assertLess(x.eval(sess), 5.0)
@@ -357,7 +358,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
   def testSessionRun(self):
     with self.cached_session() as sess:
       x = ed.RandomVariable(tfp.distributions.Normal(0.0, 0.1))
-      x_ph = tf.placeholder(tf.float32, [])
+      x_ph = tf1.placeholder(tf.float32, [])
       y = ed.RandomVariable(tfp.distributions.Normal(x_ph, 0.1))
       self.assertLess(sess.run(x), 5.0)
       self.assertLess(sess.run(x, feed_dict={x_ph: 100.0}), 5.0)

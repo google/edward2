@@ -21,9 +21,10 @@ from __future__ import print_function
 
 from absl.testing import parameterized
 import edward2 as ed
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 @tfe.run_all_tests_in_graph_and_eager_modes
