@@ -19,7 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2.examples.no_u_turn_sampler.nuts import kernel
+from .nuts import kernel  # local file import
 
 from tensorflow.python.util.all_util import remove_undocumented
 

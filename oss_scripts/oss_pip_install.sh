@@ -1,4 +1,5 @@
 #!/bin/bash
+# Installs Edward2 with various dependencies for unit testing.
 
 set -v  # print commands as they're executed
 set -e  # fail and exit on any command erroring
@@ -7,18 +8,15 @@ set -e  # fail and exit on any command erroring
 
 if [[ "$TF_VERSION" == "tf-nightly"  ]]
 then
-  pip install tf-nightly;
+  pip install tf-nightly
+  pip install tfp-nightly
+  pip install -q -e .[numpy]
 else
-  pip install -q "tensorflow==$TF_VERSION"
+  pip install -q -e .[numpy,tensorflow]
 fi
 
-# Make sure we have the latest version of numpy - avoid problems we were
-# seeing with Python 3
-pip install -q -U numpy
-
-# First ensure that the base dependencies are sufficient for a full import
-pip install -q -e .
+# Ensure that the base dependencies are sufficient for a full import.
 python -c "import edward2 as ed"
 
-# Then install the test dependencies
+# Install test dependencies.
 pip install -q -e .[tests]

@@ -32,15 +32,16 @@ setup(
         'six',
     ],
     extras_require={
-        'tensorflow': ['tensorflow>=1.13.0',
-                       'tensorflow-probability>=0.4.0'],
-        'tensorflow_gpu': ['tensorflow-gpu>=1.13.0',
-                           'tensorflow-probability-gpu>=0.4.0'],
+        'tensorflow': ['tensorflow>=1.14.0',
+                       'tensorflow-probability>=0.7.0'],
+        'tensorflow_gpu': ['tensorflow-gpu>=1.14.0',
+                           'tensorflow-probability-gpu>=0.7.0'],
         'numpy': ['numpy>=1.7',
                   'scipy>=1.0.0'],
         'tests': [
-            'absl-py',
-            'pytest',
+            'absl-py>=0.5.0',
+            'matplotlib>=2.0.0',
+            'pytest>=4.0.0',
         ],
     },
     classifiers=[
