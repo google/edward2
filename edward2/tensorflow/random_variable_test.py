@@ -61,7 +61,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     f = lambda x: 2. * x
     x = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
     y = f(x)
-    if tfe.in_eager_mode():
+    if tf.executing_eagerly():
       df = tfe.gradients_function(f)
       (z,) = df(x)
     else:
@@ -73,7 +73,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     f = lambda x: 2 * (x ** 2)
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = f(x)
-    if tfe.in_eager_mode():
+    if tf.executing_eagerly():
       df = tfe.gradients_function(f)
       d2f = tfe.gradients_function(lambda x: df(x)[0])
       (z,) = d2f(x)
@@ -85,7 +85,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testStr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
-    if tfe.in_eager_mode():
+    if tf.executing_eagerly():
       pattern = "RandomVariable(\"1.234\", shape=(), dtype=float32"
     else:
       pattern = "RandomVariable(\"Normal\", shape=(), dtype=float32"
@@ -95,7 +95,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testRepr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
-    if tfe.in_eager_mode():
+    if tf.executing_eagerly():
       string = ("<ed.RandomVariable 'Normal' shape=() "
                 "dtype=float32 numpy=1.234>")
     else:
@@ -105,7 +105,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testNumpy(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.23)
-    if tfe.in_eager_mode():
+    if tf.executing_eagerly():
       self.assertEqual(x.numpy(), tf.constant(1.23).numpy())
     else:
       with self.assertRaises(NotImplementedError):

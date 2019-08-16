@@ -35,13 +35,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import functools
-import tensorflow as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
-
-tfd = tfp.distributions
-tfe = tf1.contrib.eager
 
 __all__ = [
     "kernel",
@@ -90,16 +85,17 @@ def kernel(target_log_prob_fn,
     with tf.name_scope("initialize"):
       current_state = [tf.convert_to_tensor(s) for s in current_state]
       step_size = [tf.convert_to_tensor(s) for s in step_size]
-      value_and_gradients_fn = tfe.value_and_gradients_function(
-          target_log_prob_fn)
-      value_and_gradients_fn = _embed_no_none_gradient_check(
-          value_and_gradients_fn)
       if (current_target_log_prob is None or
           current_grads_target_log_prob is None):
-        (current_target_log_prob,
-         current_grads_target_log_prob) = value_and_gradients_fn(*current_state)
+        with tf.GradientTape() as tape:
+          tape.watch(current_state)
+          current_target_log_prob = target_log_prob_fn(*current_state)
+        current_grads_target_log_prob = tape.gradient(current_target_log_prob,
+                                                      current_state)
+        if any(grad is None for grad in current_grads_target_log_prob):
+          raise ValueError("Gradient is None for a state.")
 
-      seed_stream = tfd.SeedStream(seed, "nuts_kernel")
+      seed_stream = tfp.distributions.SeedStream(seed, "nuts_kernel")
       current_momentum = []
       for state_tensor in current_state:
         momentum_tensor = tf.random.normal(shape=tf.shape(state_tensor),
@@ -156,7 +152,7 @@ def kernel(target_log_prob_fn,
             num_states_in_subtree,
             continue_trajectory,
         ] = _build_tree(
-            value_and_gradients_fn=value_and_gradients_fn,
+            target_log_prob_fn=target_log_prob_fn,
             current_state=reverse_state,
             current_target_log_prob=reverse_target_log_prob,
             current_grads_target_log_prob=reverse_grads_target_log_prob,
@@ -182,7 +178,7 @@ def kernel(target_log_prob_fn,
             num_states_in_subtree,
             continue_trajectory,
         ] = _build_tree(
-            value_and_gradients_fn=value_and_gradients_fn,
+            target_log_prob_fn=target_log_prob_fn,
             current_state=forward_state,
             current_target_log_prob=forward_target_log_prob,
             current_grads_target_log_prob=forward_grads_target_log_prob,
@@ -218,7 +214,7 @@ def kernel(target_log_prob_fn,
     return next_state, next_target_log_prob, next_grads_target_log_prob
 
 
-def _build_tree(value_and_gradients_fn,
+def _build_tree(target_log_prob_fn,
                 current_state,
                 current_target_log_prob,
                 current_grads_target_log_prob,
@@ -235,10 +231,9 @@ def _build_tree(value_and_gradients_fn,
   the subtrajectory spanned by the returned `forward` and `reverse` states.
 
   Args:
-    value_and_gradients_fn: Python callable which takes an argument like
-      `*current_state` and returns a tuple of its (possibly unnormalized)
-      log-density under the target distribution and its gradient with respect to
-      each state.
+    target_log_prob_fn: Python callable which takes an argument like
+      `*current_state` and returns its (possibly unnormalized) log-density under
+      the target distribution.
     current_state: List of `Tensor`s representing the current states of the
       NUTS trajectory.
     current_target_log_prob: Scalar `Tensor` representing the value of
@@ -305,7 +300,7 @@ def _build_tree(value_and_gradients_fn,
         next_grads_target_log_prob,
         next_momentum,
     ] = _leapfrog(
-        value_and_gradients_fn=value_and_gradients_fn,
+        target_log_prob_fn=target_log_prob_fn,
         current_state=current_state,
         current_grads_target_log_prob=current_grads_target_log_prob,
         current_momentum=current_momentum,
@@ -331,7 +326,7 @@ def _build_tree(value_and_gradients_fn,
     ]
 
   # Build a tree at the current state.
-  seed_stream = tfd.SeedStream(seed, "build_tree")
+  seed_stream = tfp.distributions.SeedStream(seed, "build_tree")
   [
       reverse_state,
       reverse_target_log_prob,
@@ -346,7 +341,7 @@ def _build_tree(value_and_gradients_fn,
       next_grads_target_log_prob,
       num_states,
       continue_trajectory,
-  ] = _build_tree(value_and_gradients_fn=value_and_gradients_fn,
+  ] = _build_tree(target_log_prob_fn=target_log_prob_fn,
                   current_state=current_state,
                   current_target_log_prob=current_target_log_prob,
                   current_grads_target_log_prob=current_grads_target_log_prob,
@@ -375,7 +370,7 @@ def _build_tree(value_and_gradients_fn,
           far_num_states,
           far_continue_trajectory,
       ] = _build_tree(
-          value_and_gradients_fn=value_and_gradients_fn,
+          target_log_prob_fn=target_log_prob_fn,
           current_state=reverse_state,
           current_target_log_prob=reverse_target_log_prob,
           current_grads_target_log_prob=reverse_grads_target_log_prob,
@@ -401,7 +396,7 @@ def _build_tree(value_and_gradients_fn,
           far_num_states,
           far_continue_trajectory,
       ] = _build_tree(
-          value_and_gradients_fn=value_and_gradients_fn,
+          target_log_prob_fn=target_log_prob_fn,
           current_state=forward_state,
           current_target_log_prob=forward_target_log_prob,
           current_grads_target_log_prob=forward_grads_target_log_prob,
@@ -450,18 +445,6 @@ def _build_tree(value_and_gradients_fn,
   ]
 
 
-def _embed_no_none_gradient_check(value_and_gradients_fn):
-  """Wraps value and gradients function to assist with None gradients."""
-  @functools.wraps(value_and_gradients_fn)
-  def func_wrapped(*args, **kwargs):
-    """Wrapped function which checks for None gradients."""
-    value, grads = value_and_gradients_fn(*args, **kwargs)
-    if any(grad is None for grad in grads):
-      raise ValueError("Gradient is None for a state.")
-    return value, grads
-  return func_wrapped
-
-
 def _has_no_u_turn(state_one, state_two, momentum):
   """If two given states and momentum do not exhibit a U-turn pattern."""
   dot_product = sum([tf.reduce_sum((s1 - s2) * m)
@@ -469,7 +452,7 @@ def _has_no_u_turn(state_one, state_two, momentum):
   return dot_product > 0
 
 
-def _leapfrog(value_and_gradients_fn,
+def _leapfrog(target_log_prob_fn,
               current_state,
               current_grads_target_log_prob,
               current_momentum,
@@ -481,8 +464,13 @@ def _leapfrog(value_and_gradients_fn,
   next_state = [
       s + step * m for s, step, m in
       zip(current_state, step_size, mid_momentum)]
-  next_target_log_prob, next_grads_target_log_prob = value_and_gradients_fn(
-      *next_state)
+  with tf.GradientTape() as tape:
+    tape.watch(next_state)
+    next_target_log_prob = target_log_prob_fn(*next_state)
+  next_grads_target_log_prob = tape.gradient(next_target_log_prob,
+                                             next_state)
+  if any(grad is None for grad in next_grads_target_log_prob):
+    raise ValueError("Gradient is None for a state.")
   next_momentum = [
       m + 0.5 * step * g for m, step, g in
       zip(mid_momentum, step_size, next_grads_target_log_prob)]
