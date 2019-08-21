@@ -199,7 +199,7 @@ takes just `coeffs` and `intercept` as arguments and pins the input `features`
 and output rv `outcomes` to its known values.
 
 ```python
-from edward2.examples import no_u_turn_sampler
+import no_u_turn_sampler  # local file import
 
 tf.enable_eager_execution()
 

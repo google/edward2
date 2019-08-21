@@ -277,7 +277,7 @@ Hamiltonian Monte Carlo transition kernel to return a collection of state
 transitions.
 
 ```python
-from edward2.examples import no_u_turn_sampler
+import no_u_turn_sampler  # local file import
 
 num_samples = 10000  # number of events to approximate posterior
 qw2 = tf.nn.softplus(tf.random_normal([units[2], units[1]]))  # initial state
