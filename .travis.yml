@@ -8,7 +8,7 @@ python:
   - "3.6"
 env:
   matrix:
-    - TF_VERSION="default"
+    - TF_VERSION="tensorflow"
     - TF_VERSION="tf-nightly"
 install:
   - ./oss_scripts/oss_pip_install.sh

@@ -27,14 +27,13 @@ To install the latest stable version, run
 pip install edward2
 ```
 
-Edward2 supports two backends: TensorFlow (the default) and
-NumPy ([see below to activate](#using-the-numpy-backend)). Installing
-`edward2` does not automatically install or update TensorFlow or NumPy. We
-recommend installing TensorFlow via `pip install edward2[tensorflow]` or
-`pip install edward2[tensorflow_gpu]`. See TensorFlow’s
-[installation instructions for details](https://www.tensorflow.org/install/).
-You may need to use TensorFlow's nightly package (`tf-nightly`). Alternatively,
-install NumPy via `pip install edward2[numpy]`.
+Edward2 supports two backends: TensorFlow (the default) and NumPy
+([see below to activate](#using-the-numpy-backend)). Installing
+`edward2` does not automatically install or update TensorFlow or
+NumPy. To get these dependencies, use `pip install
+edward2[tensorflow]` or `pip install edward2[numpy]`. Sometimes
+Edward2 uses the latest changes from TensorFlow in which you'll need
+TensorFlow's nightly package: use `pip install edward2[tf-nightly]`.
 
 ## 1. Models as Probabilistic Programs
 
