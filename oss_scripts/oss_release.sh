@@ -1,4 +1,5 @@
 #!/bin/bash
+# Releases a new Edward2 package for Python Package Index.
 
 set -v  # print commands as they're executed
 set -e  # fail and exit on any command erroring

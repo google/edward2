@@ -24,7 +24,6 @@ from __future__ import division
 from __future__ import print_function
 
 import os
-from absl import flags
 from absl.testing import parameterized
 import no_u_turn_sampler  # local file import
 import matplotlib
@@ -35,18 +34,13 @@ import scipy.stats
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
+
 tfb = tfp.bijectors
 tfd = tfp.distributions
 
-flags.DEFINE_string("model_dir",
-                    default=os.path.join(os.getenv("TEST_TMPDIR", "/tmp"),
-                                         "test/"),
-                    help="Path to write plots to.")
 
-FLAGS = flags.FLAGS
-
-
-def plot_with_expectation(samples, dist, suffix):
+def plot_with_expectation(samples, dist, model_dir, suffix):
   """Comparison histogram of samples and a line for the expected density."""
   _, bins, _ = plt.hist(samples, bins=30, label="observed")
   bin_width = bins[1] - bins[0]
@@ -56,13 +50,13 @@ def plot_with_expectation(samples, dist, suffix):
   plt.legend()
   ks_stat, pval = scipy.stats.kstest(sorted(samples), dist.cdf)
   plt.title("K-S stat: {}\np-value: {}".format(ks_stat, pval))
-  savefig(suffix)
+  savefig(model_dir, suffix)
   plt.close()
 
 
-def savefig(suffix):
+def savefig(model_dir, suffix):
   """Saves figure given suffix."""
-  filename = os.path.join(FLAGS.model_dir, suffix)
+  filename = os.path.join(model_dir, suffix)
   plt.savefig(filename)
   print("Figure saved in", filename)
 
@@ -71,8 +65,10 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
   def setUp(self):
     super(NutsTest, self).setUp()
-    tf.io.gfile.makedirs(FLAGS.model_dir)
+    self.model_dir = os.path.join(os.getenv("TEST_TMPDIR", "/tmp"), "test/")
+    tf.io.gfile.makedirs(self.model_dir)
 
+  @test_util.run_v2_only
   def testOneStepFromOrigin(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -88,9 +84,10 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     samples = np.array(samples)
     plt.hist(samples, bins=30)
-    savefig("one_step_from_origin.png")
+    savefig(self.model_dir, "one_step_from_origin.png")
     plt.close()
 
+  @test_util.run_v2_only
   def testReproducibility(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -110,6 +107,7 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     for x, y in zip(xs, ys):
       self.assertAllEqual(x, y)
 
+  @test_util.run_v2_only
   def testNormal(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -129,8 +127,10 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     samples = np.array(samples)
     plot_with_expectation(samples,
                           dist=scipy.stats.norm(0, 1),
+                          model_dir=self.model_dir,
                           suffix="one_step_posterior_conservation_normal.png")
 
+  @test_util.run_v2_only
   def testLogitBeta(self):
     def target_log_prob_fn(event):
       return tfd.TransformedDistribution(
@@ -141,7 +141,7 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
         distribution=tfd.Beta(concentration0=1.0, concentration1=3.0),
         bijector=tfb.Invert(tfb.Sigmoid())).sample(10, seed=7)
     plt.hist(states.numpy(), bins=30)
-    savefig("logit_beta_start_positions.png")
+    savefig(self.model_dir, "logit_beta_start_positions.png")
     plt.close()
 
     samples = []
@@ -155,11 +155,12 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     samples = np.array(samples)
     plt.hist(samples, bins=30)
-    savefig("one_step_logit_beta_posterior_conservation.png")
+    savefig(self.model_dir, "one_step_logit_beta_posterior_conservation.png")
     plt.close()
 
     _ = scipy.stats.ks_2samp(samples.flatten(), states.numpy().flatten())
 
+  @test_util.run_v2_only
   def testMultivariateNormal2d(self):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -178,15 +179,18 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     samples = tf.stack(samples).numpy()
     plt.scatter(samples[:, 0], samples[:, 1])
-    savefig("one_step_posterior_conservation_2d.png")
+    savefig(self.model_dir, "one_step_posterior_conservation_2d.png")
     plt.close()
     plot_with_expectation(samples[:, 0],
                           dist=scipy.stats.norm(0, 1),
+                          model_dir=self.model_dir,
                           suffix="one_step_posterior_conservation_2d_dim_0.png")
     plot_with_expectation(samples[:, 1],
                           dist=scipy.stats.norm(0, 1),
+                          model_dir=self.model_dir,
                           suffix="one_step_posterior_conservation_2d_dim_1.png")
 
+  @test_util.run_v2_only
   def testSkewedMultivariateNormal2d(self):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -196,7 +200,7 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     rng = np.random.RandomState(seed=7)
     states = tf.cast(rng.normal(scale=[1.0, 10.0], size=[10, 2]), tf.float32)
     plt.scatter(states[:, 0], states[:, 1])
-    savefig("skewed_start_positions_2d.png")
+    savefig(self.model_dir, "skewed_start_positions_2d.png")
     plt.close()
 
     samples = []
@@ -210,21 +214,24 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     samples = tf.stack(samples).numpy()
     plt.scatter(samples[:, 0], samples[:, 1])
-    savefig("one_step_skewed_posterior_conservation_2d.png")
+    savefig(self.model_dir, "one_step_skewed_posterior_conservation_2d.png")
     plt.close()
     plot_with_expectation(
         samples[:, 0],
         dist=scipy.stats.norm(0, 1),
+        model_dir=self.model_dir,
         suffix="one_step_skewed_posterior_conservation_2d_dim_0.png")
     plot_with_expectation(
         samples[:, 1],
         dist=scipy.stats.norm(0, 10),
+        model_dir=self.model_dir,
         suffix="one_step_skewed_posterior_conservation_2d_dim_1.png")
 
   @parameterized.parameters(
       (3, 10,),
       (5, 10,),
   )
+  @test_util.run_v2_only
   def testMultivariateNormalNd(self, event_size, num_samples):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -244,8 +251,9 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     samples = np.array(samples)
     plt.scatter(samples[:, 0], samples[:, 1])
-    savefig("projection_chain_{}d_normal_{}_steps.png".format(
-        event_size, num_samples))
+    savefig(self.model_dir,
+            "projection_chain_{}d_normal_{}_steps.png".format(
+                event_size, num_samples))
     plt.close()
 
     target_samples = tfd.MultivariateNormalFullCovariance(
@@ -253,11 +261,11 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
         covariance_matrix=tf.eye(event_size)).sample(
             num_samples, seed=4).numpy()
     plt.scatter(target_samples[:, 0], target_samples[:, 1])
-    savefig("projection_independent_{}d_normal_{}_samples.png".format(
-        event_size, num_samples))
+    savefig(self.model_dir,
+            "projection_independent_{}d_normal_{}_samples.png".format(
+                event_size, num_samples))
     plt.close()
 
 
 if __name__ == "__main__":
-  tf.enable_v2_behavior()
   tf.test.main()

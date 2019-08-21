@@ -1,4 +1,5 @@
 #!/bin/bash
+# Runs Edward2's unit tests.
 
 set -v  # print commands as they're executed
 
@@ -14,7 +15,7 @@ function set_status() {
     STATUS=$(($last_status || $STATUS))
 }
 
-# Run tests
+# Run tests.
 pytest
 set_status
 

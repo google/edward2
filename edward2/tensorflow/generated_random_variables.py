@@ -21,22 +21,46 @@ from __future__ import print_function
 
 import functools
 import inspect
+import re
 
 from edward2.tensorflow.random_variable import RandomVariable
 from edward2.trace import traceable
+import six
 from tensorflow_probability import distributions
-from tensorflow_probability.python.internal import docstring_util
+
+
+def expand_docstring(**kwargs):
+  """Decorator to programmatically expand the docstring.
+
+  Args:
+    **kwargs: Keyword arguments to set. For each key-value pair `k` and `v`,
+      the key is found as `${k}` in the docstring and replaced with `v`.
+
+  Returns:
+    Decorated function.
+  """
+  def _fn_wrapped(fn):
+    """Original function with modified `__doc__` attribute."""
+    doc = inspect.cleandoc(fn.__doc__)
+    for k, v in six.iteritems(kwargs):
+      # Capture each ${k} reference to replace with v.
+      # We wrap the replacement in a function so no backslash escapes
+      # are processed.
+      pattern = r"\$\{" + str(k) + r"\}"
+      doc = re.sub(pattern, lambda match: v, doc)  # pylint: disable=cell-var-from-loop
+    fn.__doc__ = doc
+    return fn
+  return _fn_wrapped
 
 
 def make_random_variable(distribution_cls):
   """Factory function to make random variable given distribution class."""
   @traceable
   @functools.wraps(distribution_cls, assigned=("__module__", "__name__"))
-  @docstring_util.expand_docstring(
-      cls=distribution_cls.__name__,
-      doc=inspect.cleandoc(
-          distribution_cls.__init__.__doc__ if
-          distribution_cls.__init__.__doc__ is not None else ""))
+  @expand_docstring(cls=distribution_cls.__name__,
+                    doc=inspect.cleandoc(
+                        distribution_cls.__init__.__doc__ if
+                        distribution_cls.__init__.__doc__ is not None else ""))
   def func(*args, **kwargs):
     # pylint: disable=g-doc-args
     """Create a random variable for ${cls}.

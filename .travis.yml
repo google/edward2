@@ -1,0 +1,16 @@
+sudo: required
+language: python
+git:
+  depth: 10
+  quiet: true
+python:
+  - "2.7"
+  - "3.6"
+env:
+  matrix:
+    - TF_VERSION="default"
+    - TF_VERSION="tf-nightly"
+install:
+  - ./oss_scripts/oss_pip_install.sh
+script:
+  - ./oss_scripts/oss_tests.sh
