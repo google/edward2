@@ -19,39 +19,44 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2.numpy.program_transformations import make_log_joint_fn
-from edward2.trace import get_next_tracer
-from edward2.trace import trace
-from edward2.trace import traceable
-from edward2.tracers import condition
-from edward2.tracers import tape
-from edward2.version import __version__
-from edward2.version import VERSION
-
-from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
-
-
-_allowed_symbols = [
-    "condition",
-    "get_next_tracer",
-    "make_log_joint_fn",
-    "tape",
-    "trace",
-    "traceable",
-    "__version__",
-    "VERSION",
-]
-# Make the NumPy backend be optional without mandatory dependencies.
+# Make the NumPy backend be optional. The namespace is empty if NumPy
+# is not available.
+# pylint: disable=g-import-not-at-top
 try:
-  # pylint: disable=g-import-not-at-top
+  import numpy as np  # pylint: disable=unused-import
   from scipy import stats
+except ImportError:
+  pass
+else:
   from edward2.numpy import generated_random_variables
   from edward2.numpy.generated_random_variables import *  # pylint: disable=wildcard-import
-  # pylint: enable=g-import-not-at-top
+  from edward2.numpy.program_transformations import make_log_joint_fn
+  from edward2.trace import get_next_tracer
+  from edward2.trace import trace
+  from edward2.trace import traceable
+  from edward2.tracers import condition
+  from edward2.tracers import tape
+  from edward2.version import __version__
+  from edward2.version import VERSION
+
+  _allowed_symbols = [
+      "condition",
+      "get_next_tracer",
+      "make_log_joint_fn",
+      "tape",
+      "trace",
+      "traceable",
+      "__version__",
+      "VERSION",
+  ]
   for name in dir(generated_random_variables):
     if name in sorted(dir(stats)):
       _allowed_symbols.append(name)
-except ImportError:
-  pass
 
-remove_undocumented(__name__, _allowed_symbols)
+  try:
+    from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
+  except ImportError:
+    __all__ = _allowed_symbols
+  else:
+    remove_undocumented(__name__, _allowed_symbols)
+# pylint: enable=g-import-not-at-top

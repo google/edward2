@@ -28,10 +28,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import warnings
 from edward2 import numpy
 from edward2 import tensorflow
 from edward2.tensorflow import *  # pylint: disable=wildcard-import
-from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
 _allowed_symbols = [
     "numpy",
@@ -41,4 +41,14 @@ _allowed_symbols = [
 for name in dir(tensorflow):
   _allowed_symbols.append(name)
 
-remove_undocumented(__name__, _allowed_symbols)
+try:
+  from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import,g-import-not-at-top
+except ImportError:
+  __all__ = _allowed_symbols
+  try:
+    import numpy as np  # pylint: disable=g-import-not-at-top,unused-import
+  except ImportError:
+    warnings.warn("Neither NumPy nor TensorFlow backends are available for "
+                  "Edward2.")
+else:
+  remove_undocumented(__name__, _allowed_symbols)
