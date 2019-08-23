@@ -174,13 +174,17 @@ class RandomVariable(object):
     return "<%s>" % string
 
   def __getitem__(self, slices):
+    value = self.value.__getitem__(slices)
     if self.sample_shape.as_list():
       # Return an indexed Tensor instead of RandomVariable if sample_shape is
       # non-scalar. Sample shapes can complicate how to index the distribution.
-      return self.value.__getitem__(slices)
-    distribution = self.distribution.__getitem__(slices)
-    value = self.value.__getitem__(slices)
-    return RandomVariable(distribution, value=value)
+      return value
+    try:
+      distribution = self.distribution.__getitem__(slices)
+    except (tf.errors.InvalidArgumentError, ValueError):
+      return value
+    else:
+      return RandomVariable(distribution, value=value)
 
   def __hash__(self):
     return id(self)

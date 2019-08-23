@@ -29,6 +29,10 @@ except ImportError:
   pass
 else:
   from edward2.tensorflow import generated_random_variables
+  from edward2.tensorflow import constraints
+  from edward2.tensorflow import initializers
+  from edward2.tensorflow import layers
+  from edward2.tensorflow import regularizers
   from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
   from edward2.tensorflow.generated_random_variables import make_random_variable
   from edward2.tensorflow.program_transformations import make_log_joint_fn
@@ -46,9 +50,13 @@ else:
   _allowed_symbols = [
       "RandomVariable",
       "condition",
+      "constraints",
       "get_next_tracer",
+      "initializers",
+      "layers",
       "make_log_joint_fn",
       "make_random_variable",
+      "regularizers",
       "tape",
       "trace",
       "traceable",
