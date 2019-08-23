@@ -21,12 +21,13 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
 from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 gaussian_process = ed.layers.gaussian_process
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class GaussianProcessTest(tf.test.TestCase):
@@ -37,16 +38,18 @@ class GaussianProcessTest(tf.test.TestCase):
     test_batch_size = 2
     input_dim = 4
     output_dim = 5
-    features = tf.to_float(np.random.rand(train_batch_size, input_dim))
-    labels = tf.to_float(np.random.rand(train_batch_size, output_dim))
+    features = np.random.rand(train_batch_size, input_dim).astype(np.float32)
+    labels = np.random.rand(train_batch_size, output_dim).astype(np.float32)
     layer = gaussian_process.GaussianProcess(output_dim,
                                              conditional_inputs=features,
                                              conditional_outputs=labels)
-    test_features = tf.to_float(np.random.rand(test_batch_size, input_dim))
-    test_labels = tf.to_float(np.random.rand(test_batch_size, output_dim))
+    test_features = np.random.rand(test_batch_size, input_dim).astype(
+        np.float32)
+    test_labels = np.random.rand(test_batch_size, output_dim).astype(
+        np.float32)
     test_outputs = layer(test_features)
     test_nats = -test_outputs.distribution.log_prob(test_labels)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     test_nats_val, outputs_val = self.evaluate([test_nats, test_outputs])
     self.assertEqual(test_nats_val.shape, ())
     self.assertGreaterEqual(test_nats_val, 0.)
@@ -57,15 +60,15 @@ class GaussianProcessTest(tf.test.TestCase):
     batch_size = 3
     input_dim = 4
     output_dim = 5
-    features = tf.to_float(np.random.rand(batch_size, input_dim))
-    labels = tf.to_float(np.random.rand(batch_size, output_dim))
+    features = np.random.rand(batch_size, input_dim).astype(np.float32)
+    labels = np.random.rand(batch_size, output_dim).astype(np.float32)
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(2, activation=None),
         gaussian_process.GaussianProcess(output_dim),
     ])
     outputs = model(features)
     log_prob = outputs.distribution.log_prob(labels)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     log_prob_val, outputs_val = self.evaluate([log_prob, outputs])
     self.assertEqual(log_prob_val.shape, ())
     self.assertLessEqual(log_prob_val, 0.)
@@ -77,8 +80,8 @@ class GaussianProcessTest(tf.test.TestCase):
     batch_size = 3
     input_dim = 4
     output_dim = 5
-    features = tf.to_float(np.random.rand(batch_size, input_dim))
-    labels = tf.to_float(np.random.rand(batch_size, output_dim))
+    features = np.random.rand(batch_size, input_dim).astype(np.float32)
+    labels = np.random.rand(batch_size, output_dim).astype(np.float32)
     model = gaussian_process.SparseGaussianProcess(output_dim, num_inducing=2)
     with tf.GradientTape() as tape:
       predictions = model(features)
@@ -86,7 +89,7 @@ class GaussianProcessTest(tf.test.TestCase):
       kl = sum(model.losses) / dataset_size
       loss = nll + kl
 
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     grads = tape.gradient(nll, model.variables)
     for grad in grads:
       self.assertIsNotNone(grad)
@@ -105,14 +108,17 @@ class GaussianProcessTest(tf.test.TestCase):
     num_features = 3
     noise_variance = 0.01
     coeffs = tf.range(num_features, dtype=tf.float32)
-    features = tf.to_float(np.random.randn(train_batch_size, num_features))
+    features = tf.cast(np.random.randn(train_batch_size, num_features),
+                       dtype=tf.float32)
+    noise = tf.cast(np.random.randn(train_batch_size), dtype=tf.float32)
     labels = (tf.tensordot(features, coeffs, [[-1], [0]])
-              + noise_variance * tf.to_float(np.random.randn(train_batch_size)))
+              + noise_variance * noise)
 
     model = gaussian_process.BayesianLinearModel(noise_variance=noise_variance)
     model.fit(features, labels)
 
-    test_features = tf.to_float(np.random.randn(test_batch_size, num_features))
+    test_features = np.random.randn(test_batch_size, num_features).astype(
+        np.float32)
     test_labels = tf.tensordot(test_features, coeffs, [[-1], [0]])
     outputs = model(test_features)
     test_predictions = outputs.distribution.mean()
@@ -193,12 +199,12 @@ class NeuralProcessTest(tf.test.TestCase):
     input_dim = 5
 
     def _create_fake_dataset(num_problems):
-      target_x = tf.cast(np.random.rand(num_problems,
-                                        num_targets,
-                                        input_dim),
-                         tf.float32)
-      target_y = tf.cast(np.random.rand(num_problems, num_targets, 1),
-                         tf.float32)
+      target_x = np.random.rand(num_problems,
+                                num_targets,
+                                input_dim).astype(np.float32)
+      target_y = np.random.rand(num_problems,
+                                num_targets,
+                                1).astype(np.float32)
       context_x, context_y = (target_x[:, :num_contexts, :],
                               target_y[:, :num_contexts, :])
       return (context_x, context_y, target_x, target_y)
