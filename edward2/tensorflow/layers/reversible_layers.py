@@ -23,7 +23,8 @@ from edward2 import trace
 from edward2.tensorflow import random_variable
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-import tensorflow as tf
+import tensorflow.compat.v1 as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 
@@ -105,7 +106,7 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf.Dimension):
+    if isinstance(self.vocab_size, tf1.Dimension):
       self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
@@ -152,7 +153,7 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
     # input and output layer weights rather than pad inputs.
     batch_ndims = inputs.shape.ndims - 2
     padded_inputs = tf.pad(
-        inputs, [[0, 0]] * batch_ndims + [[0, length - 1], [0, 0]])
+        inputs, paddings=[[0, 0]] * batch_ndims + [[0, length - 1], [0, 0]])
     net = self.layer(padded_inputs, **kwargs)
     if net.shape[-1] == 2 * self.vocab_size:
       loc, scale = tf.split(net, 2, axis=-1)
@@ -195,7 +196,8 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
     # input and output layer weights rather than pad inputs.
     batch_ndims = inputs.shape.ndims - 2
     padded_inputs = tf.pad(
-        inputs, [[0, 0]] * batch_ndims + [[0, length - timestep - 1], [0, 0]])
+        inputs,
+        paddings=[[0, 0]] * batch_ndims + [[0, length - timestep - 1], [0, 0]])
     net = self.layer(padded_inputs, **kwargs)
     if net.shape[-1] == 2 * self.vocab_size:
       loc, scale = tf.split(net, 2, axis=-1)
@@ -305,7 +307,7 @@ class DiscreteBipartiteFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf.Dimension):
+    if isinstance(self.vocab_size, tf1.Dimension):
       self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
@@ -399,7 +401,7 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf.Dimension):
+    if isinstance(self.vocab_size, tf1.Dimension):
       self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
@@ -444,7 +446,7 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
     # input and output layer weights rather than pad inputs.
     batch_ndims = inputs.shape.ndims - 2
     padded_inputs = tf.pad(
-        inputs, [[0, 0]] * batch_ndims + [[0, length - 1], [0, 0]])
+        inputs, paddings=[[0, 0]] * batch_ndims + [[0, length - 1], [0, 0]])
     temperature = 1.
     logits = self.layer(padded_inputs / temperature, **kwargs)
     logits = logits[..., 0:1, :]
@@ -485,7 +487,8 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
     # input and output layer weights rather than pad inputs.
     batch_ndims = inputs.shape.ndims - 2
     padded_inputs = tf.pad(
-        inputs, [[0, 0]] * batch_ndims + [[0, length - timestep - 1], [0, 0]])
+        inputs,
+        paddings=[[0, 0]] * batch_ndims + [[0, length - timestep - 1], [0, 0]])
     logits = self.layer(padded_inputs, **kwargs)
     logits = logits[..., :(timestep+1), :]
     logits = tf.reshape(
@@ -561,7 +564,7 @@ def soft_to_hard_permutation(inputs):
   vocab_size = inputs.shape[-1]
   # Note: tf.py_func isn't currently supported on headless GPUs.
   # TODO(vafa): Fix tf.py_func headless GPU bug.
-  permutation_lists = tf.py_func(hungarian, [inputs], tf.int32)
+  permutation_lists = tf1.py_func(hungarian, [inputs], tf.int32)
   hard = tf.one_hot(permutation_lists, depth=vocab_size)
   outputs = tf.stop_gradient(hard - inputs) + inputs
   return outputs
@@ -597,7 +600,7 @@ def one_hot_add(inputs, shift):
   # Compute circular 1-D convolution with shift as the kernel.
   inputs = tf.cast(inputs, tf.complex64)
   shift = tf.cast(shift, tf.complex64)
-  return tf.real(tf.signal.ifft(tf.signal.fft(inputs) * tf.signal.fft(shift)))
+  return tf.math.real(tf.signal.ifft(tf.signal.fft(inputs) * tf.signal.fft(shift)))
 
 
 def one_hot_minus(inputs, shift):
@@ -650,7 +653,7 @@ def one_hot_multiply(inputs, scale):
   vocab_size = inputs.shape[-1].value
   # Form a [..., vocab_size, vocab_size] tensor. The ith row of the
   # batched vocab_size x vocab_size matrix represents scaling inputs by i.
-  permutation_matrix = tf.floormod(
+  permutation_matrix = tf.math.floormod(
       tf.tile(tf.range(vocab_size)[:, tf.newaxis], [1, vocab_size]) *
       tf.range(vocab_size)[tf.newaxis], vocab_size)
   permutation_matrix = tf.one_hot(permutation_matrix, depth=vocab_size, axis=-1)
@@ -713,7 +716,7 @@ def multiplicative_inverse(a, n):
   vocab_size = a.shape[-1].value
   a_dtype = a.dtype
   sparse_a = tf.argmax(a, axis=-1)
-  sparse_outputs = tf.py_func(
+  sparse_outputs = tf1.py_func(
       py_multiplicative_inverse, [sparse_a, n], tf.int32)
   sparse_outputs.set_shape(sparse_a.shape)
   outputs = tf.one_hot(sparse_outputs, depth=vocab_size, dtype=a_dtype)
@@ -735,7 +738,7 @@ class ActNorm(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     last_dim = input_shape[-1]
-    if isinstance(last_dim, tf.Dimension):
+    if isinstance(last_dim, tf1.Dimension):
       last_dim = last_dim.value
     if last_dim is None:
       raise ValueError('The last dimension of the inputs to `ActNorm` '
@@ -759,7 +762,7 @@ class ActNorm(tf.keras.layers.Layer):
       # TODO(trandustin): Optionally, actnorm multiplies log_scale by a fixed
       # log_scale factor (e.g., 3.) and initializes by
       # initial_value / log_scale_factor.
-      self.log_scale_initial_value = tf.log(
+      self.log_scale_initial_value = tf.math.log(
           1. / (tf.sqrt(variance) + self.epsilon))
 
     if not isinstance(inputs, random_variable.RandomVariable):
@@ -837,9 +840,9 @@ class MADE(tf.keras.Model):
     input_shape = tf.TensorShape(input_shape)
     length = input_shape[-2]
     channels = input_shape[-1]
-    if isinstance(length, tf.Dimension):
+    if isinstance(length, tf1.Dimension):
       length = length.value
-    if isinstance(channels, tf.Dimension):
+    if isinstance(channels, tf1.Dimension):
       channels = channels.value
     if length is None or channels is None:
       raise ValueError('The two last dimensions of the inputs to '
@@ -984,9 +987,9 @@ def create_masks(input_dim,
 
 
 def make_masked_initializer(mask):
-  initializer = tf.keras.initializers.glorot_uniform()
-  def masked_initializer(shape, dtype=None, partition_info=None):
-    return mask * initializer(shape, dtype, partition_info)
+  initializer = tf.keras.initializers.GlorotUniform()
+  def masked_initializer(shape, dtype=None):
+    return mask * initializer(shape, dtype)
   return masked_initializer
 
 
