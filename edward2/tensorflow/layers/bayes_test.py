@@ -22,10 +22,11 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
 bayes = ed.layers.bayes
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class BayesTest(parameterized.TestCase, tf.test.TestCase):
@@ -87,7 +88,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
                        bias_initializer,
                        all_close):
     tf.keras.backend.set_learning_phase(1)  # training time
-    inputs = tf.to_float(np.random.rand(5, 4, 4, 12))
+    inputs = np.random.rand(5, 4, 4, 12).astype(np.float32)
     model = layer(4,
                   kernel_size=2,
                   kernel_initializer=kernel_initializer,
@@ -95,7 +96,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
                   activation=tf.nn.relu)
     outputs1 = model(inputs)
     outputs2 = model(inputs)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1, res2 = self.evaluate([outputs1, outputs2])
     self.assertEqual(res1.shape, (5, 3, 3, 4))
     self.assertAllGreaterEqual(res1, 0.)
@@ -113,14 +114,14 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   )
   @tfe.run_test_in_graph_and_eager_modes
   def testConv2DModel(self, layer):
-    inputs = tf.to_float(np.random.rand(3, 4, 4, 1))
+    inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([
         layer(3, kernel_size=2, padding="SAME", activation=tf.nn.relu),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res = self.evaluate(outputs)
     self.assertEqual(res.shape, (3, 2))
     if layer == bayes.Conv2DHierarchical:
@@ -132,10 +133,10 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   def testTrainableNormalStddevConstraint(self):
     layer = bayes.DenseReparameterization(
         100, kernel_initializer="trainable_normal")
-    inputs = tf.random_normal([1, 1])
+    inputs = tf.random.normal([1, 1])
     out = layer(inputs)
     stddev = layer.kernel.distribution.stddev()
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res, _ = self.evaluate([stddev, out])
     self.assertAllGreater(res, 0.)
 
@@ -196,14 +197,14 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
                       bias_initializer,
                       all_close):
     tf.keras.backend.set_learning_phase(1)  # training time
-    inputs = tf.to_float(np.random.rand(5, 3, 12))
+    inputs = np.random.rand(5, 3, 12).astype(np.float32)
     model = layer(4,
                   kernel_initializer=kernel_initializer,
                   bias_initializer=bias_initializer,
                   activation=tf.nn.relu)
     outputs1 = model(inputs)
     outputs2 = model(inputs)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1, res2 = self.evaluate([outputs1, outputs2])
     self.assertEqual(res1.shape, (5, 3, 4))
     if layer != bayes.DenseDVI:
@@ -229,12 +230,12 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
       rv = f(*args, **kwargs)
       rv._value = rv.distribution.mean()
       return rv
-    inputs = tf.to_float(np.random.rand(5, 3, 7))
+    inputs = np.random.rand(5, 3, 7).astype(np.float32)
     model = layer(4, activation=tf.nn.relu, use_bias=False)
     outputs1 = model(inputs)
     with ed.trace(take_mean):
       outputs2 = model(inputs)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1, res2 = self.evaluate([outputs1, outputs2])
     self.assertEqual(res1.shape, (5, 3, 4))
     self.assertNotAllClose(res1, res2)
@@ -251,15 +252,15 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testDenseLoss(self, layer):
     tf.keras.backend.set_learning_phase(1)  # training time
-    features = tf.to_float(np.random.rand(5, 12))
-    labels = tf.to_float(np.random.rand(5, 10))
+    features = np.random.rand(5, 12).astype(np.float32)
+    labels = np.random.rand(5, 10).astype(np.float32)
     model = layer(10)
 
     # Imagine this is the 1st epoch.
     with tf.GradientTape(persistent=True) as tape:
       predictions = model(features)  # first call forces build
       model(features)  # ensure robustness after multiple calls
-      nll = tf.losses.mean_squared_error(labels, predictions)
+      nll = tf.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(model.losses)
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
@@ -278,7 +279,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
     # Imagine this is the 2nd epoch.
     with tf.GradientTape(persistent=True) as tape:
       predictions = model(features)  # build is not called
-      nll = tf.losses.mean_squared_error(labels, predictions)
+      nll = tf.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(model.losses)
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
@@ -304,7 +305,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   )
   @tfe.run_test_in_graph_and_eager_modes
   def testDenseModel(self, layer):
-    inputs = tf.to_float(np.random.rand(3, 4, 4, 1))
+    inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([
         tf.keras.layers.Conv2D(3,
                                kernel_size=2,
@@ -314,7 +315,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
         layer(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res = self.evaluate(outputs)
     self.assertEqual(res.shape, (3, 2))
     if layer == bayes.DenseHierarchical:
@@ -334,7 +335,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
     class DenseSubclass(layer):
       pass
 
-    inputs = tf.to_float(np.random.rand(3, 4, 4, 1))
+    inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([
         tf.keras.layers.Conv2D(3,
                                kernel_size=2,
@@ -344,7 +345,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
         DenseSubclass(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res = self.evaluate(outputs)
     self.assertEqual(res.shape, (3, 2))
     if layer == bayes.DenseHierarchical:
@@ -355,8 +356,8 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testDenseDVIIsDeterministic(self):
     """Tests that DenseDVI network has a deterministic loss function."""
-    features = tf.to_float(np.random.rand(3, 2))
-    labels = tf.to_float(np.random.rand(3, 1))
+    features = np.random.rand(3, 2).astype(np.float32)
+    labels = np.random.rand(3, 1).astype(np.float32)
     model = tf.keras.Sequential([
         bayes.DenseDVI(5, activation=tf.nn.relu),
         bayes.DenseDVI(1, activation=None),
@@ -365,7 +366,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
     nll = -tf.reduce_sum(outputs.distribution.log_prob(labels))
     kl = sum(model.losses)
     loss = nll + kl
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1 = self.evaluate(loss)
     res2 = self.evaluate(loss)
     self.assertEqual(res1, res2)
@@ -373,12 +374,12 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testDenseDVIMoments(self):
     """Verifies DenseDVI's moments empirically with samples."""
-    tf.set_random_seed(377269)
+    tf.random.set_seed(377269)
     batch_size = 3
     num_features = 5
     units = 128
     num_samples = 50000
-    inputs = tf.to_float(np.random.rand(batch_size, num_features))
+    inputs = tf.cast(np.random.rand(batch_size, num_features), dtype=tf.float32)
     layer = bayes.DenseDVI(units, activation=tf.nn.relu)
 
     outputs1 = layer(inputs)
@@ -390,12 +391,12 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
         tf.einsum("bd,sdu->sbu", inputs, kernel_samples) +
         tf.reshape(layer.bias, [1, 1, units]))
     mean2 = tf.reduce_mean(outputs2, axis=0)
-    centered_outputs2 = tf.transpose(outputs2 - mean2, [1, 2, 0])
+    centered_outputs2 = tf.transpose(a=outputs2 - mean2, perm=[1, 2, 0])
     covariance2 = tf.matmul(centered_outputs2,
                             centered_outputs2,
                             transpose_b=True) / float(num_samples)
 
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     mean1_val, covariance1_val, mean2_val, covariance2_val = self.evaluate(
         [mean1, covariance1, mean2, covariance2])
     # Check % of mismatches is not too high according to heuristic thresholds.
@@ -452,19 +453,19 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
                    all_close):
     batch_size, timesteps, dim = 5, 3, 12
     hidden_size = 10
-    inputs = tf.to_float(np.random.rand(batch_size, timesteps, dim))
+    inputs = np.random.rand(batch_size, timesteps, dim).astype(np.float32)
     cell = lstm_cell(hidden_size,
                      kernel_initializer=kernel_initializer,
                      recurrent_initializer=recurrent_initializer,
                      bias_initializer=bias_initializer)
-    noise = tf.to_float(np.random.rand(1, hidden_size))
+    noise = np.random.rand(1, hidden_size).astype(np.float32)
     h0, c0 = cell.get_initial_state(inputs)
     state = (h0 + noise, c0)
     outputs1, _ = cell(inputs[:, 0, :], state)
     outputs2, _ = cell(inputs[:, 0, :], state)
     cell.call_weights()
     outputs3, _ = cell(inputs[:, 0, :], state)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1, res2, res3 = self.evaluate([outputs1, outputs2, outputs3])
     self.assertEqual(res1.shape, (batch_size, hidden_size))
     self.assertAllClose(res1, res2)
@@ -480,8 +481,8 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   )
   @tfe.run_test_in_graph_and_eager_modes
   def testLSTMCellLoss(self, lstm_cell):
-    features = tf.to_float(np.random.rand(5, 1, 12))
-    labels = tf.to_float(np.random.rand(5, 10))
+    features = np.random.rand(5, 1, 12).astype(np.float32)
+    labels = np.random.rand(5, 10).astype(np.float32)
     cell = lstm_cell(10)
     state = (tf.zeros([1, 10]), tf.zeros([1, 10]))
 
@@ -491,7 +492,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
       cell(features[:, 0, :], state)  # ensure robustness after multiple calls
       cell.get_initial_state(features[:, 0, :])
       cell(features[:, 0, :], state)  # ensure robustness after multiple calls
-      nll = tf.losses.mean_squared_error(labels, predictions)
+      nll = tf.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(cell.losses)
 
     variables = [
@@ -514,7 +515,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
     with tf.GradientTape(persistent=True) as tape:
       cell.get_initial_state(features[:, 0, :])
       predictions, _ = cell(features[:, 0, :], state)  # build is not called
-      nll = tf.losses.mean_squared_error(labels, predictions)
+      nll = tf.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(cell.losses)
 
     variables = [
@@ -542,7 +543,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   def testLSTMCellModel(self, lstm_cell):
     batch_size, timesteps, dim = 5, 3, 12
     hidden_size = 10
-    inputs = tf.to_float(np.random.rand(batch_size, timesteps, dim))
+    inputs = np.random.rand(batch_size, timesteps, dim).astype(np.float32)
     cell = lstm_cell(hidden_size)
     model = tf.keras.Sequential([
         tf.keras.layers.RNN(cell, return_sequences=True)
@@ -555,7 +556,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
       out, state = cell(inputs[:, t, :], state)
       outputs3.append(out)
     outputs3 = tf.stack(outputs3, axis=1)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     res1, res2, res3 = self.evaluate([outputs1, outputs2, outputs3])
     self.assertEqual(res1.shape, (batch_size, timesteps, hidden_size))
     self.assertEqual(res3.shape, (batch_size, timesteps, hidden_size))
@@ -572,7 +573,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testNCPNormalPerturb(self):
     batch_size = 3
-    inputs = tf.to_float(np.random.rand(batch_size, 4))
+    inputs = tf.cast(np.random.rand(batch_size, 4), dtype=tf.float32)
     model = bayes.NCPNormalPerturb()
     outputs = model(inputs)
     inputs_val, outputs_val = self.evaluate([inputs, outputs])
@@ -583,7 +584,8 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   def testNCPCategoricalPerturb(self):
     input_dim = 5
     batch_size = 3
-    inputs = tf.to_float(np.random.choice(input_dim, size=(batch_size, 4)))
+    inputs = tf.cast(np.random.choice(input_dim, size=(batch_size, 4)),
+                     dtype=tf.float32)
     model = bayes.NCPCategoricalPerturb(input_dim)
     outputs = model(inputs)
     inputs_val, outputs_val = self.evaluate([inputs, outputs])
@@ -594,7 +596,7 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   def testNCPNormalOutput(self):
     batch_size = 3
     features = ed.Normal(loc=tf.random.normal([2 * batch_size, 1]), scale=1.)
-    labels = tf.to_float(np.random.rand(batch_size))
+    labels = np.random.rand(batch_size).astype(np.float32)
     model = bayes.NCPNormalOutput(mean=labels)
     predictions = model(features)
     features_val, predictions_val = self.evaluate([features, predictions])
@@ -604,15 +606,15 @@ class BayesTest(parameterized.TestCase, tf.test.TestCase):
   @tfe.run_test_in_graph_and_eager_modes
   def testMixtureLogistic(self):
     batch_size = 3
-    features = tf.to_float(np.random.rand(batch_size, 4))
-    labels = tf.to_float(np.random.rand(batch_size))
+    features = np.random.rand(batch_size, 4).astype(np.float32)
+    labels = np.random.rand(batch_size).astype(np.float32)
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(2, activation=None),
         bayes.MixtureLogistic(5),
     ])
     outputs = model(features)
     log_likelihood = tf.reduce_sum(outputs.distribution.log_prob(labels))
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     log_likelihood_val, outputs_val = self.evaluate([log_likelihood, outputs])
     self.assertEqual(log_likelihood_val.shape, ())
     self.assertLessEqual(log_likelihood_val, 0.)

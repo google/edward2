@@ -27,7 +27,8 @@ from edward2.tensorflow import initializers
 from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 
@@ -402,12 +403,12 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
       # the additive parameterization (Molchanov et al., 2017): for weight ~
       # Normal(mu, sigma**2), the variance `sigma**2 = alpha * mu**2`.
       mean = self.kernel.distribution.mean()
-      log_variance = tf.log(self.kernel.distribution.variance())
-      log_alpha = log_variance - tf.log(tf.square(mean) +
-                                        tf.keras.backend.epsilon())
+      log_variance = tf.math.log(self.kernel.distribution.variance())
+      log_alpha = log_variance - tf.math.log(tf.square(mean) +
+                                             tf.keras.backend.epsilon())
       log_alpha = tf.clip_by_value(log_alpha, -8., 8.)
-      log_variance = log_alpha + tf.log(tf.square(mean) +
-                                        tf.keras.backend.epsilon())
+      log_variance = log_alpha + tf.math.log(tf.square(mean) +
+                                             tf.keras.backend.epsilon())
 
       means = self._convolution_op(inputs, mean)
       stddevs = tf.sqrt(
@@ -431,9 +432,9 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         return dropped_inputs()
       else:
         return super(Conv2DVariationalDropout, self).call(inputs)
-    return tf.cond(training,
-                   dropped_inputs,
-                   lambda: super(Conv2DVariationalDropout, self).call(inputs))
+    return tf.cond(pred=training,
+                   true_fn=dropped_inputs,
+                   false_fn=lambda: super(Conv2DVariationalDropout, self).call(inputs))
 
 
 # From `tensorflow/python/framework/smart_cond.py`
@@ -454,7 +455,7 @@ def smart_constant_value(pred):
   elif isinstance(pred, bool):
     pred_value = pred
   elif isinstance(pred, tf.Tensor):
-    pred_value = tf.contrib.util.constant_value(pred)
+    pred_value = tf.get_static_value(pred)
   else:
     raise TypeError('`pred` must be a Tensor, or a Python bool, or 1 or 0. '
                     'Found instead: %s' % pred)
@@ -588,12 +589,12 @@ class DenseDVI(DenseReparameterization):
     covariance = w_cov_w
     if self.use_bias:
       covariance += bias_covariance
-    covariance = tf.matrix_set_diag(
-        covariance, tf.matrix_diag_part(covariance) + covariance_diag)
+    covariance = tf.linalg.set_diag(
+        covariance, tf.linalg.diag_part(covariance) + covariance_diag)
 
     if self.activation in (tf.keras.activations.relu, tf.nn.relu):
       # Compute activation's moments with variable names from Wu et al. (2018).
-      variance = tf.matrix_diag_part(covariance)
+      variance = tf.linalg.diag_part(covariance)
       scale = tf.sqrt(variance)
       mu = mean / (scale + tf.keras.backend.epsilon())
       mean = scale * soft_relu(mu)
@@ -607,7 +608,7 @@ class DenseDVI(DenseReparameterization):
                              1. / (1. + tf.keras.backend.epsilon()))
       s = covariance / (rho + tf.keras.backend.epsilon())
       mu1 = tf.expand_dims(mu, -1)  # [..., units, 1]
-      mu2 = tf.matrix_transpose(mu1)  # [..., 1, units]
+      mu2 = tf.linalg.matrix_transpose(mu1)  # [..., 1, units]
       a = (soft_relu(mu1) * soft_relu(mu2) +
            rho * tfp.distributions.Normal(0., 1.).cdf(mu1) *
            tfp.distributions.Normal(0., 1.).cdf(mu2))
@@ -640,7 +641,7 @@ def get_moments(x):
       covariance = x.distribution.covariance()
     except NotImplementedError:
       covariance = tf.zeros(x.shape.concatenate(x.shape[-1]), dtype=x.dtype)
-      covariance = tf.matrix_set_diag(covariance, variance)
+      covariance = tf.linalg.set_diag(covariance, variance)
   else:
     mean = x
     variance = tf.zeros_like(x)
@@ -753,12 +754,12 @@ class DenseVariationalDropout(DenseReparameterization):
       # the additive parameterization (Molchanov et al., 2017): for weight ~
       # Normal(mu, sigma**2), the variance `sigma**2 = alpha * mu**2`.
       mean = self.kernel.distribution.mean()
-      log_variance = tf.log(self.kernel.distribution.variance())
-      log_alpha = log_variance - tf.log(tf.square(mean) +
-                                        tf.keras.backend.epsilon())
+      log_variance = tf.math.log(self.kernel.distribution.variance())
+      log_alpha = log_variance - tf.math.log(tf.square(mean) +
+                                             tf.keras.backend.epsilon())
       log_alpha = tf.clip_by_value(log_alpha, -8., 8.)
-      log_variance = log_alpha + tf.log(tf.square(mean) +
-                                        tf.keras.backend.epsilon())
+      log_variance = log_alpha + tf.math.log(tf.square(mean) +
+                                             tf.keras.backend.epsilon())
 
       if inputs.shape.ndims <= 2:
         means = tf.matmul(inputs, mean)
@@ -785,9 +786,9 @@ class DenseVariationalDropout(DenseReparameterization):
         return dropped_inputs()
       else:
         return super(DenseVariationalDropout, self).call(inputs)
-    return tf.cond(training,
-                   dropped_inputs,
-                   lambda: super(DenseVariationalDropout, self).call(inputs))
+    return tf.cond(pred=training,
+                   true_fn=dropped_inputs,
+                   false_fn=lambda: super(DenseVariationalDropout, self).call(inputs))
 
 
 class DenseHierarchical(DenseVariationalDropout):
@@ -861,7 +862,7 @@ class DenseHierarchical(DenseVariationalDropout):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf.Dimension):
+    if isinstance(input_dim, tf1.Dimension):
       input_dim = input_dim.value
     self.local_scale = self.add_weight(
         shape=(input_dim,),
@@ -959,7 +960,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf.Dimension):
+    if isinstance(input_dim, tf1.Dimension):
       input_dim = input_dim.value
     self.kernel = self.add_weight(
         shape=(input_dim, self.units * 4),
@@ -979,11 +980,11 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
         if isinstance(self.bias_initializer, tf.keras.layers.Layer):
           def bias_mean_initializer(_, *args, **kwargs):
             return tf.concat([
-                tf.keras.initializers.truncated_normal(
+                tf.keras.initializers.TruncatedNormal(
                     stddev=1e-5)((self.units,), *args, **kwargs),
-                tf.keras.initializers.truncated_normal(
+                tf.keras.initializers.TruncatedNormal(
                     mean=1., stddev=1e-5)((self.units,), *args, **kwargs),
-                tf.keras.initializers.truncated_normal(
+                tf.keras.initializers.TruncatedNormal(
                     stddev=1e-5)((self.units * 2,), *args, **kwargs),
             ], axis=0)
           bias_initializer = initializers.TrainableNormal(
@@ -1409,7 +1410,8 @@ class NCPNormalOutput(tf.keras.layers.Layer):
         value=inputs.value[batch_size:])
     loss = tf.reduce_sum(
         tfp.distributions.Normal(self.mean, self.stddev).kl_divergence(
-            perturbed_inputs.distribution)) / tf.to_float(batch_size)
+            perturbed_inputs.distribution))
+    loss /= tf.cast(batch_size, dtype=tf.float32)
     self.add_loss(loss)
     return original_inputs
 
