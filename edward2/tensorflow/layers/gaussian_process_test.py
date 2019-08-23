@@ -278,7 +278,10 @@ class NeuralProcessTest(tf.test.TestCase):
 
   @test_util.run_v2_only
   def test_call(self):
-    valid_context_x, valid_context_y, valid_target_x, valid_target_y = self.valid_data
+    (valid_context_x,
+     valid_context_y,
+     valid_target_x,
+     valid_target_y) = self.valid_data
     batch_size = valid_context_x.shape[0]
 
     for model in self.models:

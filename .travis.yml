@@ -3,6 +3,14 @@ language: python
 git:
   depth: 10
   quiet: true
+stages:
+  - lint
+  - test
+jobs:
+  include:
+    - stage: lint
+      python: "3.6"
+      script: ./oss_scripts/oss_lint.sh
 python:
   - "2.7"
   - "3.6"
