@@ -25,7 +25,8 @@ from edward2.tensorflow import initializers
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import bayes
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 
@@ -193,8 +194,8 @@ class GaussianProcess(tf.keras.layers.Layer):
       knn = self.covariance_fn(inputs, inputs)
       knm = self.covariance_fn(inputs, self.conditional_inputs)
       kmm = self.covariance_fn(self.conditional_inputs, self.conditional_inputs)
-      kmm = tf.matrix_set_diag(
-          kmm, tf.matrix_diag_part(kmm) + tf.keras.backend.epsilon())
+      kmm = tf.linalg.set_diag(
+          kmm, tf.linalg.diag_part(kmm) + tf.keras.backend.epsilon())
       kmm_tril = tf.linalg.cholesky(kmm)
       kmm_tril_operator = tf.linalg.LinearOperatorLowerTriangular(kmm_tril)
       knm_operator = tf.linalg.LinearOperatorFullMatrix(knm)
@@ -218,9 +219,9 @@ class GaussianProcess(tf.keras.layers.Layer):
           kmm_tril_operator.solve(
               kmm_tril_operator.solve(knm, adjoint_arg=True), adjoint=True))
 
-    covariance_matrix = tf.matrix_set_diag(
+    covariance_matrix = tf.linalg.set_diag(
         covariance_matrix,
-        tf.matrix_diag_part(covariance_matrix) + tf.keras.backend.epsilon())
+        tf.linalg.diag_part(covariance_matrix) + tf.keras.backend.epsilon())
 
     # Form a multivariate normal random variable with batch_shape units and
     # event_shape batch_size. Then make it be independent across the units
@@ -231,8 +232,8 @@ class GaussianProcess(tf.keras.layers.Layer):
     random_variable = generated_random_variables.Independent(
         random_variable.distribution, reinterpreted_batch_ndims=1)
     bijector = tfp.bijectors.Inline(
-        forward_fn=lambda x: tf.transpose(x, [1, 0]),
-        inverse_fn=lambda y: tf.transpose(y, [1, 0]),
+        forward_fn=lambda x: tf.transpose(x, perm=[1, 0]),
+        inverse_fn=lambda y: tf.transpose(y, perm=[1, 0]),
         forward_event_shape_fn=lambda input_shape: input_shape[::-1],
         forward_event_shape_tensor_fn=lambda input_shape: input_shape[::-1],
         inverse_log_det_jacobian_fn=lambda y: tf.cast(0, y.dtype),
@@ -245,7 +246,7 @@ class GaussianProcess(tf.keras.layers.Layer):
     input_shape = tf.TensorShape(input_shape)
     input_shape = input_shape.with_rank_at_least(2)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf.Dimension):
+    if isinstance(input_dim, tf1.Dimension):
       input_dim = input_dim.value
     if input_dim is None:
       raise ValueError(
@@ -389,7 +390,7 @@ class SparseGaussianProcess(GaussianProcess):
   def build(self, input_shape=None):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf.Dimension):
+    if isinstance(input_dim, tf1.Dimension):
       input_dim = input_dim.value
     self.conditional_inputs = self.add_weight(
         shape=(self.num_inducing, input_dim),
@@ -432,7 +433,7 @@ class BayesianLinearModel(tf.keras.Model):
     if self.coeffs_mean is None and self.coeffs_precision_tril_op is None:
       # p(mean(ynew) | xnew) = Normal(ynew | mean = 0, variance = xnew xnew^T)
       predictive_mean = 0.
-      predictive_variance = tf.reduce_sum(tf.square(inputs), -1)
+      predictive_variance = tf.reduce_sum(tf.square(inputs), axis=-1)
     else:
       # p(mean(ynew) | xnew, x, y) = Normal(ynew |
       #   mean = xnew (1/noise_variance) (1/noise_variance x^T x + I)^{-1}x^T y,
@@ -443,7 +444,7 @@ class BayesianLinearModel(tf.keras.Model):
           self.coeffs_precision_tril_op.solve(
               self.coeffs_precision_tril_op.solve(inputs, adjoint_arg=True),
               adjoint=True))
-      predictive_variance = tf.diag_part(predictive_covariance)
+      predictive_variance = tf.linalg.tensor_diag_part(predictive_covariance)
     return generated_random_variables.Normal(loc=predictive_mean,
                                              scale=tf.sqrt(predictive_variance))
 
@@ -454,8 +455,8 @@ class BayesianLinearModel(tf.keras.Model):
     # TODO(trandustin): We newly fit the data at each call. Extend to do
     # Bayesian updating.
     kernel_matrix = tf.matmul(x, x, transpose_a=True) / self.noise_variance
-    coeffs_precision = tf.matrix_set_diag(
-        kernel_matrix, tf.matrix_diag_part(kernel_matrix) + 1.)
+    coeffs_precision = tf.linalg.set_diag(
+        kernel_matrix, tf.linalg.diag_part(kernel_matrix) + 1.)
     coeffs_precision_tril = tf.linalg.cholesky(coeffs_precision)
     self.coeffs_precision_tril_op = tf.linalg.LinearOperatorLowerTriangular(
         coeffs_precision_tril)
@@ -566,11 +567,11 @@ def multihead_attention(q, k, v, num_heads=8):
   Returns:
     Tensor of shape [batch_size, m, d_v].
   """
-  d_k = q.get_shape().as_list()[-1]
-  d_v = v.get_shape().as_list()[-1]
+  d_k = q.shape.as_list()[-1]
+  d_v = v.shape.as_list()[-1]
   head_size = int(d_v / num_heads)
-  key_initializer = tf.random_normal_initializer(stddev=d_k**-0.5)
-  value_initializer = tf.random_normal_initializer(stddev=d_v**-0.5)
+  key_initializer = tf.keras.initializers.RandomNormal(stddev=d_k**-0.5)
+  value_initializer = tf.keras.initializers.RandomNormal(stddev=d_v**-0.5)
   rep = tf.constant(0.0)
   for h in range(num_heads):
     o = dot_product_attention(
