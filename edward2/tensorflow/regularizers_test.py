@@ -20,9 +20,10 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class RegularizersTest(tf.test.TestCase):
