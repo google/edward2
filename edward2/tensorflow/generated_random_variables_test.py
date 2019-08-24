@@ -130,7 +130,13 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(rv.distribution.batch_shape, batch_shape)
     self.assertEqual(rv.distribution.event_shape, event_shape)
 
-  def _testValueShapeAndDtype(self, cls, value, **kwargs):
+  @parameterized.parameters(
+      {"cls": ed.Normal, "value": 2, "loc": 0.5, "scale": 1.0},
+      {"cls": ed.Normal, "value": [2], "loc": [0.5], "scale": [1.0]},
+      {"cls": ed.Poisson, "value": 2, "rate": 0.5},
+  )
+  @tfe.run_test_in_graph_and_eager_modes
+  def testValueShapeAndDtype(self, cls, value, **kwargs):
     rv = cls(value=value, **kwargs)
     value_shape = rv.value.shape
     expected_shape = rv.sample_shape.concatenate(
@@ -139,24 +145,15 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(rv.distribution.dtype, rv.value.dtype)
 
   @parameterized.parameters(
-      {"cls": ed.Normal, "value": 2, "kwargs": {"loc": 0.5, "scale": 1.0}},
-      {"cls": ed.Normal, "value": [2],
-       "kwargs": {"loc": [0.5], "scale": [1.0]}},
-      {"cls": ed.Poisson, "value": 2, "kwargs": {"rate": 0.5}},
+      {"cls": ed.Normal, "value": 2, "loc": [0.5, 0.5], "scale": 1.0},
+      {"cls": ed.Normal, "value": 2, "loc": [0.5], "scale": [1.0]},
+      {"cls": ed.Normal, "value": np.zeros([10, 3]), "loc": [0.5, 0.5],
+       "scale": [1.0, 1.0]},
   )
   @tfe.run_test_in_graph_and_eager_modes
-  def testValueShapeAndDtype(self, cls, value, kwargs):
-    self._testValueShapeAndDtype(cls, value, **kwargs)
-
-  @tfe.run_test_in_graph_and_eager_modes
-  def testValueMismatchRaises(self):
+  def testValueMismatchRaises(self, cls, value, **kwargs):
     with self.assertRaises(ValueError):
-      self._testValueShapeAndDtype(ed.Normal, 2, loc=[0.5, 0.5], scale=1.0)
-    with self.assertRaises(ValueError):
-      self._testValueShapeAndDtype(ed.Normal, 2, loc=[0.5], scale=[1.0])
-    with self.assertRaises(ValueError):
-      self._testValueShapeAndDtype(
-          ed.Normal, np.zeros([10, 3]), loc=[0.5, 0.5], scale=[1.0, 1.0])
+      cls(value=value, **kwargs)
 
   def testValueUnknownShape(self):
     # should not raise error

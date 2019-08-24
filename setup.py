@@ -41,6 +41,7 @@ setup(
         'tests': [
             'absl-py>=0.5.0',
             'matplotlib>=2.0.0',
+            'pylint>=1.9.0',
             'pytest>=4.0.0',
         ],
     },
