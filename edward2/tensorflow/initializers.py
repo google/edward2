@@ -25,7 +25,8 @@ from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import regularizers
 import six
-import tensorflow as tf
+import tensorflow.compat.v1 as tf1
+import tensorflow.compat.v2 as tf
 
 
 # From `tensorflow/python/ops/init_ops.py`
@@ -53,9 +54,9 @@ def _compute_fans(shape):
       receptive_field_size *= dim
     fan_in = shape[-2] * receptive_field_size
     fan_out = shape[-1] * receptive_field_size
-  if isinstance(fan_in, tf.Dimension):
+  if isinstance(fan_in, tf1.Dimension):
     fan_in = fan_in.value
-  if isinstance(fan_out, tf.Dimension):
+  if isinstance(fan_out, tf1.Dimension):
     fan_out = fan_out.value
   return fan_in, fan_out
 
@@ -82,7 +83,6 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
     seed: A Python integer. Used to create random seeds. See
       `tf.set_random_seed`
       for behavior.
-    dtype: The data type. Only floating point types are supported.
 
   Raises:
     ValueError: In case of an invalid value for the "scale", mode" or
@@ -93,22 +93,19 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
                scale=1.0,
                mode='fan_in',
                distribution='untruncated_normal',
-               seed=None,
-               dtype=tf.float32):
+               seed=None):
     distribution = distribution.lower()
     if distribution not in {'truncated_normal', 'untruncated_normal'}:
       raise ValueError('Invalid `distribution` argument:', distribution)
     super(ScaledNormalStdDev, self).__init__(scale=scale, mode=mode,
                                              distribution=distribution,
-                                             seed=seed, dtype=dtype)
+                                             seed=seed)
 
-  def __call__(self, shape, dtype=None, partition_info=None):
+  def __call__(self, shape, dtype=None):
     if dtype is None:
       dtype = self.dtype
     scale = self.scale
     scale_shape = shape
-    if partition_info is not None:
-      scale_shape = partition_info.full_shape
     fan_in, fan_out = _compute_fans(scale_shape)
     if self.mode == 'fan_in':
       scale /= max(1., fan_in)
@@ -129,19 +126,18 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
   """Half-Cauchy distribution initializer with trainable parameters."""
 
   def __init__(self,
-               loc_initializer=tf.keras.initializers.truncated_normal(
+               loc_initializer=tf.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
-               scale_initializer=tf.keras.initializers.truncated_normal(
+               scale_initializer=tf.keras.initializers.TruncatedNormal(
                    mean=1., stddev=1e-5),
                loc_regularizer=None,
                scale_regularizer=None,
                loc_constraint=None,
                scale_constraint='positive',
                seed=None,
-               dtype=tf.float32,
                **kwargs):
     """Constructs the initializer."""
-    super(TrainableHalfCauchy, self).__init__(dtype=dtype, **kwargs)
+    super(TrainableHalfCauchy, self).__init__(**kwargs)
     self.loc_initializer = get(loc_initializer)
     self.scale_initializer = get(scale_initializer)
     self.loc_regularizer = regularizers.get(loc_regularizer)
@@ -172,8 +168,7 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
         trainable=True)
     self.built = True
 
-  def __call__(self, shape, dtype=None, partition_info=None):
-    del partition_info  # unused arg
+  def __call__(self, shape, dtype=None):
     if not self.built:
       self.build(shape, dtype)
     return generated_random_variables.Independent(
@@ -196,7 +191,6 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
         'scale_constraint':
             tf.keras.constraints.serialize(self.scale_constraint),
         'seed': self.seed,
-        'dtype': self.dtype,
     }
 
 
@@ -204,7 +198,7 @@ class TrainableNormal(tf.keras.layers.Layer):
   """Random normal op as an initializer with trainable mean and stddev."""
 
   def __init__(self,
-               mean_initializer=tf.keras.initializers.truncated_normal(
+               mean_initializer=tf.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
                stddev_initializer='scaled_normal_std_dev',
                mean_regularizer=None,
@@ -212,10 +206,9 @@ class TrainableNormal(tf.keras.layers.Layer):
                mean_constraint=None,
                stddev_constraint='positive',
                seed=None,
-               dtype=tf.float32,
                **kwargs):
     """Constructs the initializer."""
-    super(TrainableNormal, self).__init__(dtype=dtype, **kwargs)
+    super(TrainableNormal, self).__init__(**kwargs)
     self.mean_initializer = get(mean_initializer)
     self.stddev_initializer = get(stddev_initializer)
     self.mean_regularizer = regularizers.get(mean_regularizer)
@@ -246,8 +239,7 @@ class TrainableNormal(tf.keras.layers.Layer):
         trainable=True)
     self.built = True
 
-  def __call__(self, shape, dtype=None, partition_info=None):
-    del partition_info  # unused arg
+  def __call__(self, shape, dtype=None):
     if not self.built:
       self.build(shape, dtype)
     return generated_random_variables.Independent(
@@ -270,7 +262,6 @@ class TrainableNormal(tf.keras.layers.Layer):
         'stddev_constraint':
             tf.keras.constraints.serialize(self.stddev_constraint),
         'seed': self.seed,
-        'dtype': self.dtype,
     }
 
 
@@ -288,16 +279,14 @@ class TrainableHeNormal(TrainableNormal):
     https://arxiv.org/abs/1502.01852
   """
 
-  def __init__(self, seed=None, dtype=tf.float32):
+  def __init__(self, seed=None):
     super(TrainableHeNormal, self).__init__(
-        stddev_initializer=ScaledNormalStdDev(scale=2.0, seed=seed,
-                                              dtype=dtype),
-        seed=seed, dtype=dtype)
+        stddev_initializer=ScaledNormalStdDev(scale=2.0, seed=seed),
+        seed=seed)
 
   def get_config(self):
     return {
         'seed': self.seed,
-        'dtype': self.dtype,
     }
 
 
@@ -315,16 +304,14 @@ class TrainableGlorotNormal(TrainableNormal):
     249-256). http://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf
   """
 
-  def __init__(self, seed=None, dtype=tf.float32):
+  def __init__(self, seed=None):
     super(TrainableGlorotNormal, self).__init__(
-        stddev_initializer=ScaledNormalStdDev(mode='fan_avg', seed=seed,
-                                              dtype=dtype),
-        seed=seed, dtype=dtype)
+        stddev_initializer=ScaledNormalStdDev(mode='fan_avg', seed=seed),
+        seed=seed)
 
   def get_config(self):
     return {
         'seed': self.seed,
-        'dtype': self.dtype
     }
 
 

@@ -23,9 +23,10 @@ import math
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf1
+import tensorflow.compat.v2 as tf
 
-tfe = tf.contrib.eager
+tfe = tf1.contrib.eager
 
 
 class InitializersTest(tf.test.TestCase):
@@ -35,7 +36,7 @@ class InitializersTest(tf.test.TestCase):
     shape = (3,)
     initializer = ed.initializers.get('trainable_half_cauchy')
     half_cauchy = initializer(shape)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     loc_value, scale_value = self.evaluate([
         # Get distribution of rv -> get distribution of Independent.
         half_cauchy.distribution.distribution.loc,
@@ -54,7 +55,7 @@ class InitializersTest(tf.test.TestCase):
     # because it by default has the fan_in mode scale normal std initializer.
     initializer = ed.initializers.get('trainable_normal')
     normal = initializer(shape)
-    self.evaluate(tf.global_variables_initializer())
+    self.evaluate(tf1.global_variables_initializer())
     loc_value, scale_value = self.evaluate([
         # Get distribution of rv -> get distribution of Independent.
         normal.distribution.distribution.loc,
