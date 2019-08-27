@@ -31,12 +31,6 @@ from edward2.trace import trace
 from edward2.trace import traceable
 
 
-__all__ = [
-    "condition",
-    "tape",
-]
-
-
 @contextlib.contextmanager
 def condition(**model_kwargs):
   """Context manager for setting the values of random variables.

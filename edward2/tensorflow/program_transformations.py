@@ -24,10 +24,6 @@ from edward2.trace import trace
 import six
 import tensorflow.compat.v2 as tf
 
-__all__ = [
-    "make_log_joint_fn",
-]
-
 
 def make_log_joint_fn(model):
   """Takes Edward probabilistic program and returns its log joint function.

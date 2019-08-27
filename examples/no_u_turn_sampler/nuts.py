@@ -38,10 +38,6 @@ from __future__ import print_function
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-__all__ = [
-    "kernel",
-]
-
 
 def kernel(target_log_prob_fn,
            current_state,

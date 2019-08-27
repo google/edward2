@@ -25,10 +25,6 @@ import tensorflow.compat.v2 as tf
 from tensorflow.python.client import session as tf_session
 from tensorflow.python.framework import ops
 
-__all__ = [
-    "RandomVariable",
-]
-
 
 class RandomVariable(object):
   """Class for random variables.
