@@ -23,7 +23,7 @@ from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import initializers
 from edward2.tensorflow import regularizers
-from edward2.tensorflow.layers import bayes
+from edward2.tensorflow.layers import utils
 
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
@@ -267,7 +267,7 @@ class GaussianProcess(tf.keras.layers.Layer):
     return dict(list(base_config.items()) + list(config.items()))
 
 
-@bayes.add_weight
+@utils.add_weight
 class SparseGaussianProcess(GaussianProcess):
   r"""Gaussian process layer with inducing input and output variables.
 
