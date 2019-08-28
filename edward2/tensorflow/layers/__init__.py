@@ -20,12 +20,27 @@ from __future__ import division
 from __future__ import print_function
 
 from edward2.tensorflow.layers import bayes
-from edward2.tensorflow.layers import gaussian_process
 from edward2.tensorflow.layers import reversible_layers
+from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
+from edward2.tensorflow.layers.gaussian_process import ExponentiatedQuadratic
+from edward2.tensorflow.layers.gaussian_process import GaussianProcess
+from edward2.tensorflow.layers.gaussian_process import LinearKernel
+from edward2.tensorflow.layers.gaussian_process import SparseGaussianProcess
+from edward2.tensorflow.layers.gaussian_process import Zeros
+from edward2.tensorflow.layers.neural_process import Attention
+from edward2.tensorflow.layers.neural_process import NeuralProcess
 
 from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
 _allowed_symbols = [
+    "Attention",
+    "BayesianLinearModel",
+    "ExponentiatedQuadratic",
+    "GaussianProcess",
+    "LinearKernel",
+    "NeuralProcess",
+    "SparseGaussianProcess",
+    "Zeros",
     "bayes",
     "gaussian_process",
     "reversible_layers",
