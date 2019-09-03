@@ -37,6 +37,7 @@ else:
   from edward2.tensorflow.generated_random_variables import make_random_variable
   from edward2.tensorflow.program_transformations import make_log_joint_fn
   from edward2.tensorflow.random_variable import RandomVariable
+  from edward2.tensorflow.transformed_random_variable import TransformedRandomVariable
   from edward2.trace import get_next_tracer
   from edward2.trace import trace
   from edward2.trace import traceable
@@ -49,6 +50,7 @@ else:
 
   _allowed_symbols = [
       "RandomVariable",
+      "TransformedRandomVariable",
       "condition",
       "constraints",
       "get_next_tracer",

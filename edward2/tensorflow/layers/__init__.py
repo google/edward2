@@ -19,7 +19,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2.tensorflow.layers import reversible_layers
 from edward2.tensorflow.layers import utils
 from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
@@ -31,16 +30,22 @@ from edward2.tensorflow.layers.dense import DenseFlipout
 from edward2.tensorflow.layers.dense import DenseHierarchical
 from edward2.tensorflow.layers.dense import DenseReparameterization
 from edward2.tensorflow.layers.dense import DenseVariationalDropout
+from edward2.tensorflow.layers.discrete_flows import DiscreteAutoregressiveFlow
+from edward2.tensorflow.layers.discrete_flows import DiscreteBipartiteFlow
+from edward2.tensorflow.layers.discrete_flows import Reverse
+from edward2.tensorflow.layers.discrete_flows import SinkhornAutoregressiveFlow
 from edward2.tensorflow.layers.gaussian_process import ExponentiatedQuadratic
 from edward2.tensorflow.layers.gaussian_process import GaussianProcess
 from edward2.tensorflow.layers.gaussian_process import LinearKernel
 from edward2.tensorflow.layers.gaussian_process import SparseGaussianProcess
 from edward2.tensorflow.layers.gaussian_process import Zeros
+from edward2.tensorflow.layers.made import MADE
 from edward2.tensorflow.layers.neural_process import Attention
 from edward2.tensorflow.layers.neural_process import NeuralProcess
 from edward2.tensorflow.layers.noise import NCPCategoricalPerturb
 from edward2.tensorflow.layers.noise import NCPNormalOutput
 from edward2.tensorflow.layers.noise import NCPNormalPerturb
+from edward2.tensorflow.layers.normalization import ActNorm
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
@@ -48,6 +53,7 @@ from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
 from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
 _allowed_symbols = [
+    "ActNorm",
     "Attention",
     "BayesianLinearModel",
     "Conv2DFlipout",
@@ -59,19 +65,23 @@ _allowed_symbols = [
     "DenseHierarchical",
     "DenseReparameterization",
     "DenseVariationalDropout",
+    "DiscreteAutoregressiveFlow",
+    "DiscreteBipartiteFlow",
     "ExponentiatedQuadratic",
     "GaussianProcess",
     "LinearKernel",
     "LSTMCellFlipout",
     "LSTMCellReparameterization",
+    "MADE",
     "MixtureLogistic",
     "NCPCategoricalPerturb",
     "NCPNormalOutput",
     "NCPNormalPerturb",
     "NeuralProcess",
+    "Reverse",
+    "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
     "Zeros",
-    "reversible_layers",
     "utils",
 ]
 

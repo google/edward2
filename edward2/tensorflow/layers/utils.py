@@ -20,6 +20,9 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -56,6 +59,246 @@ def add_weight(cls):
                                        **kwargs)
   cls.add_weight = _add_weight
   return cls
+
+
+def one_hot_argmax(inputs, temperature, axis=-1):
+  """Returns one-hot of argmax with backward pass set to softmax-temperature."""
+  vocab_size = inputs.shape[-1]
+  hard = tf.one_hot(tf.argmax(inputs, axis=axis),
+                    depth=vocab_size,
+                    axis=axis,
+                    dtype=inputs.dtype)
+  soft = tf.nn.softmax(inputs / temperature, axis=axis)
+  outputs = soft + tf.stop_gradient(hard - soft)
+  return outputs
+
+
+def one_hot_add(inputs, shift):
+  """Performs (inputs + shift) % vocab_size in the one-hot space.
+
+  Args:
+    inputs: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor.
+    shift: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor specifying how much to shift the corresponding one-hot vector in
+      inputs. Soft values perform a "weighted shift": for example,
+      shift=[0.2, 0.3, 0.5] performs a linear combination of 0.2 * shifting by
+      zero; 0.3 * shifting by one; and 0.5 * shifting by two.
+
+  Returns:
+    Tensor of same shape and dtype as inputs.
+  """
+  # Compute circular 1-D convolution with shift as the kernel.
+  inputs = tf.cast(inputs, tf.complex64)
+  shift = tf.cast(shift, tf.complex64)
+  return tf.math.real(
+      tf.signal.ifft(tf.signal.fft(inputs) * tf.signal.fft(shift)))
+
+
+def one_hot_minus(inputs, shift):
+  """Performs (inputs - shift) % vocab_size in the one-hot space.
+
+  Args:
+    inputs: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor.
+    shift: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor specifying how much to shift the corresponding one-hot vector in
+      inputs. Soft values perform a "weighted shift": for example,
+      shift=[0.2, 0.3, 0.5] performs a linear combination of 0.2 * shifting by
+      zero; 0.3 * shifting by one; and 0.5 * shifting by two.
+
+  Returns:
+    Tensor of same shape and dtype as inputs.
+  """
+  # TODO(trandustin): Implement with circular conv1d.
+  inputs = tf.convert_to_tensor(inputs)
+  shift = tf.cast(shift, inputs.dtype)
+  vocab_size = inputs.shape[-1].value
+  # Form a [..., vocab_size, vocab_size] matrix. Each batch element of
+  # inputs will vector-matrix multiply the vocab_size x vocab_size matrix. This
+  # "shifts" the inputs batch element by the corresponding shift batch element.
+  shift_matrix = tf.stack([tf.roll(shift, i, axis=-1)
+                           for i in range(vocab_size)], axis=-2)
+  outputs = tf.einsum('...v,...uv->...u', inputs, shift_matrix)
+  return outputs
+
+
+def one_hot_multiply(inputs, scale):
+  """Performs (inputs * scale) % vocab_size in the one-hot space.
+
+  Args:
+    inputs: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor.
+    scale: Tensor of shape `[..., vocab_size]`. Typically a soft/hard one-hot
+      Tensor specifying how much to scale the corresponding one-hot vector in
+      inputs. Soft values perform a "weighted scale": for example,
+      scale=[0.2, 0.3, 0.5] performs a linear combination of
+      0.2 * scaling by zero; 0.3 * scaling by one; and 0.5 * scaling by two.
+
+  Returns:
+    Tensor of same shape and dtype as inputs.
+  """
+  # TODO(trandustin): Implement with circular conv1d.
+  inputs = tf.convert_to_tensor(inputs)
+  scale = tf.cast(scale, inputs.dtype)
+  batch_shape = inputs.shape[:-1].as_list()
+  vocab_size = inputs.shape[-1].value
+  # Form a [..., vocab_size, vocab_size] tensor. The ith row of the
+  # batched vocab_size x vocab_size matrix represents scaling inputs by i.
+  permutation_matrix = tf.math.floormod(
+      tf.tile(tf.range(vocab_size)[:, tf.newaxis], [1, vocab_size]) *
+      tf.range(vocab_size)[tf.newaxis], vocab_size)
+  permutation_matrix = tf.one_hot(permutation_matrix, depth=vocab_size, axis=-1)
+  # Scale the inputs according to the permutation matrix of all possible scales.
+  scaled_inputs = tf.einsum('...v,avu->...au', inputs, permutation_matrix)
+  scaled_inputs = tf.concat([tf.zeros(batch_shape + [1, vocab_size]),
+                             scaled_inputs[..., 1:, :]], axis=-2)
+  # Reduce rows of the scaled inputs by the scale values. This forms a
+  # weighted linear combination of scaling by zero, scaling by one, and so on.
+  outputs = tf.einsum('...v,...vu->...u', scale, scaled_inputs)
+  return outputs
+
+
+def py_multiplicative_inverse(a, n):
+  """Multiplicative inverse of a modulo n (in Python).
+
+  Implements extended Euclidean algorithm.
+
+  Args:
+    a: int-like np.ndarray.
+    n: int.
+
+  Returns:
+    Multiplicative inverse as an int32 np.ndarray with same shape as a.
+  """
+  batched_a = np.asarray(a, dtype=np.int32)
+  batched_inverse = []
+  for a in np.nditer(batched_a):
+    inverse = 0
+    new_inverse = 1
+    remainder = n
+    new_remainder = a
+    while new_remainder != 0:
+      quotient = remainder // new_remainder
+      (inverse, new_inverse) = (new_inverse, inverse - quotient * new_inverse)
+      (remainder, new_remainder) = (new_remainder,
+                                    remainder - quotient * new_remainder)
+    if remainder > 1:
+      return ValueError(
+          'Inverse for {} modulo {} does not exist.'.format(a, n))
+    if inverse < 0:
+      inverse += n
+    batched_inverse.append(inverse)
+  return np.asarray(batched_inverse, dtype=np.int32).reshape(batched_a.shape)
+
+
+def multiplicative_inverse(a, n):
+  """Multiplicative inverse of a modulo n.
+
+  Args:
+    a: Tensor of shape [..., vocab_size]. It denotes an integer in the one-hot
+      space.
+    n: int Tensor of shape [...].
+
+  Returns:
+    Tensor of same shape and dtype as a.
+  """
+  a = tf.convert_to_tensor(a)
+  n = tf.convert_to_tensor(n)
+  vocab_size = a.shape[-1].value
+  a_dtype = a.dtype
+  sparse_a = tf.argmax(a, axis=-1)
+  # TODO(trandustin): Switch to tf.function.
+  sparse_outputs = tf1.py_func(
+      py_multiplicative_inverse, [sparse_a, n], tf.int32)
+  sparse_outputs.set_shape(sparse_a.shape)
+  outputs = tf.one_hot(sparse_outputs, depth=vocab_size, dtype=a_dtype)
+  return outputs
+
+
+def soft_to_hard_permutation(inputs):
+  """Returns permutation matrices by solving a matching problem.
+
+  Solves linear sum assignment to convert doubly-stochastic matrices to
+  permutation matrices. It uses scipy.optimize.linear_sum_assignment to solve
+  the optimization problem max_P sum_i,j M_i,j P_i,j with P a permutation
+  matrix. Notice the negative sign; the reason, the original function solves a
+  minimization problem.
+
+  Code is adapted from Mena et al. [1].
+
+  [1] Gonzalo Mena, David Belanger, Scott Linderman, Jasper Snoek.
+  Learning latent permutations with Gumbel-Sinkhorn networks. International
+  Conference on Learning Representations, 2018.
+
+  Args:
+    inputs: A `Tensor` with shape `[:, vocab_size, vocab_size]` that is
+      doubly-stochastic in its last two dimensions.
+
+  Returns:
+    outputs: A hard permutation `Tensor` with the same shape as `inputs` (in
+      other words the last two dimensions are doubly-stochastic and each element
+      is 0 or 1).
+  """
+
+  def hungarian(x):
+    if x.ndim == 2:
+      x = np.reshape(x, [1, x.shape[0], x.shape[1]])
+    sol = np.zeros((x.shape[0], x.shape[1]), dtype=np.int32)
+    for i in range(x.shape[0]):
+      sol[i, :] = linear_sum_assignment(-x[i, :])[1].astype(np.int32)
+    return sol
+
+  vocab_size = inputs.shape[-1]
+  # Note: tf.py_func isn't currently supported on headless GPUs.
+  # TODO(vafa): Fix tf.py_func headless GPU bug.
+  # TODO(trandustin): Switch to tf.py_function.
+  permutation_lists = tf1.py_func(hungarian, [inputs], tf.int32)
+  hard = tf.one_hot(permutation_lists, depth=vocab_size)
+  outputs = tf.stop_gradient(hard - inputs) + inputs
+  return outputs
+
+
+def sinkhorn(inputs, n_iters=20):
+  """Performs incomplete Sinkhorn normalization to inputs.
+
+  By a theorem by Sinkhorn and Knopp [1], a sufficiently well-behaved  matrix
+  with positive entries can be turned into a doubly-stochastic matrix
+  (i.e. its rows and columns add up to one) via the succesive row and column
+  normalization.
+  -To ensure positivity, the effective input to sinkhorn has to be
+  exp(inputs) (elementwise).
+  -However, for stability, sinkhorn works in the log-space. It is only at
+   return time that entries are exponentiated.
+
+  Code is adapted from Mena et al. [2].
+
+  [1] Richard Sinkhorn and Paul Knopp. Concerning nonnegative matrices and
+  doubly stochastic matrices. Pacific Journal of Mathematics, 1967.
+
+  [2] Gonzalo Mena, David Belanger, Scott Linderman, Jasper Snoek.
+  Learning latent permutations with Gumbel-Sinkhorn networks. International
+  Conference on Learning Representations, 2018.
+
+  Args:
+    inputs: A `Tensor` with shape `[..., vocab_size, vocab_size]`.
+    n_iters: Number of sinkhorn iterations (in practice, as little as 20
+      iterations are needed to achieve decent convergence for `vocab_size` ~100)
+
+  Returns:
+    outputs: A `Tensor` of close-to-doubly-stochastic matrices with shape
+      `[:, vocab_size, vocab_size]`.
+  """
+  vocab_size = tf.shape(inputs)[-1]
+  log_alpha = tf.reshape(inputs, [-1, vocab_size, vocab_size])
+
+  for _ in range(n_iters):
+    log_alpha -= tf.reshape(tf.reduce_logsumexp(log_alpha, axis=2),
+                            [-1, vocab_size, 1])
+    log_alpha -= tf.reshape(tf.reduce_logsumexp(log_alpha, axis=1),
+                            [-1, 1, vocab_size])
+  outputs = tf.exp(log_alpha)
+  return outputs
 
 
 # From `tensorflow/python/framework/smart_cond.py`
