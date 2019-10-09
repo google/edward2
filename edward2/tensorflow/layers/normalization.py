@@ -59,7 +59,7 @@ class ActNorm(tf.keras.layers.Layer):
   def __call__(self, inputs, *args, **kwargs):
     if not self.built:
       mean, variance = tf.nn.moments(
-          inputs, axes=[i for i in range(inputs.shape.ndims - 1)])
+          inputs, axes=list(range(inputs.shape.ndims - 1)))
       self.bias_initial_value = -mean
       # TODO(trandustin): Optionally, actnorm multiplies log_scale by a fixed
       # log_scale factor (e.g., 3.) and initializes by

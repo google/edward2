@@ -183,16 +183,18 @@ def training_loop(train_dataset,
         optimizer_config)
 
     if it % hparams.print_every == 0:
-      batch_context_x, batch_context_y, batch_target_x, batch_target_y, batch_unseen_targets = get_splits(
-          valid_dataset,
-          num_context,
-          hparams.batch_size,
-          points_perm=False)
-      prediction = model(
-          batch_context_x,
-          batch_context_y,
-          batch_target_x,
-          batch_target_y)
+      (batch_context_x,
+       batch_context_y,
+       batch_target_x,
+       batch_target_y,
+       batch_unseen_targets) = get_splits(valid_dataset,
+                                          num_context,
+                                          hparams.batch_size,
+                                          points_perm=False)
+      prediction = model(batch_context_x,
+                         batch_context_y,
+                         batch_target_x,
+                         batch_target_y)
 
       batch_unseen_predictions = prediction[:, num_context:]
       valid_nll = utils.nll(batch_unseen_targets, batch_unseen_predictions)

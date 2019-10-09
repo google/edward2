@@ -30,7 +30,7 @@ from deep_contextual_bandits import contextual_dataset  # local file import
 
 
 class OfflineContextualBandits(bandit_algorithm.BanditAlgorithm):
-  """Thompson sampling for contextual bandits via offline strutured neural processes."""
+  """Thompson sampling via offline strutured neural processes."""
 
   def __init__(self,
                name,

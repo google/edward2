@@ -164,7 +164,12 @@ def get_splits(dataset, n_context, batch_size, points_perm=True):
   context_y = target_y[:, :n_context, :]
   unseen_target_y = target_y[:, n_context:]
   unseen_target_a = target_a[:, n_context:]
-  return context_x, context_y, target_x, target_y, unseen_target_y, unseen_target_a
+  return (context_x,
+          context_y,
+          target_x,
+          target_y,
+          unseen_target_y,
+          unseen_target_a)
 
 
 def training_loop(train_dataset,
@@ -200,17 +205,20 @@ def training_loop(train_dataset,
           num_context,
           hparams.batch_size,
           points_perm=False)
-      batch_context_x, batch_context_y, batch_target_x, batch_target_y, batch_unseen_target_y, batch_unseen_target_a = batch_valid_data
-      prediction = model(
-          batch_context_x,
-          batch_context_y,
-          batch_target_x,
-          batch_target_y)
+      (batch_context_x,
+       batch_context_y,
+       batch_target_x,
+       batch_target_y,
+       batch_unseen_target_y,
+       batch_unseen_target_a) = batch_valid_data
+      prediction = model(batch_context_x,
+                         batch_context_y,
+                         batch_target_x,
+                         batch_target_y)
       batch_unseen_predictions = prediction[:, num_context:]
-      valid_recon_loss = valid_metric(
-          batch_unseen_target_y,
-          batch_unseen_predictions,
-          batch_unseen_target_a)
+      valid_recon_loss = valid_metric(batch_unseen_target_y,
+                                      batch_unseen_predictions,
+                                      batch_unseen_target_a)
 
       print('it: {}, train recon loss: {}, local kl: {} global kl: {} '
             'valid reconstr loss: {}'.format(it, recon_loss, local_z_kl,

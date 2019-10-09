@@ -180,11 +180,7 @@ class Regressor(tf.keras.Model):
       self._local_latent_layer = layers.LocalLatentLayer(local_latent_net)
       local_latent_dim = local_latent_net_sizes[-1]//2
 
-      if model_type != 'fully_connected':
-        separate_prior_net = True
-      else:
-        separate_prior_net = False
-
+      separate_prior_net = (model_type != 'fully_connected')
       if separate_prior_net:
         local_latent_net = utils.mlp_block(
             global_latent_dim,

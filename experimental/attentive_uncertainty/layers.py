@@ -131,7 +131,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class SNPLocalLatentLayer(tf.keras.layers.Layer):
-  """Maps datapoints and global conditioning to a per-point stochastic embedding."""
+  """Maps each datapoint (and global conditioning) to stochastic embedding."""
 
   def __init__(self,
                net,

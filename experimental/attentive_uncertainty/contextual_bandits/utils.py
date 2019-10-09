@@ -28,7 +28,7 @@ from deep_contextual_bandits import contextual_bandit  # local file import
 def get_data_with_masked_rewards(dataset):
   """Returns all observations with one-hot weights for actions."""
   weights = np.zeros((dataset.contexts.shape[0], dataset.num_actions))
-  a_ind = np.array([(i, val) for i, val in enumerate(dataset.actions)])
+  a_ind = np.array(list(enumerate(dataset.actions)))
   weights[a_ind[:, 0], a_ind[:, 1]] = 1.0
   masked_rewards = dataset.rewards[np.arange(len(dataset.actions)),
                                    dataset.actions]
@@ -48,7 +48,7 @@ def get_batch_with_masked_rewards(dataset, batch_size, with_replacement=True):
 
   weights = np.zeros((batch_size, dataset.num_actions))
   sampled_actions = np.array(dataset.actions)[ind]
-  a_ind = np.array([(i, val) for i, val in enumerate(sampled_actions)])
+  a_ind = np.array(list(enumerate(sampled_actions)))
   weights[a_ind[:, 0], a_ind[:, 1]] = 1.0
   masked_rewards = dataset.rewards[ind, sampled_actions]
   return dataset.contexts[ind, :], masked_rewards, weights
@@ -163,14 +163,18 @@ def mse_anp_step(model, data, optimizer_config):
     local_kl: KL loss for latent variables of unseen targets.
     global_kl: KL loss for global latent variable.
   """
-  context_x, context_y, target_x, target_y, unseen_target_y, unseen_target_a = data
+  (context_x,
+   context_y,
+   target_x,
+   target_y,
+   unseen_target_y,
+   unseen_target_a) = data
   num_context = tf.shape(context_x)[1]
   with tf.GradientTape() as tape:
-    prediction = model(
-        context_x,
-        context_y,
-        target_x,
-        target_y)
+    prediction = model(context_x,
+                       context_y,
+                       target_x,
+                       target_y)
     unseen_predictions = prediction[:, num_context:]
     mse_term = mse(unseen_target_y, unseen_predictions, unseen_target_a)
     if model.local_variational:
@@ -204,14 +208,18 @@ def mse_gnp_step_bandits(model, data, optimizer_config):
     local_kl: KL loss for latent variables of unseen targets.
     global_kl: KL loss for global latent variable.
   """
-  context_x, context_y, target_x, target_y, unseen_target_y, unseen_target_a = data
+  (context_x,
+   context_y,
+   target_x,
+   target_y,
+   unseen_target_y,
+   unseen_target_a) = data
   num_context = tf.shape(context_x)[1]
   with tf.GradientTape() as tape:
-    prediction = model(
-        context_x,
-        context_y,
-        target_x,
-        target_y)
+    prediction = model(context_x,
+                       context_y,
+                       target_x,
+                       target_y)
     unseen_predictions = prediction[:, num_context:]
     mse_term = mse(unseen_target_y, unseen_predictions, unseen_target_a)
     local_kl = tf.reduce_mean(
@@ -242,14 +250,18 @@ def nll_gnp_step_bandits(model, data, optimizer_config):
     local_kl: KL loss for latent variables of unseen targets.
     global_kl: KL loss for global latent variable.
   """
-  context_x, context_y, target_x, target_y, unseen_target_y, unseen_target_a = data
+  (context_x,
+   context_y,
+   target_x,
+   target_y,
+   unseen_target_y,
+   unseen_target_a) = data
   num_context = tf.shape(context_x)[1]
   with tf.GradientTape() as tape:
-    prediction = model(
-        context_x,
-        context_y,
-        target_x,
-        target_y)
+    prediction = model(context_x,
+                       context_y,
+                       target_x,
+                       target_y)
     unseen_predictions = prediction[:, num_context:]
     nll_term = nll(unseen_target_y, unseen_predictions, unseen_target_a)
     local_kl = tf.reduce_mean(
