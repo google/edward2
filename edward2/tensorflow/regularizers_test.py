@@ -37,7 +37,9 @@ class RegularizersTest(tf.test.TestCase):
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
     kl_value = self.evaluate(kl)
-    self.assertGreaterEqual(kl_value, 0.)
+    # KL uses a single-sample estimate, which is not necessarily >0. We only
+    # check shape.
+    self.assertEqual(kl_value.shape, ())
 
 
 if __name__ == '__main__':
