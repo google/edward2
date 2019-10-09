@@ -21,7 +21,14 @@ Are you upgrading from Edward? Check out the guide
 
 ## Installation
 
-To install the latest stable version, run
+To install the latest development version, run
+
+```sh
+pip install -e "git+https://github.com/google/edward2.git#egg=edward2"
+```
+
+To install the latest stable version (which is not likely to be
+up-to-date), run
 
 ```sh
 pip install edward2
