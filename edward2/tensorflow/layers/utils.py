@@ -113,7 +113,9 @@ def one_hot_minus(inputs, shift):
   # TODO(trandustin): Implement with circular conv1d.
   inputs = tf.convert_to_tensor(inputs)
   shift = tf.cast(shift, inputs.dtype)
-  vocab_size = inputs.shape[-1].value
+  vocab_size = inputs.shape[-1]
+  if isinstance(vocab_size, tf1.Dimension):
+    vocab_size = vocab_size.value
   # Form a [..., vocab_size, vocab_size] matrix. Each batch element of
   # inputs will vector-matrix multiply the vocab_size x vocab_size matrix. This
   # "shifts" the inputs batch element by the corresponding shift batch element.
@@ -142,7 +144,9 @@ def one_hot_multiply(inputs, scale):
   inputs = tf.convert_to_tensor(inputs)
   scale = tf.cast(scale, inputs.dtype)
   batch_shape = inputs.shape[:-1].as_list()
-  vocab_size = inputs.shape[-1].value
+  vocab_size = inputs.shape[-1]
+  if isinstance(vocab_size, tf1.Dimension):
+    vocab_size = vocab_size.value
   # Form a [..., vocab_size, vocab_size] tensor. The ith row of the
   # batched vocab_size x vocab_size matrix represents scaling inputs by i.
   permutation_matrix = tf.math.floormod(
@@ -205,7 +209,9 @@ def multiplicative_inverse(a, n):
   """
   a = tf.convert_to_tensor(a)
   n = tf.convert_to_tensor(n)
-  vocab_size = a.shape[-1].value
+  vocab_size = a.shape[-1]
+  if isinstance(vocab_size, tf1.Dimension):
+    vocab_size = vocab_size.value
   a_dtype = a.dtype
   sparse_a = tf.argmax(a, axis=-1)
   # TODO(trandustin): Switch to tf.function.

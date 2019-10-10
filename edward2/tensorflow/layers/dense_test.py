@@ -163,7 +163,9 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
     for v in variables:
-      self.assertIn(v, model.variables)
+      # Note in TF 2.0, checking membership (v in model.weights) raises an error
+      # for lists of differently shaped Tensors.
+      self.assertTrue(any(v is weight for weight in model.weights))
 
     # This will be fine, since the layer was built inside this tape, and thus
     # the distribution init ops were inside this tape.
@@ -182,7 +184,9 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
     for v in variables:
-      self.assertIn(v, model.variables)
+      # Note in TF 2.0, checking membership (v in model.weights) raises an error
+      # for lists of differently shaped Tensors.
+      self.assertTrue(any(v is weight for weight in model.weights))
 
     # This would fail, since the layer was built inside the tape from the 1st
     # epoch, and thus the distribution init ops were inside that tape instead of

@@ -27,9 +27,9 @@ import tensorflow.compat.v2 as tf
 from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -43,7 +43,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                                   [0., 0., 1.]], dtype=np.float32),
                         rtol=1e-4, atol=1e-4)
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotMinusExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -55,7 +54,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(outputs_val, np.array([[1., 0., 0.],
                                                [0., 0., 1.]], dtype=np.float32))
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotMultiplyExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -67,7 +65,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(outputs_val, np.array([[0., 1., 0.],
                                                [0., 1., 0.]], dtype=np.float32))
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -89,7 +86,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         outputs, expected_outputs])
     self.assertAllClose(actual_outputs_val, expected_outputs_val)
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotMinusExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -111,7 +107,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         outputs, expected_outputs])
     self.assertAllEqual(actual_outputs_val, expected_outputs_val)
 
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotMultiplyExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -137,7 +132,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
       (ed.layers.utils.one_hot_add,),
       (ed.layers.utils.one_hot_minus,),
   )
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddShapeHard(self, one_hot_add_fn):
     batch_size = 2
     length = 4
@@ -157,7 +151,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
       (ed.layers.utils.one_hot_add,),
       (ed.layers.utils.one_hot_minus,),
   )
-  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddShapeSoft(self, one_hot_add_fn):
     batch_size = 2
     length = 4
@@ -169,7 +162,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     outputs_val = self.evaluate(outputs)
     self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
 
-  @test_util.run_in_graph_and_eager_modes
   def testMultiplicativeInverse(self):
     batch_size = 3
     vocab_size = 79
@@ -184,7 +176,6 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     inputs_inv_inputs_val = self.evaluate(inputs_inv_inputs)
     self.assertAllEqual(inputs_inv_inputs_val, np.ones((batch_size, length)))
 
-  @test_util.run_in_graph_and_eager_modes
   def testApproximatelyStochastic(self):
     rng = np.random.RandomState(0)
     tf.random.set_seed(1)
@@ -203,7 +194,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
   def testSoftToHardPermutation(self):
     """The solution of the matching for the identity matrix is range(N)."""
     dims = 10
-    identity = np.eye(dims)
+    identity = tf.eye(dims)
     result_matching = ed.layers.utils.soft_to_hard_permutation(identity)
     result_matching_val = self.evaluate(result_matching)
     self.assertAllEqual(result_matching_val[0], np.eye(dims))

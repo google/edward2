@@ -35,6 +35,7 @@ def batch_mlp(inputs, hidden_sizes):
   Returns:
     Tensor of shape [batch_size, n, d_out] where d_out = output_sizes[-1].
   """
+  inputs = tf.convert_to_tensor(inputs)
   batch_size, _, filter_size = inputs.shape.as_list()
   hidden = tf.reshape(inputs, (-1, filter_size))
 

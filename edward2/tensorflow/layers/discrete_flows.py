@@ -122,7 +122,9 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
   def call(self, inputs, **kwargs):
     """Forward pass for left-to-right autoregressive generation."""
     inputs = tf.convert_to_tensor(inputs)
-    length = inputs.shape[-2].value
+    length = inputs.shape[-2]
+    if isinstance(length, tf1.Dimension):
+      length = length.value
     if length is None:
       raise NotImplementedError('length dimension must be known.')
     # Form initial sequence tensor of shape [..., 1, vocab_size]. In a loop, we
@@ -422,7 +424,9 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
   def call(self, inputs, **kwargs):
     """Forward pass for left-to-right autoregressive generation."""
     inputs = tf.convert_to_tensor(inputs)
-    length = inputs.shape[-2].value
+    length = inputs.shape[-2]
+    if isinstance(length, tf1.Dimension):
+      length = length.value
     if length is None:
       raise NotImplementedError('length dimension must be known.')
     # Form initial sequence tensor of shape [..., 1, vocab_size]. In a loop, we
