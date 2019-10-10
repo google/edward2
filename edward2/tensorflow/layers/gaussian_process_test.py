@@ -21,15 +21,15 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class GaussianProcessTest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testGaussianProcessPosterior(self):
     train_batch_size = 3
     test_batch_size = 2
@@ -52,7 +52,6 @@ class GaussianProcessTest(tf.test.TestCase):
     self.assertGreaterEqual(test_nats_val, 0.)
     self.assertEqual(outputs_val.shape, (test_batch_size, output_dim))
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testGaussianProcessPrior(self):
     batch_size = 3
     input_dim = 4
@@ -71,7 +70,6 @@ class GaussianProcessTest(tf.test.TestCase):
     self.assertLessEqual(log_prob_val, 0.)
     self.assertEqual(outputs_val.shape, (batch_size, output_dim))
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testSparseGaussianProcess(self):
     dataset_size = 10
     batch_size = 3

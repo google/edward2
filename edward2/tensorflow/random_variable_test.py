@@ -23,11 +23,11 @@ import re
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
 class FakeDistribution(tfp.distributions.Distribution):
@@ -43,7 +43,7 @@ class FakeDistribution(tfp.distributions.Distribution):
 
 class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testConstructor(self):
     x = ed.RandomVariable(tfp.distributions.Poisson(rate=tf.ones([2, 5])),
                           value=tf.ones([2, 5]))
@@ -56,33 +56,41 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     with self.assertRaises(NotImplementedError):
       _ = x.value
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testGradientsFirstOrder(self):
-    f = lambda x: 2. * x
     x = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
-    y = f(x)
+    def f(x):
+      return 2. * x
     if tf.executing_eagerly():
-      df = tfe.gradients_function(f)
-      (z,) = df(x)
+      with tf.GradientTape() as tape:
+        tape.watch(x.value)
+        y = f(x)
+      z = tape.gradient(y, [x.value])[0]
     else:
+      y = f(x)
       (z,) = tf.gradients(y, x)
     self.assertEqual(self.evaluate(z), 2.)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testGradientsSecondOrder(self):
-    f = lambda x: 2 * (x ** 2)
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
-    y = f(x)
+    def f(x):
+      return 2 * (x ** 2)
     if tf.executing_eagerly():
-      df = tfe.gradients_function(f)
-      d2f = tfe.gradients_function(lambda x: df(x)[0])
-      (z,) = d2f(x)
+      with tf.GradientTape() as tape2:
+        tape2.watch(x.value)
+        with tf.GradientTape() as tape:
+          tape.watch(x.value)
+          y = f(x)
+        z = tape.gradient(y, [x.value])[0]
+      z = tape2.gradient(z, [x.value])[0]
     else:
+      y = f(x)
       (z,) = tf.gradients(y, x)
       (z,) = tf.gradients(z, x)
     self.assertEqual(self.evaluate(z), 4.0)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testStr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
     if tf.executing_eagerly():
@@ -93,7 +101,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     regexp = re.escape(pattern)
     self.assertRegexpMatches(str(x), regexp)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testRepr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
     if tf.executing_eagerly():
@@ -104,7 +112,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
           name=x.distribution.name)
     self.assertEqual(repr(x), string)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testNumpy(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.23)
     if tf.executing_eagerly():
@@ -113,7 +121,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
       with self.assertRaises(NotImplementedError):
         _ = x.numpy()
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsAdd(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -122,7 +130,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRadd(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -131,7 +139,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsSub(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -140,7 +148,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRsub(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -149,7 +157,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsMul(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -158,7 +166,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRmul(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -167,7 +175,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsDiv(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -176,7 +184,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRdiv(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -185,7 +193,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsFloordiv(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -194,7 +202,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRfloordiv(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -203,7 +211,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsMod(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -212,7 +220,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRmod(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -221,7 +229,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsLt(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -230,7 +238,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsLe(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -239,7 +247,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsGt(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -248,7 +256,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsGe(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -257,7 +265,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsGetitem(self):
     x = ed.RandomVariable(tfp.distributions.Normal(tf.random.normal([3, 4]),
                                                    1.))
@@ -270,7 +278,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsPow(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -279,7 +287,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsRpow(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -288,7 +296,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsNeg(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     z = -x
@@ -296,7 +304,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsAbs(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     z = abs(x)
@@ -304,7 +312,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsHash(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
@@ -312,24 +320,24 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(hash(x), id(x))
 
   # TODO(trandustin): Re-enable test.
-  # @tfe.run_test_in_graph_and_eager_modes
+  # @test_util.run_in_graph_and_eager_modes
   # def testOperatorsEq(self):
   #   x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
   #   self.assertEqual(x, x)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsNe(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = 5.0
     self.assertNotEqual(x, y)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOperatorsBoolNonzero(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     with self.assertRaises(TypeError):
       _ = not x
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testArrayPriority(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0))
     y = np.array(5.0, dtype=np.float32)
@@ -338,12 +346,13 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     z_eval, z_value_eval = self.evaluate([z, z_value])
     self.assertAllEqual(z_eval, z_value_eval)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testConvertToTensor(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 0.1))
     with self.assertRaises(ValueError):
       _ = tf.convert_to_tensor(x, dtype=tf.int32)
 
+  @test_util.run_v1_only("Graph mode-only test.")
   def testSessionEval(self):
     with self.cached_session() as sess:
       x = ed.RandomVariable(tfp.distributions.Normal(0.0, 0.1))
@@ -357,6 +366,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
       self.assertRaises(tf.errors.InvalidArgumentError, y.eval)
       self.assertRaises(tf.errors.InvalidArgumentError, y.eval, sess)
 
+  @test_util.run_v1_only("Graph mode-only test.")
   def testSessionRun(self):
     with self.cached_session() as sess:
       x = ed.RandomVariable(tfp.distributions.Normal(0.0, 0.1))
@@ -397,7 +407,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
        "batch_shape": [],
        "event_shape": []},
   )
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testShape(self, rv, sample_shape, batch_shape, event_shape):
     self.assertEqual(rv.shape, sample_shape + batch_shape + event_shape)
     self.assertEqual(rv.shape, rv.shape)
@@ -405,7 +415,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(rv.distribution.batch_shape, batch_shape)
     self.assertEqual(rv.distribution.event_shape, event_shape)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testRandomTensorSample(self):
     num_samples = tf.cast(tfp.distributions.Poisson(rate=5.).sample(), tf.int32)
     _ = ed.RandomVariable(tfp.distributions.Normal(loc=0.0, scale=1.0),

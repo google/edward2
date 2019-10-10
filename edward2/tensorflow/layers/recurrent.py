@@ -25,7 +25,7 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 

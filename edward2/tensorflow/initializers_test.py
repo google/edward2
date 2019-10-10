@@ -23,15 +23,15 @@ import math
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class InitializersTest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testTrainableHalfCauchy(self):
     shape = (3,)
     initializer = ed.initializers.get('trainable_half_cauchy')
@@ -48,7 +48,6 @@ class InitializersTest(tf.test.TestCase):
     self.assertAllEqual(half_cauchy_value.shape, shape)
     self.assertAllGreaterEqual(half_cauchy_value, 0.)
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testTrainableNormal(self):
     shape = (100,)
     # TrainableNormal is expected to have var 1/shape[0]

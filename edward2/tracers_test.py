@@ -21,13 +21,12 @@ from __future__ import print_function
 
 import edward2 as ed
 import six
-import tensorflow as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
-@tfe.run_all_tests_in_graph_and_eager_modes
+@test_util.run_all_in_graph_and_eager_modes
 class TracersTest(tf.test.TestCase):
 
   def testCondition(self):

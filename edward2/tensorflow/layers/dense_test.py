@@ -22,15 +22,15 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testTrainableNormalStddevConstraint(self):
     layer = ed.layers.DenseReparameterization(
         100, kernel_initializer="trainable_normal")
@@ -91,7 +91,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
        "bias_initializer": "trainable_normal",
        "all_close": False},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseKernel(self,
                       layer,
                       kernel_initializer,
@@ -122,7 +121,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseReparameterization},
       {"layer": ed.layers.DenseVariationalDropout},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseMean(self, layer):
     """Tests that forward pass can use other values, e.g., posterior mean."""
     tf.keras.backend.set_learning_phase(0)  # test time
@@ -150,7 +148,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseVariationalDropout},
       {"layer": ed.layers.DenseHierarchical},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseLoss(self, layer):
     tf.keras.backend.set_learning_phase(1)  # training time
     features = np.random.rand(5, 12).astype(np.float32)
@@ -204,7 +201,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseVariationalDropout},
       {"layer": ed.layers.DenseHierarchical},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([
@@ -231,7 +227,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseVariationalDropout},
       {"layer": ed.layers.DenseHierarchical},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseSubclass(self, layer):
     class DenseSubclass(layer):
       pass
@@ -254,7 +249,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     else:
       self.assertLen(model.losses, 1)
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseDVIIsDeterministic(self):
     """Tests that DenseDVI network has a deterministic loss function."""
     features = np.random.rand(3, 2).astype(np.float32)
@@ -272,7 +266,6 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     res2 = self.evaluate(loss)
     self.assertEqual(res1, res2)
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testDenseDVIMoments(self):
     """Verifies DenseDVI's moments empirically with samples."""
     tf.random.set_seed(377269)

@@ -20,17 +20,18 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
+
 tfd = tfp.distributions
-tfe = tf1.contrib.eager
 
 
 class ProgramTransformationsTest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnUnconditional(self):
     """Test `make_log_joint_fn` on unconditional Edward program."""
     def normal_with_unknown_mean():
@@ -59,7 +60,7 @@ class ProgramTransformationsTest(tf.test.TestCase):
         [actual_log_prob, expected_log_prob])
     self.assertEqual(actual_log_prob_, expected_log_prob_)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnConditional(self):
     """Test `make_log_joint_fn` on conditional Edward program."""
     def linear_regression(features, prior_precision):
@@ -99,7 +100,7 @@ class ProgramTransformationsTest(tf.test.TestCase):
         [actual_log_prob, expected_log_prob])
     self.assertEqual(actual_log_prob_, expected_log_prob_)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnDynamic(self):
     """Test `make_log_joint_fn` on Edward program with stochastic control flow.
 
@@ -179,7 +180,7 @@ class ProgramTransformationsTest(tf.test.TestCase):
           [actual_log_prob, expected_log_prob])
       self.assertEqual(actual_log_prob_, expected_log_prob_)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnError(self):
     """Test `make_log_joint_fn` raises errors when `name`(s) not supplied."""
     def normal_with_unknown_mean():

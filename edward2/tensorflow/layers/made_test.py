@@ -21,15 +21,15 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class MADETest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testMADELeftToRight(self):
     np.random.seed(83243)
     batch_size = 2
@@ -51,7 +51,6 @@ class MADETest(tf.test.TestCase):
     self.assertAllEqual(outputs_val[:, 0, :], np.zeros((batch_size, units)))
     self.assertEqual(outputs_val.shape, (batch_size, length, units))
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testMADERightToLeft(self):
     np.random.seed(1328)
     batch_size = 2
@@ -76,7 +75,6 @@ class MADETest(tf.test.TestCase):
     self.assertAllEqual(outputs_val[:, -1, :], np.zeros((batch_size, units)))
     self.assertEqual(outputs_val.shape, (batch_size, length, units))
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testMADENoHidden(self):
     np.random.seed(532)
     batch_size = 2

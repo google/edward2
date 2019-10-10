@@ -22,15 +22,14 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -44,7 +43,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                                   [0., 0., 1.]], dtype=np.float32),
                         rtol=1e-4, atol=1e-4)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotMinusExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -56,7 +55,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(outputs_val, np.array([[1., 0., 0.],
                                                [0., 0., 1.]], dtype=np.float32))
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotMultiplyExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -68,7 +67,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(outputs_val, np.array([[0., 1., 0.],
                                                [0., 1., 0.]], dtype=np.float32))
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -90,7 +89,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         outputs, expected_outputs])
     self.assertAllClose(actual_outputs_val, expected_outputs_val)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotMinusExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -112,7 +111,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
         outputs, expected_outputs])
     self.assertAllEqual(actual_outputs_val, expected_outputs_val)
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotMultiplyExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
@@ -138,7 +137,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
       (ed.layers.utils.one_hot_add,),
       (ed.layers.utils.one_hot_minus,),
   )
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddShapeHard(self, one_hot_add_fn):
     batch_size = 2
     length = 4
@@ -158,7 +157,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
       (ed.layers.utils.one_hot_add,),
       (ed.layers.utils.one_hot_minus,),
   )
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testOneHotAddShapeSoft(self, one_hot_add_fn):
     batch_size = 2
     length = 4
@@ -170,7 +169,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     outputs_val = self.evaluate(outputs)
     self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testMultiplicativeInverse(self):
     batch_size = 3
     vocab_size = 79
@@ -185,7 +184,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     inputs_inv_inputs_val = self.evaluate(inputs_inv_inputs)
     self.assertAllEqual(inputs_inv_inputs_val, np.ones((batch_size, length)))
 
-  @tfe.run_test_in_graph_and_eager_modes
+  @test_util.run_in_graph_and_eager_modes
   def testApproximatelyStochastic(self):
     rng = np.random.RandomState(0)
     tf.random.set_seed(1)

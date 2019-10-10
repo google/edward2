@@ -20,15 +20,14 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
-import tensorflow as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class RegularizersTest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testHalfCauchyKLDivergence(self):
     shape = (3,)
     regularizer = ed.regularizers.get('half_cauchy_kl_divergence')

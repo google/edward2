@@ -21,15 +21,15 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class NormalizationTest(tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testActNorm(self):
     np.random.seed(83243)
     batch_size = 25

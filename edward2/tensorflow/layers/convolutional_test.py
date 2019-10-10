@@ -22,12 +22,13 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -80,7 +81,6 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
        "bias_initializer": "trainable_normal",
        "all_close": False},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testConv2DKernel(self,
                        layer,
                        kernel_initializer,
@@ -111,7 +111,6 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.Conv2DReparameterization},
       {"layer": ed.layers.Conv2DVariationalDropout},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testConv2DModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([

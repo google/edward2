@@ -22,12 +22,13 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -67,7 +68,6 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
        "bias_initializer": "trainable_normal",
        "all_close": False},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testLSTMCell(self,
                    lstm_cell,
                    kernel_initializer,
@@ -102,7 +102,6 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
       {"lstm_cell": ed.layers.LSTMCellFlipout},
       {"lstm_cell": ed.layers.LSTMCellReparameterization},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testLSTMCellLoss(self, lstm_cell):
     features = np.random.rand(5, 1, 12).astype(np.float32)
     labels = np.random.rand(5, 10).astype(np.float32)
@@ -162,7 +161,6 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
       {"lstm_cell": ed.layers.LSTMCellFlipout},
       {"lstm_cell": ed.layers.LSTMCellReparameterization},
   )
-  @tfe.run_test_in_graph_and_eager_modes
   def testLSTMCellModel(self, lstm_cell):
     batch_size, timesteps, dim = 5, 3, 12
     hidden_size = 10

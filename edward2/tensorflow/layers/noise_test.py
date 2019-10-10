@@ -22,15 +22,14 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow as tf1
 import tensorflow.compat.v2 as tf
 
-tfe = tf1.contrib.eager
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
+@test_util.run_all_in_graph_and_eager_modes
 class NoiseTest(parameterized.TestCase, tf.test.TestCase):
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testNCPNormalPerturb(self):
     batch_size = 3
     inputs = tf.cast(np.random.rand(batch_size, 4), dtype=tf.float32)
@@ -40,7 +39,6 @@ class NoiseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(outputs_val.shape, (2 * batch_size, 4))
     self.assertAllEqual(inputs_val, outputs_val[:batch_size])
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testNCPCategoricalPerturb(self):
     input_dim = 5
     batch_size = 3
@@ -52,7 +50,6 @@ class NoiseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(outputs_val.shape, (2 * batch_size, 4))
     self.assertAllEqual(inputs_val, outputs_val[:batch_size])
 
-  @tfe.run_test_in_graph_and_eager_modes
   def testNCPNormalOutput(self):
     batch_size = 3
     features = ed.Normal(loc=tf.random.normal([2 * batch_size, 1]), scale=1.)
