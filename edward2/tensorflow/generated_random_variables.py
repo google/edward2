@@ -77,9 +77,11 @@ def make_random_variable(distribution_cls):
     # pylint: enable=g-doc-args
     sample_shape = kwargs.pop("sample_shape", ())
     value = kwargs.pop("value", None)
+    seed = kwargs.pop("seed", None)
     return RandomVariable(distribution=distribution_cls(*args, **kwargs),
                           sample_shape=sample_shape,
-                          value=value)
+                          value=value,
+                          seed=seed)
   return func
 
 

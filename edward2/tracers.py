@@ -30,6 +30,8 @@ import contextlib
 from edward2.trace import trace
 from edward2.trace import traceable
 
+import tensorflow_probability as tfp  # TODO(davmre): probably can't do this?
+
 
 @contextlib.contextmanager
 def condition(**model_kwargs):
@@ -117,14 +119,28 @@ def tape():
 
   """
   tape_data = collections.OrderedDict({})
+  print("BUILDING TAPE")
 
   def record(f, *args, **kwargs):
     """Records execution to a tape."""
     name = kwargs.get("name")
     output = traceable(f)(*args, **kwargs)
     if name:
+      print("RECORDING {} ON TAPE", name)
       tape_data[name] = output
+    else:
+      print("DIDNT RECORD BECAUSE NO NAME")
     return output
 
   with trace(record):
     yield tape_data
+
+
+def set_seed(seed):
+  if not isinstance(seed, tfp.util.SeedStream):
+    seed = tfp.util.SeedStream(seed, "edward2_set_seed")
+
+  def tracer(f, *args, **kwargs):
+    kwargs["seed"] = seed()
+    return traceable(f)(*args, **kwargs)
+  return tracer
