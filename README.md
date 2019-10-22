@@ -6,15 +6,17 @@ probabilistic programs and manipulate a model's computation for flexible
 training, latent variable inference, and predictions.
 It's organized as follows:
 
-* [`examples/`](https://github.com/google/edward2/blob/master/examples):
-  Examples, including an implementation of the No-U-Turn Sampler.
-* [`notebooks/`](https://github.com/google/edward2/blob/master/notebooks):
-  Jupyter notebooks, including a companion notebook for the NeurIPS 2018 paper.
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
   Edward2, in its core implementation. It features two backends:
   [`numpy/`](https://github.com/google/edward2/blob/master/edward2/numpy)
   and
   [`tensorflow/`](https://github.com/google/edward2/blob/master/edward2/tensorflow).
+* [`examples/`](https://github.com/google/edward2/blob/master/examples):
+  Examples, including an implementation of the No-U-Turn Sampler.
+* [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
+  Active research projects.
+* [`notebooks/`](https://github.com/google/edward2/blob/master/notebooks):
+  Jupyter notebooks, including a companion notebook for the NeurIPS 2018 paper.
 
 Are you upgrading from Edward? Check out the guide
 [`Upgrading_from_Edward_to_Edward2.md`](https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md).
@@ -59,12 +61,14 @@ Random variables are formed like TensorFlow Distributions.
 import edward2 as ed
 
 normal_rv = ed.Normal(loc=0., scale=1.)
-## <ed.RandomVariable 'Normal/' shape=() dtype=float32>
+## <ed.RandomVariable 'Normal/' shape=() dtype=float32 numpy=0.0024812892>
 normal_rv.distribution.log_prob(1.231)
-## <tf.Tensor 'Normal/log_prob/sub:0' shape=() dtype=float32>
+## <tf.Tensor: id=11, shape=(), dtype=float32, numpy=-1.6766189>
 
-dirichlet_rv = ed.Dirichlet(concentration=tf.ones([2, 10]))
-## <ed.RandomVariable 'Dirichlet/' shape=(2, 10) dtype=float32>
+dirichlet_rv = ed.Dirichlet(concentration=tf.ones([2, 3]))
+## <ed.RandomVariable 'Dirichlet/' shape=(2, 3) dtype=float32 numpy=
+array([[0.15864784, 0.01217205, 0.82918006],
+       [0.23385087, 0.69622266, 0.06992647]], dtype=float32)>
 ```
 
 By default, instantiating a random variable `rv` creates a sampling op to form
@@ -74,15 +78,15 @@ optional `value` argument is provided, no sampling op is created. Random
 variables can interoperate with TensorFlow ops: the TF ops operate on the sample.
 
 ```python
-x = ed.Normal(loc=tf.zeros(10), scale=tf.ones(10))
+x = ed.Normal(loc=tf.zeros(2), scale=tf.ones(2))
 y = 5.
 x + y, x / y
-## (<tf.Tensor 'add:0' shape=(10,) dtype=float32>,
-##  <tf.Tensor 'div:0' shape=(10,) dtype=float32>)
+## (<tf.Tensor: id=109, shape=(2,), dtype=float32, numpy=array([3.9076924, 4.588356 ], dtype=float32)>,
+##  <tf.Tensor: id=111, shape=(2,), dtype=float32, numpy=array([-0.21846154, -0.08232877], dtype=float32)>)
 tf.tanh(x * y)
-## <tf.Tensor 'Tanh:0' shape=(10,) dtype=float32>
-x[2]  # 3rd normal rv
-## <tf.Tensor 'strided_slice:0' shape=() dtype=float32>
+## <tf.Tensor: id=114, shape=(2,), dtype=float32, numpy=array([-0.99996394, -0.9679181 ], dtype=float32)>
+x[1]  # 2nd normal rv
+## <ed.RandomVariable 'Normal/' shape=() dtype=float32 numpy=-0.41164386>
 ```
 
 ### Probabilistic Models
@@ -94,10 +98,9 @@ function can be thought of as values the model conditions on.
 
 Below we write Bayesian logistic regression, where binary outcomes are generated
 given features, coefficients, and an intercept. There is a prior over the
-coefficients and intercept. Executing the function adds operations to the
-TensorFlow graph, and asking for the result node in a TensorFlow session will
-sample coefficients and intercept from the prior, and use these samples to
-compute the outcomes.
+coefficients and intercept. Executing the function adds operations samples
+coefficients and intercept from the prior and uses these samples to compute the
+outcomes.
 
 ```python
 def logistic_regression(features):
@@ -110,12 +113,10 @@ def logistic_regression(features):
   return outcomes
 
 num_features = 10
-features = tf.random_normal([100, num_features])
+features = tf.random.normal([100, num_features])
 outcomes = logistic_regression(features)
-
-# Execute the model program, returning a sample np.ndarray of shape (100,).
-with tf.Session() as sess:
-  outcomes_ = sess.run(outcomes)
+# <ed.RandomVariable 'outcomes/' shape=(100,) dtype=int32 numpy=
+# array([1, 0, ... 0, 1], dtype=int32)>
 ```
 
 Edward2 programs can also represent distributions beyond those which directly
@@ -123,27 +124,28 @@ model data. For example, below we write a learnable distribution with the
 intention to approximate it to the logistic regression posterior.
 
 ```python
-def logistic_regression_posterior(num_features):
+def logistic_regression_posterior(coeffs_loc, coeffs_scale,
+                                  intercept_loc, intercept_scale):
   """Posterior of Bayesian logistic regression p(w, b | {x, y})."""
-  posterior_coeffs = ed.MultivariateNormalTriL(
-      loc=tf.get_variable("coeffs_loc", [num_features]),
+  coeffs = ed.MultivariateNormalTriL(
+      loc=coeffs_loc,
       scale_tril=tfp.trainable_distributions.tril_with_diag_softplus_and_shift(
-          tf.get_variable("coeffs_scale", [num_features*(num_features+1) / 2])),
+        coeffs_scale_tril),
       name="coeffs_posterior")
-  posterior_intercept = ed.Normal(
-      loc=tf.get_variable("intercept_loc", []),
-      scale=tf.nn.softplus(tf.get_variable("intercept_scale", [])) + 1e-5,
+  intercept = ed.Normal(
+      loc=intercept_loc,
+      scale=tf.nn.softplus(intercept_scale) + 1e-5,
       name="intercept_posterior")
   return coeffs, intercept
+return logistic_regression_posterior
 
-coeffs, intercept = logistic_regression_posterior(num_features)
-
-# Execute the program, returning a sample
-# (np.ndarray of shape (55,), np.ndarray of shape ()).
-with tf.Session() as sess:
-  sess.run(tf.global_variables_initializer())
-  posterior_coeffs_, posterior_ntercept_ = sess.run(
-      [posterior_coeffs, posterior_intercept])
+coeffs_loc = tf.Variable(tf.random.normal([num_features]))
+coeffs_scale = tf.Variable(tf.random.normal(
+    [num_features*(num_features+1) // 2])))
+intercept_loc = tf.Variable(tf.random.normal([]))
+intercept_scale = tf.Variable(tf.random.normal([]))
+posterior_coeffs, posterior_intercept = logistic_regression_posterior(
+    coeffs_loc, coeffs_scale, intercept_loc, intercept_scale)
 ```
 
 ## 2. Manipulating Model Computation
@@ -180,8 +182,8 @@ with ed.trace(set_prior_to_posterior_mean):
   predictions = logistic_regression(features)
 
 training_accuracy = (
-    tf.reduce_sum(tf.cast(tf.equal(predictions, outcomes), tf.float32)) /
-    tf.cast(tf.shape(outcomes), tf.float32))
+  tf.reduce_sum(tf.cast(tf.equal(predictions, outcomes), tf.float32)) /
+  outcomes.shape[0])
 ```
 
 ### Program Transformations
@@ -207,11 +209,9 @@ and output rv `outcomes` to its known values.
 ```python
 import no_u_turn_sampler  # local file import
 
-tf.enable_eager_execution()
-
 # Set up training data.
-features = tf.random_normal([100, 55])
-outcomes = tf.random_uniform([100], minval=0, maxval=2, dtype=tf.int32)
+features = tf.random.normal([100, 55])
+outcomes = tf.random.uniform([100], minval=0, maxval=2, dtype=tf.int32)
 
 # Pass target log-probability function to MCMC transition kernel.
 log_joint = ed.make_log_joint_fn(logistic_regression)
@@ -225,8 +225,8 @@ def target_log_prob_fn(coeffs, intercept):
 
 coeffs_samples = []
 intercept_samples = []
-coeffs = tf.random_normal([55])
-intercept = tf.random_normal([])
+coeffs = tf.random.normal([55])
+intercept = tf.random.normal([])
 target_log_prob = None
 grads_target_log_prob = None
 for _ in range(1000):
