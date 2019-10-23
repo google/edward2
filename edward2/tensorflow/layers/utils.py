@@ -21,9 +21,14 @@ from __future__ import print_function
 
 import functools
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
+
+# SciPy is not a mandatory dependency when using the TF backend.
+try:
+  from scipy.optimize import linear_sum_assignment  # pylint: disable=g-import-not-at-top
+except ImportError:
+  pass
 
 
 def add_weight(cls):
@@ -252,7 +257,10 @@ def soft_to_hard_permutation(inputs):
       x = np.reshape(x, [1, x.shape[0], x.shape[1]])
     sol = np.zeros((x.shape[0], x.shape[1]), dtype=np.int32)
     for i in range(x.shape[0]):
-      sol[i, :] = linear_sum_assignment(-x[i, :])[1].astype(np.int32)
+      try:
+        sol[i, :] = linear_sum_assignment(-x[i, :])[1].astype(np.int32)
+      except NameError:
+        raise NameError('linear_sum_assignment requires SciPy to be installed.')
     return sol
 
   vocab_size = inputs.shape[-1]
