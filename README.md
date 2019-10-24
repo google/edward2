@@ -270,6 +270,8 @@ def linear_regression(features, prior_precision):
 
 ## References
 
+In general, we recommend citing the following article.
+
 > Tran, D., Hoffman, M. D., Moore, D., Suter, C., Vasudevan S., Radul A.,
 > Johnson M., and Saurous R. A. (2018).
 > [Simple, Distributed, and Accelerated Probabilistic Programming](https://arxiv.org/abs/1811.02091).
@@ -281,5 +283,20 @@ def linear_regression(features, prior_precision):
   title = {Simple, Distributed, and Accelerated Probabilistic Programming},
   booktitle = {Neural Information Processing Systems},
   year = {2018},
+}
+```
+
+If you'd like to cite the layers module specifically, use the following article.
+
+> Tran, D., Dusenberry M. W., van der Wilk M., Hafner D. (2019).
+> [Bayesian Layers: A Module for Neural Network Uncertainty](https://arxiv.org/abs/1812.03973).
+> In _Neural Information Processing Systems_.
+
+```none
+@inproceedings{tran2019bayesian,
+  author = {Dustin Tran and Michael W. Dusenberry and Danijar Hafner and Mark van der Wilk},
+  title={Bayesian {L}ayers: A module for neural network uncertainty},
+  booktitle = {Neural Information Processing Systems},
+  year={2019}
 }
 ```
