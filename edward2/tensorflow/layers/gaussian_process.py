@@ -323,11 +323,16 @@ class SparseGaussianProcess(GaussianProcess):
     layers.SparseGaussianProcess(256, num_inducing=512),
     layers.SparseGaussianProcess(10, num_inducing=512),
   ])
-  predictions = model(features)
-  nll = tf.losses.mean_squared_error(labels=labels, predictions=predictions)
-  kl = sum(model.losses) / dataset_size
-  loss = nll + kl
-  train_op = tf.train.AdamOptimizer().minimize(loss)
+
+  # Run training loop.
+  num_steps = 1000
+  for _ in range(num_steps):
+    with tf.GradientTape() as tape:
+      predictions = model(features)
+      nll = tf.losses.mean_squared_error(labels=labels, predictions=predictions)
+      kl = sum(model.losses) / dataset_size
+      loss = nll + kl
+    gradients = tape.gradient(loss, model.variables)  # use any optimizer here
   ```
   """
 

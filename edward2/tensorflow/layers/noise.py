@@ -56,11 +56,15 @@ class NCPNormalPerturb(tf.keras.layers.Layer):
                                                                      stddevs])
   model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
-  predictions = model(features)
-  loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
-  loss += model.losses[0] / dataset_size  # KL regularizer for output layer
-  loss += model.losses[-1]
-  train_op = tf.train.AdamOptimizer(0.1).minimize(loss)
+  # Run training loop.
+  num_steps = 1000
+  for _ in range(num_steps):
+    with tf.GradientTape() as tape:
+      predictions = model(features)
+      loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
+      loss += model.losses[0] / dataset_size  # KL regularizer for output layer
+      loss += model.losses[-1]
+    gradients = tape.gradient(loss, model.variables)  # use any optimizer here
   ```
 
   The network applies `ed.layers.NCPNormalPerturb()` to double the input batch
@@ -120,11 +124,15 @@ class NCPCategoricalPerturb(tf.keras.layers.Layer):
                                                                      stddevs])
   model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
-  predictions = model(features)
-  loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
-  loss += model.losses[0] / dataset_size  # KL regularizer for output layer
-  loss += model.losses[-1]
-  train_op = tf.train.AdamOptimizer(0.1).minimize(loss)
+  # Run training loop.
+  num_steps = 1000
+  for _ in range(num_steps):
+    with tf.GradientTape() as tape:
+      predictions = model(features)
+      loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
+      loss += model.losses[0] / dataset_size  # KL regularizer for output layer
+      loss += model.losses[-1]
+    gradients = tape.gradient(loss, model.variables)  # use any optimizer here
   ```
 
   The network applies `ed.layers.NCPCategoricalPerturb()` to double the input
@@ -193,11 +201,15 @@ class NCPNormalOutput(tf.keras.layers.Layer):
                                                                      stddevs])
   model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
-  predictions = model(features)
-  loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
-  loss += model.losses[0] / dataset_size  # KL regularizer for output layer
-  loss += model.losses[-1]
-  train_op = tf.train.AdamOptimizer(0.1).minimize(loss)
+  # Run training loop.
+  num_steps = 1000
+  for _ in range(num_steps):
+    with tf.GradientTape() as tape:
+      predictions = model(features)
+      loss = tf.reduce_mean(predictions.distribution.log_prob(labels))
+      loss += model.losses[0] / dataset_size  # KL regularizer for output layer
+      loss += model.losses[-1]
+    gradients = tape.gradient(loss, model.variables)  # use any optimizer here
   ```
 
   The network applies `ed.layers.NCPNormalPerturb()` to double the input batch

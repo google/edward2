@@ -111,12 +111,17 @@ class DenseDVI(DenseReparameterization):
       ed.layers.DenseDVI(256, activation=tf.nn.relu),
       ed.layers.DenseDVI(1, activation=None),
   ])
-  locs = model(features)
-  nll = 0.5 * tf.reduce_mean(locs.distribution.variance() +
-                             (labels - locs.distribution.mean())**2)
-  kl = sum(model.losses) / total_dataset_size
-  loss = nll + kl
-  train_op = tf.train.AdamOptimizer(0.1).minimize(loss)
+
+  # Run training loop.
+  num_steps = 1000
+  for _ in range(num_steps):
+    with tf.GradientTape() as tape:
+      locs = model(features)
+      nll = 0.5 * tf.reduce_mean(locs.distribution.variance() +
+                                 (labels - locs.distribution.mean())**2)
+      kl = sum(model.losses) / total_dataset_size
+      loss = nll + kl
+    gradients = tape.gradient(loss, model.variables)  # use any optimizer here
   ```
 
   For evaluation, feed in data and use, e.g., `predictions.distribution.mean()`
