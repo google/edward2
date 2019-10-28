@@ -7,12 +7,14 @@ training, latent variable inference, and predictions.
 It's organized as follows:
 
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
-  Edward2, in its core implementation. It features two backends:
+  Library code, including
+  [Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
+  It features two backends:
   [`numpy/`](https://github.com/google/edward2/blob/master/edward2/numpy)
   and
   [`tensorflow/`](https://github.com/google/edward2/blob/master/edward2/tensorflow).
 * [`examples/`](https://github.com/google/edward2/blob/master/examples):
-  Examples, including an implementation of the No-U-Turn Sampler.
+  Examples.
 * [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
   Active research projects.
 * [`notebooks/`](https://github.com/google/edward2/blob/master/notebooks):
