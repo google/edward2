@@ -27,6 +27,7 @@ from edward2.tensorflow import regularizers
 import six
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
+import tensorflow_probability as tfp
 
 
 # From `tensorflow/python/ops/init_ops.py`
@@ -315,6 +316,36 @@ class TrainableGlorotNormal(TrainableNormal):
     }
 
 
+class RandomSign(tf.keras.initializers.Initializer):
+  """Initializer that generates tensors initialized to +/- 1.
+
+  Attributes:
+    probs: probability of +1.
+    dtype: tensorflow dtype.
+    seed: A Python integer. Used to create random seeds. See
+      `tf.set_random_seed`
+  """
+
+  def __init__(self, probs=1.0, seed=None, dtype=tf.float32):
+    self.probs = probs
+    self.seed = seed
+    self.dtype = dtype
+
+  def __call__(self, shape, dtype=None, partition_info=None):
+    if dtype is None:
+      dtype = self.dtype
+    bernoulli = tfp.distributions.Bernoulli(probs=self.probs,
+                                            dtype=dtype)
+    return 2. * bernoulli.sample(shape, self.seed) - 1.
+
+  def get_config(self):
+    return {
+        'dtype': self.dtype.name,
+        'seed': self.seed,
+        'probs': self.probs
+    }
+
+
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
@@ -323,6 +354,7 @@ trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
 trainable_glorot_normal = TrainableGlorotNormal
+random_sign = RandomSign
 # pylint: enable=invalid-name
 
 # Utility functions, following tf.keras
