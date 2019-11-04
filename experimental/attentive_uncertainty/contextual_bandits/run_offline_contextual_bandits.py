@@ -36,6 +36,7 @@ from deep_contextual_bandits import contextual_bandit  # local file import
 from deep_contextual_bandits import neural_linear_sampling  # local file import
 from deep_contextual_bandits import posterior_bnn_sampling  # local file import
 from deep_contextual_bandits import uniform_sampling  # local file import
+from tensorflow.contrib import training as contrib_training
 
 gfile = tf.compat.v1.gfile
 
@@ -105,10 +106,10 @@ def run_trial(trial_idx, delta, algo_names):
   algos = []
   for algo_name in algo_names:
     if algo_name == 'uniform':
-      hparams = tf.contrib.training.HParams(num_actions=num_actions)
+      hparams = contrib_training.HParams(num_actions=num_actions)
       algos.append(uniform_sampling.UniformSampling(algo_name, hparams))
     elif algo_name == 'neurolinear':
-      hparams = tf.contrib.training.HParams(
+      hparams = contrib_training.HParams(
           num_actions=num_actions,
           context_dim=context_dim,
           init_scale=0.3,
@@ -134,7 +135,7 @@ def run_trial(trial_idx, delta, algo_names):
       algos.append(neural_linear_sampling.NeuralLinearPosteriorSampling(
           algo_name, hparams))
     elif algo_name == 'multitaskgp':
-      hparams_gp = tf.contrib.training.HParams(
+      hparams_gp = contrib_training.HParams(
           num_actions=num_actions,
           num_outputs=num_actions,
           context_dim=context_dim,
@@ -180,7 +181,7 @@ def run_trial(trial_idx, delta, algo_names):
         is_anp = True
       mpath = os.path.join(FLAGS.modeldir, mfile)
 
-      hparams = tf.contrib.training.HParams(
+      hparams = contrib_training.HParams(
           num_actions=num_actions,
           context_dim=context_dim,
           init_scale=0.3,
