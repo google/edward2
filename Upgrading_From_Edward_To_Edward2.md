@@ -197,11 +197,11 @@ def build_trainable_positive_pointmass(shape, name=None):
 
 def build_trainable_gamma(shape, name=None):
   """Builds Gamma random variable and its parameters."""
-  shape = tf.Variable(tf.random.normal(shape))
-  scale = tf.Variable(tf.random.normal(shape))
+  shape_param = tf.Variable(tf.random.normal(shape))
+  scale_param = tf.Variable(tf.random.normal(shape))
   def gamma():
-    return ed.Gamma(tf.nn.softplus(shape), 1./tf.nn.softplus(scale), name=name)
-  return gamma, [shape, scale]
+    return ed.Gamma(tf.nn.softplus(shape_param), 1./tf.nn.softplus(scale_param), name=name)
+  return gamma, [shape_param, scale_param]
 
 def build_deep_exponential_family_variational():
   """Builds posterior approximation q(w{0,1,2}, z{1,2,3} | x) and parameters."""
