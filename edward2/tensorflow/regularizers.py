@@ -28,10 +28,11 @@ import tensorflow.compat.v2 as tf
 class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the half-Cauchy distribution."""
 
-  def __init__(self, loc=0., scale=1.):
+  def __init__(self, loc=0., scale=1., scale_factor=1.):
     """Constructs regularizer where default uses the standard half-Cauchy."""
     self.loc = loc
     self.scale = scale
+    self.scale_factor = scale_factor
 
   def __call__(self, x):
     """Computes regularization using an unbiased Monte Carlo estimate."""
@@ -43,17 +44,22 @@ class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
         reinterpreted_batch_ndims=len(x.distribution.event_shape))
     negative_entropy = x.distribution.log_prob(x)
     cross_entropy = -prior.distribution.log_prob(x)
-    return negative_entropy + cross_entropy
+    return self.scale_factor * (negative_entropy + cross_entropy)
 
   def get_config(self):
     return {
         'loc': self.loc,
         'scale': self.scale,
+        'scale_factor': self.scale_factor,
     }
 
 
 class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the log-uniform distribution."""
+
+  def __init__(self, scale_factor=1.):
+    """Constructs regularizer."""
+    self.scale_factor = scale_factor
 
   def __call__(self, x):
     """Computes regularization given an ed.Normal random variable as input."""
@@ -76,19 +82,22 @@ class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
     c = -k1
     output = tf.reduce_sum(k1 * tf.nn.sigmoid(k2 + k3 * log_alpha) +
                            -0.5 * tf.math.log1p(tf.exp(-log_alpha)) + c)
-    return output
+    return self.scale_factor * output
 
   def get_config(self):
-    return {}
+    return {
+        'scale_factor': self.scale_factor,
+    }
 
 
 class NormalKLDivergence(tf.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the normal distribution."""
 
-  def __init__(self, mean=0., stddev=1.):
+  def __init__(self, mean=0., stddev=1., scale_factor=1.):
     """Constructs regularizer where default is a KL towards the std normal."""
     self.mean = mean
     self.stddev = stddev
+    self.scale_factor = scale_factor
 
   def __call__(self, x):
     """Computes regularization given an ed.Normal random variable as input."""
@@ -100,12 +109,14 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
             scale=tf.broadcast_to(self.stddev, x.distribution.event_shape)
         ).distribution,
         reinterpreted_batch_ndims=len(x.distribution.event_shape))
-    return posterior.distribution.kl_divergence(x.distribution)
+    regularization = posterior.distribution.kl_divergence(x.distribution)
+    return self.scale_factor * regularization
 
   def get_config(self):
     return {
         'mean': self.mean,
         'stddev': self.stddev,
+        'scale_factor': self.scale_factor,
     }
 
 

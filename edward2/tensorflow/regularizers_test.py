@@ -40,6 +40,23 @@ class RegularizersTest(tf.test.TestCase):
     # check shape.
     self.assertEqual(kl_value.shape, ())
 
+  def testNormalKLDivergence(self):
+    shape = (3,)
+    regularizer = ed.regularizers.get('normal_kl_divergence')
+    variational_posterior = ed.Independent(
+        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=1)
+    kl = regularizer(variational_posterior)
+    kl_value = self.evaluate(kl)
+    self.assertGreaterEqual(kl_value, 0.)
+
+    dataset_size = 100
+    scale_factor = 1. / dataset_size
+    regularizer = ed.regularizers.NormalKLDivergence(scale_factor=scale_factor)
+    kl = regularizer(variational_posterior)
+    scaled_kl_value = self.evaluate(kl)
+    self.assertEqual(scale_factor * kl_value, scaled_kl_value)
+
 
 if __name__ == '__main__':
   tf.test.main()
