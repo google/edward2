@@ -85,7 +85,7 @@ class GaussianProcessTest(tf.test.TestCase):
       loss = nll + kl
 
     self.evaluate(tf1.global_variables_initializer())
-    grads = tape.gradient(nll, model.variables)
+    grads = tape.gradient(loss, model.variables)
     for grad in grads:
       self.assertIsNotNone(grad)
 
@@ -94,6 +94,17 @@ class GaussianProcessTest(tf.test.TestCase):
     self.assertGreaterEqual(loss_val, 0.)
     self.assertEqual(predictions_val.shape, (batch_size, output_dim))
 
+    # Check that gradients work on a second iteration. This can fail if
+    # trainable initializers do not recall their weights.
+    with tf.GradientTape() as tape:
+      predictions = model(features)
+      nll = -tf.reduce_mean(predictions.distribution.log_prob(labels))
+      kl = sum(model.losses) / dataset_size
+      loss = nll + kl
+
+    grads = tape.gradient(loss, model.variables)
+    for grad in grads:
+      self.assertIsNotNone(grad)
 
 if __name__ == '__main__':
   tf.test.main()

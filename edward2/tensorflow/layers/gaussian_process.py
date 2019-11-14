@@ -410,3 +410,16 @@ class SparseGaussianProcess(GaussianProcess):
         regularizer=self.inducing_outputs_regularizer,
         constraint=self.inducing_outputs_constraint)
     super(SparseGaussianProcess, self).build(input_shape)
+
+  def call_weights(self):
+    """Calls any weights if the initializer is itself a layer."""
+    if isinstance(self.inducing_inputs_initializer, tf.keras.layers.Layer):
+      self.conditional_inputs = self.inducing_inputs_initializer(
+          self.conditional_inputs.shape, self.dtype)
+    if isinstance(self.inducing_outputs_initializer, tf.keras.layers.Layer):
+      self.conditional_outputs = self.inducing_outputs_initializer(
+          self.conditional_outputs.shape, self.dtype)
+
+  def call(self, inputs):
+    self.call_weights()
+    return super(SparseGaussianProcess, self).call(inputs)
