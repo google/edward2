@@ -103,13 +103,13 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
     """Computes regularization given an ed.Normal random variable as input."""
     if not isinstance(x, random_variable.RandomVariable):
       raise ValueError('Input must be an ed.RandomVariable.')
-    posterior = generated_random_variables.Independent(
+    prior = generated_random_variables.Independent(
         generated_random_variables.Normal(
             loc=tf.broadcast_to(self.mean, x.distribution.event_shape),
             scale=tf.broadcast_to(self.stddev, x.distribution.event_shape)
         ).distribution,
         reinterpreted_batch_ndims=len(x.distribution.event_shape))
-    regularization = posterior.distribution.kl_divergence(x.distribution)
+    regularization = x.distribution.kl_divergence(prior.distribution)
     return self.scale_factor * regularization
 
   def get_config(self):
