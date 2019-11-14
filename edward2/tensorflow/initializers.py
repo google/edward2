@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Initializers."""
+"""Initializers.
+
+This module extends `tf.keras.initializers` with the notion of "trainable
+initializers", where initializers to weights and biases in `tf.keras.layers` may
+themselves carry parameters. For example, consider a weight initializer which
+returns a variational distribution: this is reified as an `ed.RandomVariable`
+parameterized by `tf.Variables`.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -75,19 +82,6 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
     - number of input units in the weight tensor, if mode = "fan_in"
     - number of output units, if mode = "fan_out"
     - average of the numbers of input and output units, if mode = "fan_avg"
-
-  Args:
-    scale: Scaling factor (positive float).
-    mode: One of "fan_in", "fan_out", "fan_avg".
-    distribution: Random distribution to use. One of "truncated_normal", or
-      "untruncated_normal".
-    seed: A Python integer. Used to create random seeds. See
-      `tf.set_random_seed`
-      for behavior.
-
-  Raises:
-    ValueError: In case of an invalid value for the "scale", mode" or
-      "distribution" arguments.
   """
 
   def __init__(self,
@@ -95,6 +89,21 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
                mode='fan_in',
                distribution='untruncated_normal',
                seed=None):
+    """Constructs the initializer.
+
+    Args:
+      scale: Scaling factor (positive float).
+      mode: One of "fan_in", "fan_out", "fan_avg".
+      distribution: Random distribution to use. One of "truncated_normal", or
+        "untruncated_normal".
+      seed: A Python integer. Used to create random seeds. See
+        `tf.set_random_seed`
+        for behavior.
+
+    Raises:
+      ValueError: In case of an invalid value for the "scale", mode" or
+        "distribution" arguments.
+    """
     distribution = distribution.lower()
     if distribution not in {'truncated_normal', 'untruncated_normal'}:
       raise ValueError('Invalid `distribution` argument:', distribution)
@@ -180,17 +189,17 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
   def get_config(self):
     return {
         'loc_initializer':
-            tf.keras.initializers.serialize(self.loc_initializer),
+            serialize(self.loc_initializer),
         'scale_initializer':
-            tf.keras.initializers.serialize(self.scale_initializer),
+            serialize(self.scale_initializer),
         'loc_regularizer':
-            tf.keras.regularizers.serialize(self.loc_regularizer),
+            regularizers.serialize(self.loc_regularizer),
         'scale_regularizer':
-            tf.keras.regularizers.serialize(self.scale_regularizer),
+            regularizers.serialize(self.scale_regularizer),
         'loc_constraint':
-            tf.keras.constraints.serialize(self.loc_constraint),
+            constraints.serialize(self.loc_constraint),
         'scale_constraint':
-            tf.keras.constraints.serialize(self.scale_constraint),
+            constraints.serialize(self.scale_constraint),
         'seed': self.seed,
     }
 
@@ -251,17 +260,17 @@ class TrainableNormal(tf.keras.layers.Layer):
   def get_config(self):
     return {
         'mean_initializer':
-            tf.keras.initializers.serialize(self.mean_initializer),
+            serialize(self.mean_initializer),
         'stddev_initializer':
-            tf.keras.initializers.serialize(self.stddev_initializer),
+            serialize(self.stddev_initializer),
         'mean_regularizer':
-            tf.keras.regularizers.serialize(self.mean_regularizer),
+            regularizers.serialize(self.mean_regularizer),
         'stddev_regularizer':
-            tf.keras.regularizers.serialize(self.stddev_regularizer),
+            regularizers.serialize(self.stddev_regularizer),
         'mean_constraint':
-            tf.keras.constraints.serialize(self.mean_constraint),
+            constraints.serialize(self.mean_constraint),
         'stddev_constraint':
-            tf.keras.constraints.serialize(self.stddev_constraint),
+            constraints.serialize(self.stddev_constraint),
         'seed': self.seed,
     }
 
