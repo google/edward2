@@ -41,6 +41,12 @@ class ConstraintsTest(parameterized.TestCase, tf.test.TestCase):
     constrained_weight_value = self.evaluate(constrained_weight)
     self.assertAllGreater(constrained_weight_value, 0.)
 
+  def testConstraintsGet(self):
+    self.assertIsInstance(ed.constraints.get('positive'),
+                          ed.constraints.Positive)
+    self.assertIsInstance(ed.constraints.get('non_neg'),
+                          tf.keras.constraints.NonNeg)
+
 
 if __name__ == '__main__':
   tf.test.main()

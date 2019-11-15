@@ -57,6 +57,10 @@ class RegularizersTest(tf.test.TestCase):
     scaled_kl_value = self.evaluate(kl)
     self.assertEqual(scale_factor * kl_value, scaled_kl_value)
 
+  def testRegularizersGet(self):
+    self.assertIsInstance(ed.regularizers.get('normal_kl_divergence'),
+                          ed.regularizers.NormalKLDivergence)
+    self.assertIsInstance(ed.regularizers.get('l2'), tf.keras.regularizers.L1L2)
 
 if __name__ == '__main__':
   tf.test.main()

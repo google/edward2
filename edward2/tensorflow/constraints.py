@@ -95,7 +95,7 @@ def deserialize(config, custom_objects=None):
 
 
 def get(identifier, value=None):
-  """Getter for loading from strings; returns value if can't load."""
+  """Getter for loading from strings; falls back to Keras as needed."""
   if value is None:
     value = identifier
   if identifier is None:
@@ -104,13 +104,13 @@ def get(identifier, value=None):
     try:
       return deserialize(identifier)
     except ValueError:
-      return value
+      pass
   elif isinstance(identifier, six.string_types):
     config = {'class_name': str(identifier), 'config': {}}
     try:
       return deserialize(config)
     except ValueError:
-      return value
+      pass
   elif callable(identifier):
     return identifier
-  return value
+  return tf.keras.constraints.get(value)

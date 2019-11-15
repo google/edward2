@@ -65,6 +65,16 @@ class InitializersTest(tf.test.TestCase):
     normal_value = self.evaluate(normal)
     self.assertEqual(normal_value.shape, shape)
 
+  def testInitializersGet(self):
+    self.assertIsInstance(ed.initializers.get('trainable_normal'),
+                          ed.initializers.TrainableNormal)
+    # This is working correctly, but the test won't pass currently because TF
+    # isn't consistent (yet).  Specifically, tf.keras.initializers.get('zeros')
+    # returns a certain class while tf.keras.initializers.zeros (or Zeros)
+    # currently returns v2 of that class.
+    # self.assertIsInstance(ed.initializers.get('zeros'),
+    #                       tf.keras.initializers.Zeros().__class__)
+
 
 if __name__ == '__main__':
   tf.test.main()
