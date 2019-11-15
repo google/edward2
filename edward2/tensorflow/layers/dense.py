@@ -413,8 +413,8 @@ class DenseHierarchical(DenseVariationalDropout):
                global_scale_regularizer=regularizers.HalfCauchyKLDivergence(
                    scale=1e-5),
                activity_regularizer=None,
-               local_scale_constraint='positive',
-               global_scale_constraint='positive',
+               local_scale_constraint='softplus',
+               global_scale_constraint='softplus',
                **kwargs):
     self.local_scale_initializer = initializers.get(local_scale_initializer)
     self.global_scale_initializer = initializers.get(global_scale_initializer)

@@ -13,7 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constraints."""
+"""Constraints.
+
+One subtlety is how Bayesian Layers uses `tf.keras.constraints`. Typically,
+Keras constraints are used with projected gradient descent, where one performs
+unconstrained optimization and then applies a projection (the constraint) after
+each gradient update. To stay in line with probabilistic literature, trainable
+initializers, such as variational distributions for the weight initializer,
+apply constraints on the `tf.Variables` themselves (i.e., a constrained
+parameterization) and do not apply projections during optimization.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -21,6 +30,19 @@ from __future__ import print_function
 
 import six
 import tensorflow.compat.v2 as tf
+
+
+class Exp(tf.keras.constraints.Constraint):
+  """Exp constraint."""
+
+  def __init__(self, epsilon=tf.keras.backend.epsilon()):
+    self.epsilon = epsilon
+
+  def __call__(self, w):
+    return tf.exp(w) + self.epsilon
+
+  def get_config(self):
+    return {'epsilon': self.epsilon}
 
 
 class Positive(tf.keras.constraints.Constraint):
@@ -36,10 +58,26 @@ class Positive(tf.keras.constraints.Constraint):
     return {'epsilon': self.epsilon}
 
 
+class Softplus(tf.keras.constraints.Constraint):
+  """Softplus constraint."""
+
+  def __init__(self, epsilon=tf.keras.backend.epsilon()):
+    self.epsilon = epsilon
+
+  def __call__(self, w):
+    return tf.nn.softplus(w) + self.epsilon
+
+  def get_config(self):
+    return {'epsilon': self.epsilon}
+
+
 # Compatibility aliases, following tf.keras
 
-
-positive = Positive  # pylint: disable=invalid-name
+# pylint: disable=invalid-name
+exp = Exp
+positive = Positive
+softplus = Softplus
+# pylint: enable=invalid-name
 
 # Utility functions, following tf.keras
 

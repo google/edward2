@@ -235,8 +235,8 @@ class Conv2DHierarchical(Conv2DFlipout):
                activity_regularizer=None,
                kernel_constraint=None,
                bias_constraint=None,
-               local_scale_constraint='positive',
-               global_scale_constraint='positive',
+               local_scale_constraint='softplus',
+               global_scale_constraint='softplus',
                **kwargs):
     self.local_scale_initializer = initializers.get(local_scale_initializer)
     self.global_scale_initializer = initializers.get(global_scale_initializer)

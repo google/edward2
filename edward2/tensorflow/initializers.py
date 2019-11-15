@@ -20,6 +20,14 @@ initializers", where initializers to weights and biases in `tf.keras.layers` may
 themselves carry parameters. For example, consider a weight initializer which
 returns a variational distribution: this is reified as an `ed.RandomVariable`
 parameterized by `tf.Variables`.
+
+One subtlety is how `tf.keras.constraints` are used on the parameters of
+trainable initializers. Typically, Keras constraints are used with projected
+gradient descent, where one performs unconstrained optimization and then applies
+a projection (the constraint) after each gradient update. To stay in line with
+probabilistic literature, trainable initializers apply constraints on the
+`tf.Variables` themselves (i.e., a constrained parameterization) and do not
+apply projections during optimization.
 """
 
 from __future__ import absolute_import
@@ -129,7 +137,7 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
     else:  # self.distribution == 'untruncated_normal':
       stddev = math.sqrt(scale)
     return tf.random.truncated_normal(shape, mean=stddev, stddev=stddev*0.1,
-                                      dtype=dtype)
+                                      dtype=dtype, seed=self.seed)
 
 
 class TrainableHalfCauchy(tf.keras.layers.Layer):
@@ -139,11 +147,11 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
                loc_initializer=tf.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
                scale_initializer=tf.keras.initializers.TruncatedNormal(
-                   mean=1., stddev=1e-5),
+                   mean=-3., stddev=0.1),
                loc_regularizer=None,
                scale_regularizer=None,
                loc_constraint=None,
-               scale_constraint='positive',
+               scale_constraint='softplus',
                seed=None,
                **kwargs):
     """Constructs the initializer."""
@@ -165,7 +173,7 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
         shape=shape,
         initializer=self.loc_initializer,
         regularizer=self.loc_regularizer,
-        constraint=self.loc_constraint,
+        constraint=None,
         dtype=dtype,
         trainable=True)
     self.scale = self.add_weight(
@@ -173,7 +181,7 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
         shape=shape,
         initializer=self.scale_initializer,
         regularizer=self.scale_regularizer,
-        constraint=self.scale_constraint,
+        constraint=None,
         dtype=dtype,
         trainable=True)
     self.built = True
@@ -181,9 +189,15 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
   def __call__(self, shape, dtype=None):
     if not self.built:
       self.build(shape, dtype)
+    loc = self.loc
+    if self.loc_constraint:
+      loc = self.loc_constraint(loc)
+    scale = self.scale
+    if self.scale_constraint:
+      scale = self.scale_constraint(scale)
     return generated_random_variables.Independent(
-        generated_random_variables.HalfCauchy(
-            loc=self.loc, scale=self.scale).distribution,
+        generated_random_variables.HalfCauchy(loc=loc,
+                                              scale=scale).distribution,
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -210,11 +224,12 @@ class TrainableNormal(tf.keras.layers.Layer):
   def __init__(self,
                mean_initializer=tf.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
-               stddev_initializer='scaled_normal_std_dev',
+               stddev_initializer=tf.keras.initializers.TruncatedNormal(
+                   mean=-3., stddev=0.1),
                mean_regularizer=None,
                stddev_regularizer=None,
                mean_constraint=None,
-               stddev_constraint='positive',
+               stddev_constraint='softplus',
                seed=None,
                **kwargs):
     """Constructs the initializer."""
@@ -236,7 +251,7 @@ class TrainableNormal(tf.keras.layers.Layer):
         shape=shape,
         initializer=self.mean_initializer,
         regularizer=self.mean_regularizer,
-        constraint=self.mean_constraint,
+        constraint=None,
         dtype=dtype,
         trainable=True)
     self.stddev = self.add_weight(
@@ -244,7 +259,7 @@ class TrainableNormal(tf.keras.layers.Layer):
         shape=shape,
         initializer=self.stddev_initializer,
         regularizer=self.stddev_regularizer,
-        constraint=self.stddev_constraint,
+        constraint=None,
         dtype=dtype,
         trainable=True)
     self.built = True
@@ -252,9 +267,14 @@ class TrainableNormal(tf.keras.layers.Layer):
   def __call__(self, shape, dtype=None):
     if not self.built:
       self.build(shape, dtype)
+    mean = self.mean
+    if self.mean_constraint:
+      mean = self.mean_constraint(mean)
+    stddev = self.stddev
+    if self.stddev_constraint:
+      stddev = self.stddev_constraint(stddev)
     return generated_random_variables.Independent(
-        generated_random_variables.Normal(
-            loc=self.mean, scale=self.stddev).distribution,
+        generated_random_variables.Normal(loc=mean, scale=stddev).distribution,
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -291,7 +311,7 @@ class TrainableHeNormal(TrainableNormal):
 
   def __init__(self, seed=None):
     super(TrainableHeNormal, self).__init__(
-        stddev_initializer=ScaledNormalStdDev(scale=2.0, seed=seed),
+        mean_initializer=tf.keras.initializers.he_normal(seed),
         seed=seed)
 
   def get_config(self):
@@ -316,7 +336,7 @@ class TrainableGlorotNormal(TrainableNormal):
 
   def __init__(self, seed=None):
     super(TrainableGlorotNormal, self).__init__(
-        stddev_initializer=ScaledNormalStdDev(mode='fan_avg', seed=seed),
+        mean_initializer=tf.keras.initializers.GlorotNormal(seed),
         seed=seed)
 
   def get_config(self):

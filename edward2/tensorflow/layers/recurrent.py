@@ -70,6 +70,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
                recurrent_dropout=0.,
                implementation=1,
                **kwargs):
+    self.called_weights = False
     super(LSTMCellReparameterization, self).__init__(
         units=units,
         activation=activation,
@@ -141,6 +142,17 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
       self.bias = None
     self.built = True
 
+  def call(self, *args, **kwargs):
+    if not self.called_weights:
+      # Call weights if never called before. This ensures TF ops executed during
+      # the cell's first ever call (e.g., constraints applied to free parameters
+      # in the variational distribution) are recorded properly on any gradient
+      # tape. Unlike variational dense or convolutional layers, LSTM cell weight
+      # noise is reused across calls (i.e., timesteps). Call get_initial_state()
+      # or call_weights() explicitly to get a new sample of the weights.
+      self.call_weights()
+    return super(LSTMCellReparameterization, self).call(*args, **kwargs)
+
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
@@ -150,6 +162,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
           self.recurrent_kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+    self.called_weights = True
 
   def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
     """Get the initial state and side-effect sampling of stochastic weights."""
@@ -191,9 +204,8 @@ class LSTMCellFlipout(LSTMCellReparameterization):
 
   def _call_sign_flips(self, inputs=None, batch_size=None, dtype=None):
     """Builds per-example sign flips for pseudo-independent perturbations."""
-    # TODO(trandustin): We add and call this method separately from build().
-    # This is because build() operates on a static input_shape. We need dynamic
-    # input shapes as we operate on the batch size which is often dynamic.
+    # We add and call this method separately from build(). build() operates on a
+    # static input_shape, and we need the batch size which is often dynamic.
     if inputs is not None:
       batch_size = tf.shape(inputs)[0]
       dtype = inputs.dtype
@@ -251,7 +263,8 @@ class LSTMCellFlipout(LSTMCellReparameterization):
     if (not isinstance(self.kernel, random_variable.RandomVariable) or
         not isinstance(self.recurrent_kernel, random_variable.RandomVariable)):
       return super(LSTMCellFlipout, self).call(inputs, states, training)
-    if not hasattr(self, 'sign_input'):
+    if not self.called_weights:
+      self.call_weights()
       self._call_sign_flips(inputs)
     h_tm1 = states[0]  # previous memory state
     c_tm1 = states[1]  # previous carry state
