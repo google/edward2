@@ -13,12 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Regularizers."""
+"""Regularizers.
+
+This module extends `tf.keras.regularizers` with two features:
+
+1. Regularizers which compute using any weight random variables' distribution.
+For example, consider a regularizer which computes an analytic KL
+divergence given an input ed.Normal weight.
+2. "Trainable regularizers" are regularizers which may themselves carry
+parameters. For example, consider a weight regularizer which computes a
+KL divergence from the weights towards a learnable prior.
+
+One subtlety is how `tf.keras.constraints` are used on the parameters of
+trainable regularizers. Typically, Keras constraints are used with projected
+gradient descent, where one performs unconstrained optimization and then applies
+a projection (the constraint) after each gradient update. To stay in line with
+probabilistic literature, trainable regularizers apply constraints on the
+`tf.Variables` themselves (i.e., a constrained parameterization) and do not
+apply projections during optimization.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import random_variable
 import six
@@ -100,7 +119,7 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
     self.scale_factor = scale_factor
 
   def __call__(self, x):
-    """Computes regularization given an ed.Normal random variable as input."""
+    """Computes regularization given an input ed.RandomVariable."""
     if not isinstance(x, random_variable.RandomVariable):
       raise ValueError('Input must be an ed.RandomVariable.')
     prior = generated_random_variables.Independent(
@@ -120,12 +139,69 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
+class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
+  """Normal KL divergence with trainable stddev parameter."""
+
+  def __init__(self,
+               mean=0.,
+               stddev_initializer=tf.keras.initializers.TruncatedNormal(
+                   mean=0.5413248, stddev=0.1),  # mean=softplus_inverse(1.)
+               stddev_regularizer=None,
+               stddev_constraint='softplus',
+               scale_factor=1.,
+               seed=None,
+               **kwargs):
+    super(TrainableNormalKLDivergenceStdDev, self).__init__(**kwargs)
+    self.mean = mean
+    self.stddev_initializer = tf.keras.initializers.get(stddev_initializer)
+    self.stddev_regularizer = get(stddev_regularizer)
+    self.stddev_constraint = constraints.get(stddev_constraint)
+    self.scale_factor = scale_factor
+
+  def build(self, input_shape):
+    self.stddev = self.add_weight(
+        'stddev',
+        shape=input_shape,
+        initializer=self.stddev_initializer,
+        regularizer=self.stddev_regularizer,
+        constraint=None,
+        dtype=self.dtype,
+        trainable=True)
+    self.built = True
+
+  def call(self, inputs):
+    """Computes regularization given an input ed.RandomVariable."""
+    if not isinstance(inputs, random_variable.RandomVariable):
+      raise ValueError('Input must be an ed.RandomVariable.')
+    stddev = self.stddev
+    if self.stddev_constraint:
+      stddev = self.stddev_constraint(stddev)
+    prior = generated_random_variables.Independent(
+        generated_random_variables.Normal(
+            loc=self.mean, scale=stddev).distribution,
+        reinterpreted_batch_ndims=len(inputs.distribution.event_shape))
+    regularization = inputs.distribution.kl_divergence(prior.distribution)
+    return self.scale_factor * regularization
+
+  def get_config(self):
+    return {
+        'loc': self.loc,
+        'stddev_initializer':
+            tf.keras.initializers.serialize(self.stddev_initializer),
+        'stddev_regularizer': serialize(self.stddev_regularizer),
+        'stddev_constraint': constraints.serialize(self.stddev_constraint),
+        'scale_factor': self.scale_factor,
+        'seed': self.seed,
+    }
+
+
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
 half_cauchy_kl_divergence = HalfCauchyKLDivergence
 log_uniform_kl_divergence = LogUniformKLDivergence
 normal_kl_divergence = NormalKLDivergence
+trainable_normal_kl_divergence_stddev = TrainableNormalKLDivergenceStdDev
 # pylint: enable=invalid-name
 
 # Utility functions, following tf.keras

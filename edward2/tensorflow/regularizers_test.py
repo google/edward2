@@ -20,6 +20,8 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
+import numpy as np
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
@@ -56,6 +58,23 @@ class RegularizersTest(tf.test.TestCase):
     kl = regularizer(variational_posterior)
     scaled_kl_value = self.evaluate(kl)
     self.assertEqual(scale_factor * kl_value, scaled_kl_value)
+
+  def testTrainableNormalKLDivergenceStddev(self):
+    tf.random.set_seed(83271)
+    shape = (3,)
+    regularizer = ed.regularizers.get('trainable_normal_kl_divergence_stddev')
+    variational_posterior = ed.Independent(
+        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=1)
+    kl = regularizer(variational_posterior)
+    self.evaluate(tf1.global_variables_initializer())
+    kl_value = self.evaluate(kl)
+    self.assertGreaterEqual(kl_value, 0.)
+
+    prior_stddev = self.evaluate(
+        regularizer.stddev_constraint(regularizer.stddev))
+    self.assertAllClose(prior_stddev, np.ones(prior_stddev.shape),
+                        atol=0.1)
 
   def testRegularizersGet(self):
     self.assertIsInstance(ed.regularizers.get('normal_kl_divergence'),

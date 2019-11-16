@@ -42,7 +42,14 @@ def add_weight(cls):
                   regularizer=None,
                   **kwargs):
     """Adds weight."""
+    if isinstance(regularizer, tf.keras.layers.Layer):
+      # If regularizer is trainable, build and add its parameters to the layer.
+      if not regularizer.built:
+        regularizer.build(shape)
+      self._trainable_weights.extend(regularizer.trainable_weights)  # pylint: disable=protected-access
+      self._non_trainable_weights.extend(regularizer.non_trainable_weights)  # pylint: disable=protected-access
     if isinstance(initializer, tf.keras.layers.Layer):
+      # If initializer is trainable, build and add its parameters to the layer.
       weight = initializer(shape, dtype)
       self._trainable_weights.extend(initializer.trainable_weights)  # pylint: disable=protected-access
       self._non_trainable_weights.extend(initializer.non_trainable_weights)  # pylint: disable=protected-access

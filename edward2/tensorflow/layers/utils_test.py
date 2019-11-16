@@ -30,6 +30,28 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 @test_util.run_all_in_graph_and_eager_modes
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
+  def testAddWeightWithTrainableInitializer(self):
+    dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
+    initializer = ed.initializers.get('trainable_normal')
+    layer = dense_wrapped(2, kernel_initializer=initializer)
+    inputs = tf.random.normal([1, 3])
+    _ = layer(inputs)
+    self.assertTrue(initializer.built, True)
+    self.assertNotEmpty(initializer.weights)
+    for weight in initializer.weights:
+      self.assertIn(weight, layer.weights)
+
+  def testAddWeightWithTrainableRegularizer(self):
+    dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
+    regularizer = ed.regularizers.get('trainable_normal_kl_divergence_stddev')
+    layer = dense_wrapped(2, kernel_regularizer=regularizer)
+    inputs = tf.random.normal([1, 3])
+    _ = layer(inputs)
+    self.assertTrue(regularizer.built, True)
+    self.assertNotEmpty(regularizer.weights)
+    for weight in regularizer.weights:
+      self.assertIn(weight, layer.weights)
+
   def testOneHotAddExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
