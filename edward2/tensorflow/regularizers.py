@@ -139,6 +139,77 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
+class NormalEmpiricalBayesKLDivergence(NormalKLDivergence):
+  """Normal prior with distribution on variance and using empirical Bayes.
+
+  This regularizer uses a hierachical prior that shares a variance distribution
+  across all weight elements (Wu et al., 2018):
+
+  ```
+  p(variance) = InverseGamma(variance | variance_concentration, variance_scale)
+  p(weight[i, j]) = Normal(weight[i, j] | mean, variance),
+  ```
+
+  where `variance_concentration`, `variance_scale`, and `mean` are fixed. Given
+  an input random variable q(weight), the regularizer computes a KL divergence
+  towards the prior distribution p(weight, variance). The variance is fixed at
+  the value variance*:
+
+  ```
+  R(weight)
+  = KL( q(weight) deterministic(variance | variance*) || p(weight, scale) )
+  = E [ log q(weight) + log deterministic(variance | variance*) -
+        log p(weight, scale) ]
+  = E [ log q(weight) - log p(weight | variance*) ] - log p(variance*)
+  = KL( q(weight) || p(weight | variance*) ) - log p(variance*).
+  ```
+
+  We use Wu et al. (2018)'s closed-form solution for variance*. The estimate is
+  approximate if the input random variable is not normally distributed.
+  """
+
+  def __init__(self,
+               mean=0.,
+               variance_concentration=2.01,
+               variance_scale=0.101,
+               scale_factor=1.):
+    """Constructs regularizer."""
+    self.variance_concentration = variance_concentration
+    self.variance_scale = variance_scale
+    super(NormalEmpiricalBayesKLDivergence, self).__init__(
+        mean=mean,
+        stddev=None,  # to be estimated at each call
+        scale_factor=scale_factor)
+
+  def __call__(self, x):
+    """Computes regularization given an input ed.RandomVariable."""
+    if not isinstance(x, random_variable.RandomVariable):
+      raise ValueError('Input must be an ed.RandomVariable.')
+    # variance = (tr( sigma_q + mu_q mu_q^T ) + 2*beta) / (omega + 2*alpha + 2)
+    trace_covariance = tf.reduce_sum(x.distribution.variance())
+    trace_mean_outer_product = tf.reduce_sum(x.distribution.mean()**2)
+    num_weights = tf.cast(tf.reduce_prod(x.shape), x.dtype)
+    variance = ((trace_covariance + trace_mean_outer_product) +
+                2. * self.variance_scale)
+    variance /= num_weights + 2. * self.variance_concentration + 2.
+    self.stddev = tf.sqrt(variance)
+
+    variance_prior = generated_random_variables.InverseGamma(
+        self.variance_concentration, self.variance_scale)
+    regularization = super(NormalEmpiricalBayesKLDivergence, self).__call__(x)
+    regularization -= (self.scale_factor *
+                       variance_prior.distribution.log_prob(variance))
+    return regularization
+
+  def get_config(self):
+    return {
+        'mean': self.mean,
+        'variance_concentration': self.variance_concentration,
+        'variance_scale': self.variance_scale,
+        'scale_factor': self.scale_factor,
+    }
+
+
 class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
   """Normal KL divergence with trainable stddev parameter."""
 
@@ -201,6 +272,7 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
 half_cauchy_kl_divergence = HalfCauchyKLDivergence
 log_uniform_kl_divergence = LogUniformKLDivergence
 normal_kl_divergence = NormalKLDivergence
+normal_empirical_bayes_kl_divergence = NormalEmpiricalBayesKLDivergence
 trainable_normal_kl_divergence_stddev = TrainableNormalKLDivergenceStdDev
 # pylint: enable=invalid-name
 

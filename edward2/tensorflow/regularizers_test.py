@@ -19,6 +19,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import itertools
+from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
 import tensorflow.compat.v1 as tf1
@@ -28,7 +30,7 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 
 
 @test_util.run_all_in_graph_and_eager_modes
-class RegularizersTest(tf.test.TestCase):
+class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
 
   def testHalfCauchyKLDivergence(self):
     shape = (3,)
@@ -58,6 +60,79 @@ class RegularizersTest(tf.test.TestCase):
     kl = regularizer(variational_posterior)
     scaled_kl_value = self.evaluate(kl)
     self.assertEqual(scale_factor * kl_value, scaled_kl_value)
+
+  @parameterized.parameters(
+      itertools.product(
+          [0.1, 1.0, 2.0],
+          [0.1, 1.0, 2.0]))
+  def testNormalEmpiricalBayesKLDivergence(self, gen_stddev, eb_prior_stddev):
+    """Tests ed.regularizers.NormalEmpiricalBayesKLDivergence.
+
+    Check that EB KL estimate should always be smaller but close to the true
+    generating Normal-InverseGamma KL due to it being explicitly optimized.
+
+    Args:
+      gen_stddev: Standard deviation of the generating normal distribution.
+      eb_prior_stddev: Standard deviation of the EB hyperprior.
+    """
+    tf.random.set_seed(89323)
+    shape = (99, 101)
+    gen_mean = 0.
+    eb_prior_mean = eb_prior_stddev**2
+    cvar = (eb_prior_mean / eb_prior_stddev)**2
+    variance_concentration = cvar + 2.
+    variance_scale = eb_prior_mean*(cvar + 1.)
+    weight = ed.Independent(
+        ed.Normal(gen_mean + tf.zeros(shape), gen_stddev).distribution,
+        reinterpreted_batch_ndims=len(shape))
+
+    # Compute KL(q(w)|| N(w|gen_stddev)) - log IG(gen_stddev**2) under a fixed
+    # setting of the prior stddev.
+    normal_regularizer = ed.regularizers.NormalKLDivergence(mean=gen_mean,
+                                                            stddev=gen_stddev)
+    kl = normal_regularizer(weight)
+    kl -= tf.reduce_sum(
+        ed.InverseGamma(variance_concentration,
+                        variance_scale).distribution.log_prob(gen_stddev**2))
+
+    eb_regularizer = ed.regularizers.NormalEmpiricalBayesKLDivergence(
+        mean=gen_mean,
+        variance_concentration=variance_concentration,
+        variance_scale=variance_scale)
+    eb_kl = eb_regularizer(weight)
+    # Normalize comparison by total number of weights. (Note this also scales
+    # the IG log prob.)
+    kl /= float(np.prod(shape))
+    eb_kl /= float(np.prod(shape))
+    kl_value, eb_kl_value = self.evaluate([kl, eb_kl])
+    self.assertGreaterEqual(kl_value, eb_kl_value)
+    self.assertAlmostEqual(kl_value, eb_kl_value, delta=0.05,
+                           msg='Parameters score KL=%.6f on generating '
+                           'Normal-IG KL and KL=%.6f on EB-fitted KL, '
+                           'too much difference.' % (kl_value, eb_kl_value))
+
+  def testNormalEmpiricalBayesKLDivergenceTFFunction(self):
+    """Checks that KL evaluates properly multiple times when compiled."""
+    shape = (3,)
+    regularizer = ed.regularizers.get('normal_empirical_bayes_kl_divergence')
+    regularizer_compiled = tf.function(regularizer)
+    weights_one = ed.Independent(
+        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=len(shape))
+    kl_one = regularizer(weights_one)
+    kl_one_c = regularizer_compiled(weights_one)
+
+    weights_two = ed.Independent(
+        ed.Normal(loc=5. + tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=len(shape))
+    kl_two = regularizer(weights_two)
+    kl_two_c = regularizer_compiled(weights_two)
+
+    kl_one_value, kl_one_c_value, kl_two_value, kl_two_c_value = self.evaluate(
+        [kl_one, kl_one_c, kl_two, kl_two_c])
+    self.assertAllClose(kl_one_value, kl_one_c_value)
+    self.assertAllClose(kl_two_value, kl_two_c_value)
+    self.assertNotAlmostEqual(kl_one_c_value, kl_two_c_value)
 
   def testTrainableNormalKLDivergenceStddev(self):
     tf.random.set_seed(83271)
