@@ -9,16 +9,12 @@ It's organized as follows:
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
   Library code, including
   [Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
-  It features two backends:
-  [`numpy/`](https://github.com/google/edward2/blob/master/edward2/numpy)
-  and
-  [`tensorflow/`](https://github.com/google/edward2/blob/master/edward2/tensorflow).
+* [`baselines/`](https://github.com/google/edward2/blob/master/baselines):
+  Well-tested baselines for uncertainty models.
 * [`examples/`](https://github.com/google/edward2/blob/master/examples):
   Examples.
 * [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
   Active research projects.
-* [`notebooks/`](https://github.com/google/edward2/blob/master/notebooks):
-  Jupyter notebooks, including a companion notebook for the NeurIPS 2018 paper.
 
 Are you upgrading from Edward? Check out the guide
 [`Upgrading_from_Edward_to_Edward2.md`](https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md).

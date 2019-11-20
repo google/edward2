@@ -10,7 +10,12 @@ jobs:
   include:
     - stage: lint
       python: "3.6"
-      script: ./oss_scripts/oss_lint.sh
+      script:
+        - set -v  # print commands as they're executed
+        - set -e  # fail and exit on any command erroring
+        - rm -rf edward2.egg-info/
+        - pylint --jobs=2 --rcfile=pylintrc *.py
+        - pylint --jobs=2 --rcfile=pylintrc */
 python:
   - "2.7"
   - "3.6"
@@ -19,6 +24,20 @@ env:
     - TF_VERSION="tensorflow"
     - TF_VERSION="tf-nightly"
 install:
-  - ./oss_scripts/oss_pip_install.sh
+  - set -v  # print commands as they're executed
+  - set -e  # fail and exit on any command erroring
+  # Ensure that the base dependencies are sufficient for a full import.
+  - pip install -q -e .
+  - python -c "import edward2 as ed"
+
+  # Install backend and test dependencies.
+  - if [[ "$TF_VERSION" == "tensorflow"  ]]
+    then
+      pip install -q -e .[numpy,tensorflow,tests]
+    else
+      pip install -q -e .[numpy,tf-nightly,tests]
+    fi
 script:
-  - ./oss_scripts/oss_tests.sh
+  - set -v  # print commands as they're executed
+  - set -e  # fail and exit on any command erroring
+  - pytest
