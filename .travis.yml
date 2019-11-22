@@ -31,8 +31,8 @@ install:
   - python -c "import edward2 as ed"
 
   # Install backend and test dependencies.
-  - if [[ "$TF_VERSION" == "tensorflow"  ]]
-    then
+  - |
+    if [[ "$TF_VERSION" == "tensorflow"  ]]; then
       pip install -q -e .[numpy,tensorflow,tests]
     else
       pip install -q -e .[numpy,tf-nightly,tests]
