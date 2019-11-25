@@ -30,6 +30,19 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 @test_util.run_all_in_graph_and_eager_modes
 class InitializersTest(tf.test.TestCase):
 
+  def testTrainableDeterministic(self):
+    tf.random.set_seed(345689)
+    shape = (100,)
+    initializer = ed.initializers.get('trainable_deterministic')
+    rv = initializer(shape)
+    self.evaluate(tf1.global_variables_initializer())
+    # Get distribution of rv -> get distribution of Independent.
+    loc_value = self.evaluate(rv.distribution.distribution.loc)
+    self.assertAllClose(loc_value, np.zeros(shape), atol=1e-4)
+
+    rv_value = self.evaluate(rv)
+    self.assertEqual(rv_value.shape, shape)
+
   def testTrainableHalfCauchy(self):
     tf.random.set_seed(2832)
     shape = (3,)

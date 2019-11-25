@@ -140,6 +140,59 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
                                       dtype=dtype, seed=self.seed)
 
 
+class TrainableDeterministic(tf.keras.layers.Layer):
+  """Deterministic point-wise initializer with trainable location."""
+
+  def __init__(self,
+               loc_initializer=tf.keras.initializers.TruncatedNormal(
+                   stddev=1e-5),
+               loc_regularizer=None,
+               loc_constraint=None,
+               seed=None,
+               **kwargs):
+    """Constructs the initializer."""
+    super(TrainableDeterministic, self).__init__(**kwargs)
+    self.loc_initializer = get(loc_initializer)
+    self.loc_regularizer = regularizers.get(loc_regularizer)
+    self.loc_constraint = constraints.get(loc_constraint)
+    self.seed = seed
+
+  def build(self, shape, dtype=None):
+    if dtype is None:
+      dtype = self.dtype
+
+    self.loc = self.add_weight(
+        'loc',
+        shape=shape,
+        initializer=self.loc_initializer,
+        regularizer=self.loc_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.built = True
+
+  def __call__(self, shape, dtype=None):
+    if not self.built:
+      self.build(shape, dtype)
+    loc = self.loc
+    if self.loc_constraint:
+      loc = self.loc_constraint(loc)
+    return generated_random_variables.Independent(
+        generated_random_variables.Deterministic(loc=loc).distribution,
+        reinterpreted_batch_ndims=len(shape))
+
+  def get_config(self):
+    return {
+        'loc_initializer':
+            serialize(self.loc_initializer),
+        'loc_regularizer':
+            regularizers.serialize(self.loc_regularizer),
+        'loc_constraint':
+            constraints.serialize(self.loc_constraint),
+        'seed': self.seed,
+    }
+
+
 class TrainableHalfCauchy(tf.keras.layers.Layer):
   """Half-Cauchy distribution initializer with trainable parameters."""
 
@@ -441,6 +494,7 @@ class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
 
 # pylint: disable=invalid-name
 scaled_normal_std_dev = ScaledNormalStdDev
+trainable_deterministic = TrainableDeterministic
 trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
