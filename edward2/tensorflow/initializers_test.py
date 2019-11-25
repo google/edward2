@@ -65,6 +65,28 @@ class InitializersTest(tf.test.TestCase):
     normal_value = self.evaluate(normal)
     self.assertEqual(normal_value.shape, shape)
 
+  def testTrainableMixtureOfDeltas(self):
+    tf.random.set_seed(345689)
+    shape = (100,)
+    num_components = 5
+    initializer = ed.initializers.TrainableMixtureOfDeltas(num_components)
+    mixture_shape = list(shape) + [num_components]
+    rv = initializer(shape)
+    self.evaluate(tf1.global_variables_initializer())
+    probs_value, loc_value = self.evaluate([
+        # Get distribution of rv -> get distribution of Independent.
+        rv.distribution.distribution.mixture_distribution.probs,
+        rv.distribution.distribution.components_distribution.loc,
+    ])
+    self.assertAllClose(
+        probs_value,
+        tf.broadcast_to([[1/num_components]*num_components], mixture_shape),
+        atol=1e-4)
+    self.assertAllClose(loc_value, np.zeros(mixture_shape), atol=1.)
+
+    value = self.evaluate(rv)
+    self.assertEqual(value.shape, shape)
+
   def testInitializersGet(self):
     self.assertIsInstance(ed.initializers.get('trainable_normal'),
                           ed.initializers.TrainableNormal)

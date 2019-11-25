@@ -375,6 +375,68 @@ class RandomSign(tf.keras.initializers.Initializer):
     }
 
 
+class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
+  """Mixture of deltas as an initializer with trainable locations."""
+
+  def __init__(self,
+               num_components=5,
+               loc_initializer=tf.keras.initializers.he_normal(),
+               loc_regularizer=None,
+               loc_constraint=None,
+               seed=None,
+               **kwargs):
+    """Constructs the initializer."""
+    super(TrainableMixtureOfDeltas, self).__init__(**kwargs)
+    self.num_components = num_components
+    self.loc_initializer = get(loc_initializer)
+    self.loc_regularizer = regularizers.get(loc_regularizer)
+    self.loc_constraint = constraints.get(loc_constraint)
+    self.seed = seed
+
+  def build(self, shape, dtype=None):
+    if dtype is None:
+      dtype = self.dtype
+
+    self.loc = self.add_weight(
+        'loc',
+        shape=list(shape) + [self.num_components],
+        initializer=self.loc_initializer,
+        regularizer=self.loc_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.built = True
+
+  def __call__(self, shape, dtype=None):
+    if not self.built:
+      self.build(shape, dtype)
+    loc = self.loc
+    if self.loc_constraint:
+      loc = self.loc_constraint(loc)
+    return generated_random_variables.Independent(
+        generated_random_variables.MixtureSameFamily(
+            mixture_distribution=generated_random_variables.Categorical(
+                probs=tf.broadcast_to(
+                    [[1/self.num_components]*self.num_components],
+                    list(shape) + [self.num_components])).distribution,
+            components_distribution=generated_random_variables.Deterministic(
+                loc=loc).distribution
+        ).distribution,
+        reinterpreted_batch_ndims=len(shape))
+
+  def get_config(self):
+    return {
+        'num_components': self.num_components,
+        'loc_initializer':
+            serialize(self.loc_initializer),
+        'loc_regularizer':
+            regularizers.serialize(self.loc_regularizer),
+        'loc_constraint':
+            constraints.serialize(self.loc_constraint),
+        'seed': self.seed,
+    }
+
+
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
@@ -383,6 +445,7 @@ trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
 trainable_glorot_normal = TrainableGlorotNormal
+trainable_mixture_of_deltas = TrainableMixtureOfDeltas
 random_sign = RandomSign
 # pylint: enable=invalid-name
 
