@@ -151,6 +151,23 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllClose(prior_stddev, np.ones(prior_stddev.shape),
                         atol=0.1)
 
+  def testUniformKLDivergence(self):
+    shape = (3,)
+    regularizer = ed.regularizers.get('uniform_kl_divergence')
+    variational_posterior = ed.Independent(
+        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=1)
+    kl = regularizer(variational_posterior)
+    kl_value = self.evaluate(kl)
+    self.assertNotEqual(kl_value, 0.)
+
+    dataset_size = 100
+    scale_factor = 1. / dataset_size
+    regularizer = ed.regularizers.UniformKLDivergence(scale_factor=scale_factor)
+    kl = regularizer(variational_posterior)
+    scaled_kl_value = self.evaluate(kl)
+    self.assertAlmostEqual(scale_factor * kl_value, scaled_kl_value)
+
   def testRegularizersGet(self):
     self.assertIsInstance(ed.regularizers.get('normal_kl_divergence'),
                           ed.regularizers.NormalKLDivergence)

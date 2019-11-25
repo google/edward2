@@ -266,6 +266,31 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
     }
 
 
+class UniformKLDivergence(tf.keras.regularizers.Regularizer):
+  """KL divergence regularizer from an input to a uniform distribution.
+
+  This regularizer computes the negative entropy of the input variable, which
+  yields a value that is proportional to the KL divergence up to an additive
+  constant. Assumes a uniform distribution over the support of the input random
+  variable.
+  """
+
+  def __init__(self, scale_factor=1.):
+    """Constructs regularizer."""
+    self.scale_factor = scale_factor
+
+  def __call__(self, x):
+    """Computes regularization given an input ed.RandomVariable."""
+    if not isinstance(x, random_variable.RandomVariable):
+      raise ValueError('Input must be an ed.RandomVariable.')
+    return self.scale_factor * -x.distribution.entropy()
+
+  def get_config(self):
+    return {
+        'scale_factor': self.scale_factor,
+    }
+
+
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
@@ -274,6 +299,7 @@ log_uniform_kl_divergence = LogUniformKLDivergence
 normal_kl_divergence = NormalKLDivergence
 normal_empirical_bayes_kl_divergence = NormalEmpiricalBayesKLDivergence
 trainable_normal_kl_divergence_stddev = TrainableNormalKLDivergenceStdDev
+uniform_kl_divergence = UniformKLDivergence
 # pylint: enable=invalid-name
 
 # Utility functions, following tf.keras
