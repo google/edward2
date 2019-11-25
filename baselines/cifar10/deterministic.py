@@ -24,7 +24,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import edward2 as ed
-from edward2.baselines.cifar10 import utils
+import utils  # local file import
 
 from six.moves import range
 import tensorflow.compat.v2 as tf
