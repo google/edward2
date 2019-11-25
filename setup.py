@@ -43,6 +43,7 @@ setup(
             'matplotlib>=2.0.0',
             'pylint>=1.9.0',
             'pytest>=4.0.0',
+            'tensorflow-datasets>=1.3.0',
         ],
     },
     classifiers=[
