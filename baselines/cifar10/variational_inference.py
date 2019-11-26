@@ -26,10 +26,10 @@ This script performs variational inference with a few notable techniques:
    (Ovadia et al., 2019).
 4. Variational dropout (local reparameterization) for lower-variance gradients
    in dense layers (Kingma et al., 2015).
-5. Replace batch normalization with SELU activation and fixup initialization
-   (Ovadia et al., 2019; Heek and Kalchbrenner, 2019).
-6. Learning rate schedule from [Keras' CIFAR-10 example](
-   https://keras.io/examples/cifar10_resnet/).
+5. Option to turn off batch normalization and use SELU activation and
+   fixup initialization (Ovadia et al., 2019; Heek and Kalchbrenner, 2019).
+   Batch normalization is enabled by default however as it performs better and
+   is more stable.
 """
 
 from __future__ import absolute_import
@@ -50,12 +50,10 @@ import tensorflow_datasets as tfds
 flags.DEFINE_integer('seed', 42, 'Random seed.')
 flags.DEFINE_string('output_dir', None, 'Output directory.')
 flags.DEFINE_integer('train_epochs', 200, 'Number of training epochs.')
-# TODO(trandustin): batch size, init_learning_rate, and prior_stddev are from
-# Ovadia et al.(2019). Tune this given changes.
-flags.DEFINE_integer('batch_size', 107, 'Batch size.')
-flags.DEFINE_float('init_learning_rate', 0.001189, 'Learning rate.')
-flags.DEFINE_float('prior_stddev', 0.127, 'Fixed stddev for weight prior.')
-flags.DEFINE_boolean('batch_norm', False, 'Whether to apply batchnorm.')
+flags.DEFINE_integer('batch_size', 64, 'Batch size.')
+flags.DEFINE_float('init_learning_rate', 1e-3, 'Learning rate.')
+flags.DEFINE_float('prior_stddev', 0.1, 'Fixed stddev for weight prior.')
+flags.DEFINE_boolean('batch_norm', True, 'Whether to apply batchnorm.')
 FLAGS = flags.FLAGS
 
 
@@ -116,13 +114,17 @@ def resnet_layer(inputs,
       """Simplified form of fixup initialization (Zhang et al., 2019)."""
       return (tf.keras.initializers.he_normal()(shape, dtype=dtype) *
               depth**(-1/4))
+    if batch_norm:
+      kernel_initializer = 'trainable_he_normal'
+    else:
+      kernel_initializer = ed.initializers.TrainableNormal(
+          mean_initializer=fixup_init)
     conv = ed.layers.Conv2DVariationalDropout(
         filters,
         kernel_size=kernel_size,
         strides=strides,
         padding='same',
-        kernel_initializer=ed.initializers.TrainableNormal(
-            mean_initializer=fixup_init),
+        kernel_initializer=kernel_initializer,
         kernel_regularizer=NormalKLDivergenceWithTiedMean(
             stddev=prior_stddev, scale_factor=1./dataset_size))
   else:
@@ -172,12 +174,13 @@ def resnet_v1(input_shape,
                             depth=depth,
                             dataset_size=dataset_size,
                             prior_stddev=prior_stddev)
+  activation = 'relu' if batch_norm else 'selu'
 
   logging.info('Starting ResNet build.')
   inputs = tf.keras.layers.Input(shape=input_shape)
   x = layer(inputs,
             filters=filters,
-            activation='selu')
+            activation=activation)
   for stack in range(3):
     for res_block in range(num_res_blocks):
       logging.info('Starting ResNet stack #%d block #%d.', stack, res_block)
@@ -187,7 +190,7 @@ def resnet_v1(input_shape,
       y = layer(x,
                 filters=filters,
                 strides=strides,
-                activation='selu',
+                activation=activation,
                 batch_norm=batch_norm)
       y = layer(y,
                 filters=filters,
@@ -203,7 +206,7 @@ def resnet_v1(input_shape,
                   activation=None,
                   batch_norm=False)
       x = tf.keras.layers.add([x, y])
-      x = tf.keras.layers.Activation('selu')(x)
+      x = tf.keras.layers.Activation(activation)(x)
     filters *= 2
 
   # v1 does not use BN after last shortcut connection-ReLU
@@ -258,14 +261,14 @@ def main(argv):
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
-  dataset_size = 40000
   dataset_train, ds_info = utils.load_dataset(tfds.Split.TRAIN, with_info=True)
-  dataset_test = utils.load_dataset(tfds.Split.TEST)
+  dataset_size = ds_info.splits['train'].num_examples
   dataset_train = dataset_train.repeat().shuffle(10 * FLAGS.batch_size).batch(
       FLAGS.batch_size)
-  validation_steps = 100
-  dataset_test = dataset_test.take(FLAGS.batch_size * validation_steps).repeat(
-      ).batch(FLAGS.batch_size)
+  test_batch_size = 100
+  validation_steps = ds_info.splits['test'].num_examples // test_batch_size
+  dataset_test = utils.load_dataset(tfds.Split.TEST)
+  dataset_test = dataset_test.repeat().batch(test_batch_size)
 
   model = resnet_v1(input_shape=ds_info.features['image'].shape,
                     depth=20,

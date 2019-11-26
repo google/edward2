@@ -1,10 +1,10 @@
 # ResNet-20 on CIFAR-10
 
-| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
+| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (min) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic | 0.088 / 0.350 | 97.0% / 90.6% | 24 (1 P100 GPU) | 274K |
+| Deterministic | 0.019 / 0.310 | 99.5% / 92.1% | 45 (1 P100 GPU) | 274K |
 | Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 51 (1 P100 GPU) | 274K |
-| Variational inference | 0.174 / 0.435 | 93.8% / 87.5% | 10-12 (1 P100 GPU) | 420K |
+| Variational inference | 0.058 / 0.425 | 97.9% / 88.5% | 75 (1 P100 GPU) | 420K |
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.
@@ -12,14 +12,18 @@ We note results in the literature below. Note there are differences in the setup
 | Source | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | [`junyuseu/pytorch-cifar-models`](https://github.com/junyuseu/pytorch-cifar-models) | Deterministic | - | - / 91.67% | - | 270K |
-| [`keras-team/keras`](https://keras.io/examples/cifar10_resnet/) | Deterministic | - | - / 92.16% | 1.94 (1 1080Ti GPU) | 270K |
-| [`kuangliu/pytorch-cifar`](https://github.com/kuangliu/pytorch-cifar) | Deterministic | - | - / 93.02% | - | 270K |
+| [`keras-team/keras`](https://keras.io/examples/cifar10_resnet) | Deterministic | - | - / 92.16% | 1.94 (1 1080Ti GPU) | 270K |
+| [`kuangliu/pytorch-cifar`](https://github.com/kuangliu/pytorch-cifar) | Deterministic (ResNet-18) | - | - / 93.02% | - | 11.7M |
 | [He et al. (2015)](https://arxiv.org/abs/1512.03385)<sup>1</sup> | Deterministic | - | - / 91.25% | - | 270K |
+| | Deterministic (ResNet-32) | - | - / 92.49% | - | 460K |
+| | Deterministic (ResNet-44) | - | - / 92.83% | - | 660K |
+| | Deterministic (ResNet-56) | - | - / 93.03% | - | 850K |
+| | Deterministic (ResNet-110) | - | - / 93.39% | - | 1.7M |
 | [Anonymous (2019)](https://openreview.net/forum?id=rkglZyHtvH)<sup>2</sup> | Refined VI (no batchnorm) | - / 0.696 | - / 75.5% | 5.5 (1 P100 GPU) | - |
 | | Refined VI (batchnorm) | - / 0.593 | - / 79.7% | 5.5 (1 P100 GPU) | - |
 | | Refined VI hybrid (no batchnorm) | - / 0.432 | - / 85.8% | 4.5 (1 P100 GPU) | - |
 | | Refined VI hybrid (batchnorm) | - / 0.423 | - / 85.6% | 4.5 (1 P100 GPU) | - |
-| [Heek and Kalchbrenner (2019)](https://arxiv.org/abs/1908.03491)<sup>3</sup> | Deterministic | - / 0.243 | - / 94.4% | 1000 epochs (1 V100 GPU) | - |
+| [Heek and Kalchbrenner (2019)](https://arxiv.org/abs/1908.03491)<sup>3</sup> | Deterministic | - / 0.243 | - / 94.4% | 1000 epochs (1 V100 GPU) | 850K |
 | | Adaptive Thermostat Monte Carlo (single sample) | - / 0.303 | - / 92.4% | 1000 epochs (1 V100 GPU) | - |
 | | Adaptive Thermostat Monte Carlo (multi-sample) | - / 0.194 | - / 93.9% | 1000 epochs (1 V100 GPU) | - |
 | | Sampler-based Nose-Hoover Thermostat (single sample) | - / 0.343 | - / 91.7% | 1000 epochs (1 V100 GPU) | - |

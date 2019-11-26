@@ -41,11 +41,10 @@ class DeterministicTest(tf.test.TestCase):
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
-    model = deterministic.resnet_v1(
-        input_shape=input_shape,
-        depth=8,
-        num_classes=num_classes,
-        batch_norm=False)
+    model = deterministic.resnet_v1(input_shape=input_shape,
+                                    depth=8,
+                                    num_classes=num_classes,
+                                    l2=0.)
     def negative_log_likelihood(y_true, y_pred):
       y_true = tf.squeeze(y_true)
       return -y_pred.distribution.log_prob(y_true)

@@ -43,9 +43,6 @@ def load_dataset(split, with_info=False):
   image_shape = ds_info.features['image'].shape
   numpy_ds = tfds.as_numpy(dataset)
   numpy_images, numpy_labels = numpy_ds['image'], numpy_ds['label']
-  if split == tfds.Split.TRAIN:
-    numpy_images = numpy_images[:40000]
-    numpy_labels = numpy_labels[:40000]
   dataset = tf.data.Dataset.from_tensor_slices((numpy_images, numpy_labels))
 
   def preprocess(image, label):
