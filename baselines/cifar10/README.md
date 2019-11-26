@@ -3,6 +3,7 @@
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic | 0.088 / 0.350 | 97.0% / 90.6% | 24 (1 P100 GPU) | 274K |
+| Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 51 (1 P100 GPU) | 274K |
 | Variational inference | 0.174 / 0.435 | 93.8% / 87.5% | 10-12 (1 P100 GPU) | 420K |
 
 We note results in the literature below. Note there are differences in the setup
