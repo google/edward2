@@ -32,7 +32,7 @@ import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('seed', 42, 'Random seed.')
-flags.DEFINE_string('output_dir', None, 'Output directory.')
+flags.DEFINE_string('output_dir', '/tmp/cifar10', 'Output directory.')
 flags.DEFINE_integer('train_epochs', 200, 'Number of training epochs.')
 flags.DEFINE_integer('batch_size', 128, 'Batch size.')
 flags.DEFINE_float('init_learning_rate', 0.1, 'Learning rate.')
