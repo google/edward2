@@ -228,8 +228,9 @@ def get_metrics(model, dataset_size):
   """Get metrics for the model."""
 
   def negative_log_likelihood(y_true, y_pred):
+    del y_pred  # unused arg
     y_true = tf.squeeze(y_true)
-    return -y_pred.distribution.log_prob(y_true)
+    return -model.output.distribution.log_prob(y_true)
 
   def accuracy(y_true, y_pred):
     """Accuracy."""
@@ -238,12 +239,6 @@ def get_metrics(model, dataset_size):
     return tf.equal(tf.argmax(input=model.output.distribution.logits, axis=1),
                     tf.cast(y_true, tf.int64))
 
-  def log_marginal(y_true, y_pred):
-    """Log-marginal likelihood."""
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return model.output.distribution.log_prob(y_true)
-
   def kl(y_true, y_pred):
     """KL divergence."""
     del y_true, y_pred  # unused arg
@@ -251,9 +246,10 @@ def get_metrics(model, dataset_size):
 
   def elbo(y_true, y_pred):
     """Evidence lower bound."""
-    return log_marginal(y_true, y_pred) * dataset_size - kl(y_true, y_pred)
+    log_likelihood = -negative_log_likelihood(y_true, y_pred) * dataset_size
+    return log_likelihood - kl(y_true, y_pred)
 
-  return negative_log_likelihood, accuracy, log_marginal, kl, elbo
+  return negative_log_likelihood, accuracy, kl, elbo
 
 
 def main(argv):
@@ -276,12 +272,11 @@ def main(argv):
                     batch_norm=FLAGS.batch_norm,
                     prior_stddev=FLAGS.prior_stddev,
                     dataset_size=dataset_size)
-  negative_log_likelihood, accuracy, log_marginal, kl, elbo = get_metrics(
-      model, dataset_size)
+  negative_log_likelihood, accuracy, kl, elbo = get_metrics(model, dataset_size)
 
   model.compile(tf.keras.optimizers.Adam(FLAGS.init_learning_rate),
                 loss=negative_log_likelihood,
-                metrics=[elbo, log_marginal, kl, accuracy])
+                metrics=[elbo, negative_log_likelihood, kl, accuracy])
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())

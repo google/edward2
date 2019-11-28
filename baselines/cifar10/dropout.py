@@ -145,8 +145,9 @@ def get_metrics(model):
   """Get metrics for the model."""
 
   def negative_log_likelihood(y_true, y_pred):
+    del y_pred  # unused arg
     y_true = tf.squeeze(y_true)
-    return -y_pred.distribution.log_prob(y_true)
+    return -model.output.distribution.log_prob(y_true)
 
   def accuracy(y_true, y_pred):
     """Accuracy."""
@@ -155,13 +156,7 @@ def get_metrics(model):
     return tf.equal(tf.argmax(input=model.output.distribution.logits, axis=1),
                     tf.cast(y_true, tf.int64))
 
-  def log_marginal(y_true, y_pred):
-    """Log-marginal likelihood."""
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return model.output.distribution.log_prob(y_true)
-
-  return negative_log_likelihood, accuracy, log_marginal
+  return negative_log_likelihood, accuracy
 
 
 def main(argv):
@@ -183,13 +178,13 @@ def main(argv):
                     num_classes=ds_info.features['label'].num_classes,
                     l2=FLAGS.l2,
                     dropout_rate=FLAGS.dropout_rate)
-  negative_log_likelihood, accuracy, log_marginal = get_metrics(model)
+  negative_log_likelihood, accuracy = get_metrics(model)
 
   model.compile(tf.keras.optimizers.SGD(FLAGS.init_learning_rate,
                                         momentum=0.9,
                                         nesterov=True),
                 loss=negative_log_likelihood,
-                metrics=[log_marginal, accuracy])
+                metrics=[negative_log_likelihood, accuracy])
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
