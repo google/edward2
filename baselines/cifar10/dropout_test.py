@@ -22,12 +22,15 @@ from __future__ import print_function
 import dropout  # local file import
 import tensorflow.compat.v2 as tf
 
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
+
+@test_util.run_all_in_graph_and_eager_modes
 class DropoutTest(tf.test.TestCase):
 
   def testResNetV1(self):
     tf.random.set_seed(83922)
-    dataset_size = 10
+    dataset_size = 15
     batch_size = 5
     input_shape = (32, 32, 1)
     num_classes = 2
@@ -45,12 +48,10 @@ class DropoutTest(tf.test.TestCase):
                               depth=8,
                               num_classes=num_classes,
                               l2=0.,
-                              dropout_rate=0.05)
-    def negative_log_likelihood(y_true, y_pred):
-      y_true = tf.squeeze(y_true)
-      return -y_pred.distribution.log_prob(y_true)
-    model.compile(tf.keras.optimizers.Adam(),
-                  loss=negative_log_likelihood)
+                              dropout_rate=0.01)
+    model.compile(
+        'adam',
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
     history = model.fit(dataset,
                         steps_per_epoch=dataset_size // batch_size,
                         epochs=2)

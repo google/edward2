@@ -22,7 +22,10 @@ from __future__ import print_function
 import variational_inference  # local file import
 import tensorflow.compat.v2 as tf
 
+from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
+
+@test_util.run_all_in_graph_and_eager_modes
 class VariationalInferenceTest(tf.test.TestCase):
 
   def testResNetV1(self):
@@ -48,11 +51,9 @@ class VariationalInferenceTest(tf.test.TestCase):
         batch_norm=False,
         prior_stddev=1.,
         dataset_size=dataset_size)
-    def negative_log_likelihood(y_true, y_pred):
-      y_true = tf.squeeze(y_true)
-      return -y_pred.distribution.log_prob(y_true)
-    model.compile(tf.keras.optimizers.Adam(),
-                  loss=negative_log_likelihood)
+    model.compile(
+        'adam',
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
     history = model.fit(dataset,
                         steps_per_epoch=dataset_size // batch_size,
                         epochs=2)

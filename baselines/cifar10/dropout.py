@@ -24,7 +24,6 @@ import functools
 from absl import app
 from absl import flags
 from absl import logging
-import edward2 as ed
 import utils  # local file import
 
 from six.moves import range
@@ -136,31 +135,12 @@ def resnet_v1(input_shape, depth, num_classes, l2, dropout_rate):
       kernel_initializer='he_normal',
       kernel_regularizer=tf.keras.regularizers.l2(l2))(x)
   x = tf.keras.layers.Dropout(dropout_rate)(x, training=True)
-  outputs = tf.keras.layers.Lambda(
-      lambda inputs: ed.Categorical(logits=inputs))(x)
-  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
-
-
-def get_metrics(model):
-  """Get metrics for the model."""
-
-  def negative_log_likelihood(y_true, y_pred):
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return -model.output.distribution.log_prob(y_true)
-
-  def accuracy(y_true, y_pred):
-    """Accuracy."""
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return tf.equal(tf.argmax(input=model.output.distribution.logits, axis=1),
-                    tf.cast(y_true, tf.int64))
-
-  return negative_log_likelihood, accuracy
+  return tf.keras.models.Model(inputs=inputs, outputs=x)
 
 
 def main(argv):
   del argv  # unused arg
+  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
@@ -178,13 +158,16 @@ def main(argv):
                     num_classes=ds_info.features['label'].num_classes,
                     l2=FLAGS.l2,
                     dropout_rate=FLAGS.dropout_rate)
-  negative_log_likelihood, accuracy = get_metrics(model)
-
-  model.compile(tf.keras.optimizers.SGD(FLAGS.init_learning_rate,
-                                        momentum=0.9,
-                                        nesterov=True),
-                loss=negative_log_likelihood,
-                metrics=[negative_log_likelihood, accuracy])
+  model.compile(
+      tf.keras.optimizers.SGD(FLAGS.init_learning_rate,
+                              momentum=0.9,
+                              nesterov=True),
+      loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+      metrics=[
+          tf.keras.metrics.SparseCategoricalCrossentropy(
+              name='negative_log_likelihood',
+              from_logits=True),
+          tf.keras.metrics.SparseCategoricalAccuracy(name='accuracy')])
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())

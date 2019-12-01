@@ -119,7 +119,7 @@ def resnet_layer(inputs,
     else:
       kernel_initializer = ed.initializers.TrainableNormal(
           mean_initializer=fixup_init)
-    conv = ed.layers.Conv2DVariationalDropout(
+    conv = ed.layers.Conv2DFlipout(
         filters,
         kernel_size=kernel_size,
         strides=strides,
@@ -212,32 +212,18 @@ def resnet_v1(input_shape,
   # v1 does not use BN after last shortcut connection-ReLU
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = ed.layers.DenseVariationalDropout(
+  # TODO(trandustin): Change to DenseVariationalDropout; doesn't work with v2.
+  x = ed.layers.DenseFlipout(
       num_classes,
       kernel_initializer='trainable_he_normal',
       kernel_regularizer=NormalKLDivergenceWithTiedMean(
           stddev=prior_stddev,
           scale_factor=1./dataset_size))(x)
-
-  outputs = tf.keras.layers.Lambda(
-      lambda inputs: ed.Categorical(logits=inputs))(x)
-  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
+  return tf.keras.models.Model(inputs=inputs, outputs=x)
 
 
 def get_metrics(model, dataset_size):
   """Get metrics for the model."""
-
-  def negative_log_likelihood(y_true, y_pred):
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return -model.output.distribution.log_prob(y_true)
-
-  def accuracy(y_true, y_pred):
-    """Accuracy."""
-    del y_pred  # unused arg
-    y_true = tf.squeeze(y_true)
-    return tf.equal(tf.argmax(input=model.output.distribution.logits, axis=1),
-                    tf.cast(y_true, tf.int64))
 
   def kl(y_true, y_pred):
     """KL divergence."""
@@ -246,14 +232,18 @@ def get_metrics(model, dataset_size):
 
   def elbo(y_true, y_pred):
     """Evidence lower bound."""
-    log_likelihood = -negative_log_likelihood(y_true, y_pred) * dataset_size
+    y_true = tf.squeeze(tf.cast(y_true, tf.int32))
+    log_likelihood = -tf.nn.sparse_softmax_cross_entropy_with_logits(
+        logits=y_pred, labels=y_true)
+    log_likelihood *= dataset_size
     return log_likelihood - kl(y_true, y_pred)
 
-  return negative_log_likelihood, accuracy, kl, elbo
+  return kl, elbo
 
 
 def main(argv):
   del argv  # unused arg
+  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
@@ -272,11 +262,18 @@ def main(argv):
                     batch_norm=FLAGS.batch_norm,
                     prior_stddev=FLAGS.prior_stddev,
                     dataset_size=dataset_size)
-  negative_log_likelihood, accuracy, kl, elbo = get_metrics(model, dataset_size)
+  kl, elbo = get_metrics(model, dataset_size)
 
-  model.compile(tf.keras.optimizers.Adam(FLAGS.init_learning_rate),
-                loss=negative_log_likelihood,
-                metrics=[elbo, negative_log_likelihood, kl, accuracy])
+  model.compile(
+      tf.keras.optimizers.Adam(FLAGS.init_learning_rate),
+      loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+      metrics=[
+          tf.keras.metrics.SparseCategoricalCrossentropy(
+              name='negative_log_likelihood',
+              from_logits=True),
+          tf.keras.metrics.SparseCategoricalAccuracy(name='accuracy'),
+          elbo,
+          kl])
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
