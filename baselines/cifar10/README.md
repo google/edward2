@@ -4,6 +4,7 @@
 | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic | 0.019 / 0.310 | 99.5% / 92.1% | 45 (1 P100 GPU) | 274K |
 | Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 51 (1 P100 GPU) | 274K |
+| Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 45 (5 P100 GPU) | 1.37M |
 | Variational inference | 0.136 / 0.382 | 95.5% / 89.1% | 75 (1 P100 GPU) | 420K |
 
 We note results in the literature below. Note there are differences in the setup
