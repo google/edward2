@@ -58,7 +58,9 @@ class DropoutTest(tf.test.TestCase):
 
     loss_history = history.history['loss']
     self.assertAllGreaterEqual(loss_history, 0.)
-    self.assertGreater(loss_history[0], loss_history[-1])
+    # TODO(trandustin): Reactivate. Whether the loss goes down after this many
+    # steps is noisy, so test fails semi-regularly.
+    # self.assertGreater(loss_history[0], loss_history[-1])
 
 
 if __name__ == '__main__':
