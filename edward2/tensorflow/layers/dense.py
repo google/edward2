@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bayesian dense layers."""
+"""Uncertainty-based dense layers."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -468,3 +468,104 @@ class DenseHierarchical(DenseVariationalDropout):
     # time. Means don't exist for Half-Cauchy approximate posteriors.
     inputs *= self.local_scale[tf.newaxis, :] * self.global_scale
     return super(DenseHierarchical, self).call(inputs, training=training)
+
+
+class BatchEnsembleDense(tf.keras.layers.Layer):
+  """A batch ensemble dense layer."""
+
+  def __init__(self,
+               units,
+               num_models=4,
+               use_bias=True,
+               alpha_initializer=tf.keras.initializers.Ones(),
+               gamma_initializer=tf.keras.initializers.Ones(),
+               activation=None,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+    super(BatchEnsembleDense, self).__init__(**kwargs)
+    self.units = units
+    self.use_bias = use_bias
+    self.num_models = num_models
+    self.alpha_initializer = alpha_initializer
+    self.gamma_initializer = gamma_initializer
+    self.activation = tf.keras.activations.get(activation)
+    self.dense = tf.keras.layers.Dense(
+        units=units,
+        use_bias=False,
+        activation=None,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint)
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    input_dim = input_shape[-1]
+    if isinstance(input_dim, tf1.Dimension):
+      input_dim = input_dim.value
+    self.alpha = self.add_weight(
+        name='alpha',
+        shape=[self.num_models, input_dim],
+        initializer=self.alpha_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    self.gamma = self.add_weight(
+        name='gamma',
+        shape=[self.num_models, self.units],
+        initializer=self.gamma_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    if self.use_bias:
+      self.bias = self.add_weight(
+          name='bias',
+          shape=[self.num_models, self.units],
+          initializer=tf.keras.initializers.Zeros(),
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.bias = None
+    self.built = True
+
+  def call(self, inputs):
+    batch_size = tf.shape(inputs)[0]
+    examples_per_model = batch_size // self.num_models
+    inputs = tf.reshape(inputs, [examples_per_model, self.num_models, -1])
+    alpha = tf.expand_dims(self.alpha, 0)
+    gamma = tf.expand_dims(self.gamma, 0)
+    outputs = self.dense(inputs * alpha) * gamma
+
+    if self.use_bias:
+      bias = tf.expand_dims(self.bias, 0)
+      outputs += bias
+
+    if self.activation is not None:
+      outputs = self.activation(outputs)
+    outputs = tf.reshape(outputs, [batch_size, -1])
+    return outputs
+
+  def get_config(self):
+    config = {
+        'num_models': self.num_models,
+        'random_sign_init': self.random_sign_init,
+        'alpha_initializer': tf.keras.initializers.serialize(
+            self.alpha_initializer),
+        'gamma_initializer': tf.keras.initializers.serialize(
+            self.gamma_initializer),
+        'activation': tf.activations.serialize(self.activation),
+        'use_bias': self.use_bias,
+    }
+    base_config = super(BatchEnsembleDense, self).get_config()
+    dense_config = self.dense.get_config()
+    return dict(
+        list(base_config.items()) +
+        list(dense_config.items()) +
+        list(config.items()))

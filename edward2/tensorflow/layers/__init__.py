@@ -21,10 +21,12 @@ from __future__ import print_function
 
 from edward2.tensorflow.layers import utils
 from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
+from edward2.tensorflow.layers.convolutional import BatchEnsembleConv2D
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
 from edward2.tensorflow.layers.convolutional import Conv2DHierarchical
 from edward2.tensorflow.layers.convolutional import Conv2DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DVariationalDropout
+from edward2.tensorflow.layers.dense import BatchEnsembleDense
 from edward2.tensorflow.layers.dense import DenseDVI
 from edward2.tensorflow.layers.dense import DenseFlipout
 from edward2.tensorflow.layers.dense import DenseHierarchical
@@ -56,6 +58,8 @@ _allowed_symbols = [
     "ActNorm",
     "Attention",
     "BayesianLinearModel",
+    "BatchEnsembleConv2D",
+    "BatchEnsembleDense",
     "Conv2DFlipout",
     "Conv2DHierarchical",
     "Conv2DReparameterization",

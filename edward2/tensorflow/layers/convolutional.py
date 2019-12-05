@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bayesian convolutional layers."""
+"""Uncertainty-based convolutional layers."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -27,6 +27,7 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -399,3 +400,126 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         pred=training,
         true_fn=dropped_inputs,
         false_fn=lambda: super(Conv2DVariationalDropout, self).call(inputs))
+
+
+class BatchEnsembleConv2D(tf.keras.layers.Layer):
+  """A batch ensemble convolutional layer."""
+
+  def __init__(self,
+               filters,
+               kernel_size,
+               num_models=4,
+               alpha_initializer=tf.keras.initializers.Ones(),
+               gamma_initializer=tf.keras.initializers.Ones(),
+               strides=(1, 1),
+               padding='valid',
+               data_format='channels_last',
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+    super(BatchEnsembleConv2D, self).__init__(**kwargs)
+    self.filters = filters
+    self.kernel_size = kernel_size
+    self.data_format = data_format
+    self.num_models = num_models
+    self.alpha_initializer = alpha_initializer
+    self.gamma_initializer = gamma_initializer
+    self.use_bias = use_bias
+    self.activation = tf.keras.activations.get(activation)
+    self.conv2d = tf.keras.layers.Conv2D(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=None,
+        use_bias=False,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint)
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    if self.data_format == 'channels_first':
+      input_channel = input_shape[1]
+    elif self.data_format == 'channels_last':
+      input_channel = input_shape[-1]
+    if isinstance(input_channel, tf1.Dimension):
+      input_channel = input_channel.value
+
+    self.alpha = self.add_weight(
+        'alpha',
+        shape=[self.num_models, input_channel],
+        initializer=self.alpha_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    self.gamma = self.add_weight(
+        'gamma',
+        shape=[self.num_models, self.filters],
+        initializer=self.gamma_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    if self.use_bias:
+      self.bias = self.add_weight(
+          name='bias',
+          shape=[self.num_models, self.filters],
+          initializer=tf.keras.initializers.Zeros(),
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.bias = None
+    self.built = True
+
+  def call(self, inputs):
+    axis_change = -1 if self.data_format == 'channels_first' else 1
+    batch_size = tf.shape(inputs)[0]
+    examples_per_model = batch_size // self.num_models
+    alpha = tf.reshape(
+        tf.tile(self.alpha, [1, examples_per_model]), [batch_size, -1])
+    gamma = tf.reshape(
+        tf.tile(self.gamma, [1, examples_per_model]), [batch_size, -1])
+    alpha = tf.expand_dims(alpha, axis=axis_change)
+    alpha = tf.expand_dims(alpha, axis=axis_change)
+    gamma = tf.expand_dims(gamma, axis=axis_change)
+    gamma = tf.expand_dims(gamma, axis=axis_change)
+    outputs = self.conv2d(inputs*alpha) * gamma
+
+    if self.use_bias:
+      bias = tf.reshape(
+          tf.tile(self.bias, [1, examples_per_model]), [batch_size, -1])
+      bias = tf.expand_dims(bias, axis=axis_change)
+      bias = tf.expand_dims(bias, axis=axis_change)
+      outputs += bias
+
+    if self.activation is not None:
+      outputs = self.activation(outputs)
+    return outputs
+
+  def get_config(self):
+    config = {
+        'num_models': self.num_models,
+        'random_sign_init': self.random_sign_init,
+        'alpha_initializer': tf.keras.initializers.serialize(
+            self.alpha_initializer),
+        'gamma_initializer': tf.keras.initializers.serialize(
+            self.gamma_initializer),
+        'activation': tf.activations.serialize(self.activation),
+        'use_bias': self.use_bias,
+    }
+    base_config = super(BatchEnsembleConv2D, self).get_config()
+    conv_config = self.conv2d.get_config()
+    return dict(
+        list(base_config.items()) +
+        list(conv_config.items()) +
+        list(config.items()))
