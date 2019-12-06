@@ -61,6 +61,79 @@ def load_dataset(split, with_info=False):
   return dataset
 
 
+# TODO(trandustin): Merge with load_dataset.
+def load_distributed_dataset(split,
+                             batch_size,
+                             name,
+                             drop_remainder,
+                             use_bfloat16,
+                             with_info=False):
+  """Loads CIFAR dataset for training or testing.
+
+  Args:
+    split: tfds.Split.
+    batch_size: The global batch size to use.
+    name: A string indicates whether it is cifar10 or cifar100.
+    drop_remainder: A boolean indicates whether to drop the remainder of the
+      batches. If True, the batch dimension will be static.
+    use_bfloat16: data type, bfloat16 precision or float32.
+    with_info: bool.
+
+  Returns:
+    Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
+    the dataset.
+  """
+  if use_bfloat16:
+    dtype = tf.bfloat16
+  else:
+    dtype = tf.float32
+  dataset, ds_info = tfds.load(name,
+                               split=split,
+                               with_info=True,
+                               as_supervised=True)
+
+  # Disable intra-op parallelism to optimize for throughput instead of
+  # latency.
+  options = tf.data.Options()
+  options.experimental_threading.max_intra_op_parallelism = 1
+  dataset = dataset.with_options(options)
+
+  # Prefetches a batch at a time to smooth out the time taken to load input
+  # files for shuffling and processing.
+  if split == tfds.Split.TRAIN:
+    dataset_size = ds_info.splits['train'].num_examples
+    dataset = dataset.shuffle(buffer_size=dataset_size).repeat()
+
+  image_shape = ds_info.features['image'].shape
+
+  def preprocess(image, label):
+    """Image preprocessing function."""
+    if split == tfds.Split.TRAIN:
+      image = tf.image.resize_with_crop_or_pad(
+          image, image_shape[0] + 4, image_shape[1] + 4)
+      image = tf.image.random_crop(image, image_shape)
+      image = tf.image.random_flip_left_right(image)
+
+    image = tf.image.convert_image_dtype(image, dtype)
+    label = tf.cast(label, dtype)
+    return image, label
+
+  dataset = dataset.map(preprocess,
+                        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+
+  # Operations between the final prefetch and the get_next call to the
+  # iterator will happen synchronously during run time. We prefetch here again
+  # to background all of the above processing work and keep it out of the
+  # critical training path. Setting buffer_size to tf.contrib.data.AUTOTUNE
+  # allows DistributionStrategies to adjust how many batches to fetch based on
+  # how many devices are present.
+  dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+  if with_info:
+    return dataset, ds_info
+  return dataset
+
+
 def make_lr_scheduler(init_lr):
   """Builds a keras LearningRateScheduler."""
 

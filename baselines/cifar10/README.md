@@ -4,6 +4,7 @@
 | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic | 0.019 / 0.310 | 99.5% / 92.1% | 45 (1 P100 GPU) | 274K |
 | Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 51 (1 P100 GPU) | 274K |
+| BatchEnsemble (size=4)<sup>5</sup> | 0.08 / 0.197 | 99.9% / 95.4% | 3.25 (32 TPUv2 cores) | 7.47M |
 | Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 45 (5 P100 GPU) | 1.37M |
 | Variational inference | 0.136 / 0.382 | 95.5% / 89.1% | 75 (1 P100 GPU) | 420K |
 
@@ -52,6 +53,16 @@ We note results in the literature below. Note there are differences in the setup
 7. Scales KL by an additional factor of 10.
 8. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
 
+## CIFAR-100
+
+| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- |
+| BatchEnsemble (size=4)<sup>5</sup> | 0.38 / 0.89 | 99.9% / 79.0% | 3.85 (32 TPUv2 cores) | 7.47M |
+
 TODO(trandustin): Add column for Test runtime.
 
 TODO(trandustin): Add column for Checkpoints.
+
+TODO(trandustin): Should CIFAR-100 baselines be in this directory? If so, rename
+to cifar and have all baselines support it; otherwise duplicate code into a
+separate directory.
