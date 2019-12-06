@@ -104,7 +104,6 @@ def ensemble_batchnorm(x,
   Returns:
     Output tensor for the block.
   """
-  # TODO(trandustin): Run ablations with defaults to Keras' settings.
   batch_norm_decay = 0.9
   batch_norm_epsilon = 1e-5
   # In BatchEnsemble inference stage, the input to the model is tiled which

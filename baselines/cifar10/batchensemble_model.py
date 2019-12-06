@@ -27,7 +27,6 @@ from __future__ import print_function
 import edward2 as ed
 import tensorflow.compat.v2 as tf
 
-# TODO(trandustin): Try removing. Keras' default is 0.99 and 1e-3 respectively.
 BATCH_NORM_DECAY = 0.9
 BATCH_NORM_EPSILON = 1e-5
 
