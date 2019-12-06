@@ -48,6 +48,7 @@ from edward2.tensorflow.layers.noise import NCPCategoricalPerturb
 from edward2.tensorflow.layers.noise import NCPNormalOutput
 from edward2.tensorflow.layers.noise import NCPNormalPerturb
 from edward2.tensorflow.layers.normalization import ActNorm
+from edward2.tensorflow.layers.normalization import ensemble_batchnorm
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
@@ -86,6 +87,7 @@ _allowed_symbols = [
     "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
     "Zeros",
+    "ensemble_batchnorm",
     "utils",
 ]
 
