@@ -99,6 +99,8 @@ def gibbs_cross_entropy(labels, logits):
 
 def main(argv):
   del argv  # unused arg
+  if FLAGS.num_cores > 1 or not FLAGS.use_gpu:
+    raise ValueError('Only single GPU is currently supported.')
   tf.enable_v2_behavior()
 
   dataset_train, ds_info = utils.load_dataset(tfds.Split.TRAIN, with_info=True)

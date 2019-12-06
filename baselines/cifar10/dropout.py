@@ -37,6 +37,8 @@ flags.DEFINE_integer('batch_size', 128, 'Batch size.')
 flags.DEFINE_float('init_learning_rate', 0.1, 'Learning rate.')
 flags.DEFINE_float('l2', 3e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('dropout_rate', 0.05, 'Dropout rate.')
+flags.DEFINE_bool('use_gpu', True, 'Whether to run on GPU or otherwise TPU.')
+flags.DEFINE_integer('num_cores', 1, 'Number of TPU cores or number of GPUs.')
 FLAGS = flags.FLAGS
 
 
@@ -140,6 +142,8 @@ def resnet_v1(input_shape, depth, num_classes, l2, dropout_rate):
 
 def main(argv):
   del argv  # unused arg
+  if FLAGS.num_cores > 1 or not FLAGS.use_gpu:
+    raise ValueError('Only single GPU is currently supported.')
   tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

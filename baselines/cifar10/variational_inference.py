@@ -54,6 +54,8 @@ flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('init_learning_rate', 1e-3, 'Learning rate.')
 flags.DEFINE_float('prior_stddev', 0.1, 'Fixed stddev for weight prior.')
 flags.DEFINE_boolean('batch_norm', True, 'Whether to apply batchnorm.')
+flags.DEFINE_bool('use_gpu', True, 'Whether to run on GPU or otherwise TPU.')
+flags.DEFINE_integer('num_cores', 1, 'Number of TPU cores or number of GPUs.')
 FLAGS = flags.FLAGS
 
 
@@ -243,6 +245,8 @@ def get_metrics(model, dataset_size):
 
 def main(argv):
   del argv  # unused arg
+  if FLAGS.num_cores > 1 or not FLAGS.use_gpu:
+    raise ValueError('Only single GPU is currently supported.')
   tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

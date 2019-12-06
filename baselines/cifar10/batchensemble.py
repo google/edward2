@@ -53,13 +53,13 @@ flags.DEFINE_float('dropout_rate', default=0., help='dropout rate.')
 flags.DEFINE_float('l2', 2e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', default='cifar10',
                     help='dataset: cifar10 & 100.')
+flags.DEFINE_string('output_dir', '/tmp/cifar',
+                    'The directory where the model weights and '
+                    'training/evaluation summaries are stored.')
 
-# Common flags for TPU models.
+# Accelerator flags.
 flags.DEFINE_string('tpu', None, 'Name of the TPU to use.')
-flags.DEFINE_string(
-    'model_dir', '/tmp/resnet50',
-    'The directory where the model weights and training/evaluation summaries '
-    'are stored.')
+flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
 flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores.')
 FLAGS = flags.FLAGS
 
@@ -110,16 +110,17 @@ class ResnetLearningRateSchedule(
 
 def main(argv):
   del argv  # unused arg
+  if FLAGS.use_gpu:
+    raise ValueError('Only TPU is currently supported.')
 
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
   job_name = 'worker'
   primary_cpu_task = '/job:%s' % job_name
 
-  model_dir = FLAGS.model_dir
   batch_size = (FLAGS.per_core_bs // FLAGS.num_models) * FLAGS.num_cores
 
-  logging.info('Saving checkpoints at %s', model_dir)
+  logging.info('Saving checkpoints at %s', FLAGS.output_dir)
 
   logging.info('Use TPU at %s', FLAGS.tpu if FLAGS.tpu is not None else 'local')
   resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
@@ -199,7 +200,7 @@ def main(argv):
       logging.info('Finished building Keras ResNet-50 model')
 
       checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
-      latest_checkpoint = tf.train.latest_checkpoint(model_dir)
+      latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
       initial_epoch = 0
       if latest_checkpoint:
         # checkpoint.restore must be within a strategy.scope() so that optimizer
@@ -210,7 +211,7 @@ def main(argv):
 
     # Create summary writers
     summary_writer = tf.summary.create_file_writer(
-        os.path.join(model_dir, 'summaries/'))
+        os.path.join(FLAGS.output_dir, 'summaries/'))
 
     @tf.function
     def train_step(iterator):
@@ -365,7 +366,8 @@ def main(argv):
             test_accs[i].reset_states()
 
       if (epoch + 1) % 20 == 0:
-        checkpoint_name = checkpoint.save(os.path.join(model_dir, 'checkpoint'))
+        checkpoint_name = checkpoint.save(
+            os.path.join(FLAGS.output_dir, 'checkpoint'))
         logging.info('Saved checkpoint to %s', checkpoint_name)
 
 
