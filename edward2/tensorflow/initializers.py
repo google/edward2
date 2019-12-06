@@ -144,8 +144,7 @@ class TrainableDeterministic(tf.keras.layers.Layer):
   """Deterministic point-wise initializer with trainable location."""
 
   def __init__(self,
-               loc_initializer=tf.keras.initializers.TruncatedNormal(
-                   stddev=1e-5),
+               loc_initializer='glorot_uniform',
                loc_regularizer=None,
                loc_constraint=None,
                seed=None,

@@ -38,7 +38,8 @@ class InitializersTest(tf.test.TestCase):
     self.evaluate(tf1.global_variables_initializer())
     # Get distribution of rv -> get distribution of Independent.
     loc_value = self.evaluate(rv.distribution.distribution.loc)
-    self.assertAllClose(loc_value, np.zeros(shape), atol=1e-4)
+    atol = np.sqrt(6/sum(shape)) + 1e-8
+    self.assertAllClose(loc_value, np.zeros(shape), atol=atol)
 
     rv_value = self.evaluate(rv)
     self.assertEqual(rv_value.shape, shape)
