@@ -1,12 +1,12 @@
 # ResNet-20 on CIFAR-10
 
-| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (min) | # Parameters |
+| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic | 0.019 / 0.310 | 99.5% / 92.1% | 45 (1 P100 GPU) | 274K |
-| Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 51 (1 P100 GPU) | 274K |
+| Deterministic<sup>5</sup> | 1.5e-3 / 0.234 | 99.9% / 94.3% | 1.3 (32 TPUv2 cores) | 7.44M |
+| Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 0.85 (1 P100 GPU) | 274K |
 | BatchEnsemble (size=4)<sup>5</sup> | 0.08 / 0.197 | 99.9% / 95.4% | 3.25 (32 TPUv2 cores) | 7.47M |
-| Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 45 (5 P100 GPU) | 1.37M |
-| Variational inference | 0.136 / 0.382 | 95.5% / 89.1% | 75 (1 P100 GPU) | 420K |
+| Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 0.75 (5 P100 GPU) | 1.37M |
+| Variational inference | 0.136 / 0.382 | 95.5% / 89.1% | 1.25 (1 P100 GPU) | 420K |
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.

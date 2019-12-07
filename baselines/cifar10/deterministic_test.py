@@ -46,6 +46,7 @@ class DeterministicTest(tf.test.TestCase):
 
     model = deterministic.resnet_v1(input_shape=input_shape,
                                     depth=8,
+                                    width_multiplier=1,
                                     num_classes=num_classes,
                                     l2=0.)
     model.compile(

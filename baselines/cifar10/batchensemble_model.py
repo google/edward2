@@ -27,9 +27,6 @@ from __future__ import print_function
 import edward2 as ed
 import tensorflow.compat.v2 as tf
 
-BATCH_NORM_DECAY = 0.9
-BATCH_NORM_EPSILON = 1e-5
-
 
 def ensemble_resnet_layer(inputs,
                           filters=16,
@@ -80,121 +77,11 @@ def ensemble_resnet_layer(inputs,
       kernel_regularizer=tf.keras.regularizers.l2(l2),
       bias_regularizer=tf.keras.regularizers.l2(l2),
       num_models=num_models)(x)
-  x = tf.keras.layers.BatchNormalization(epsilon=BATCH_NORM_EPSILON,
-                                         momentum=BATCH_NORM_DECAY)(x)
+  x = tf.keras.layers.BatchNormalization(epsilon=1e-5,
+                                         momentum=0.9)(x)
   if activation is not None:
     x = tf.keras.layers.Activation(activation)(x)
   return x
-
-
-def resnet_layer(inputs,
-                 filters=16,
-                 kernel_size=3,
-                 strides=1,
-                 activation='relu',
-                 dropout_rate=0.,
-                 l2=0.):
-  """2D Convolution-Batch Normalization-Activation stack builder.
-
-  Args:
-    inputs: tf.Tensor.
-    filters: Number of filters for Conv2D.
-    kernel_size: Kernel dimensions for Conv2D.
-    strides: Stride dimensinons for Conv2D.
-    activation: tf.keras.activations.Activation.
-    dropout_rate: Dropout rate.
-    l2: L2 regularization coefficient.
-
-  Returns:
-    tf.Tensor.
-  """
-  x = inputs
-  if dropout_rate > 0:
-    x = tf.keras.layers.Dropout(dropout_rate)(x, training=True)
-  x = tf.keras.layers.Conv2D(filters,
-                             kernel_size=kernel_size,
-                             strides=strides,
-                             padding='same',
-                             use_bias=False,
-                             kernel_initializer='he_normal',
-                             kernel_regularizer=tf.keras.regularizers.l2(l2),
-                             bias_regularizer=tf.keras.regularizers.l2(l2))(x)
-  x = tf.keras.layers.BatchNormalization(epsilon=BATCH_NORM_EPSILON,
-                                         momentum=BATCH_NORM_DECAY)(x)
-  if activation is not None:
-    x = tf.keras.layers.Activation(activation)(x)
-  return x
-
-
-def resnet_v1(input_shape,
-              depth,
-              num_classes=10,
-              width_multiplier=1,
-              dropout_rate=0.,
-              l2=0.):
-  """Builds ResNet v1.
-
-  Args:
-    input_shape: tf.Tensor.
-    depth: ResNet depth.
-    num_classes: Number of output classes.
-    width_multiplier: Integer to multiply the number of typical filters by.
-    dropout_rate: Dropout rate.
-    l2: L2 regularization coefficient.
-
-  Returns:
-    tf.keras.Model.
-  """
-  if (depth - 2) % 6 != 0:
-    raise ValueError('depth should be 6n+2 (e.g., 20, 32, 44).')
-  filters = 16 * width_multiplier
-  num_res_blocks = int((depth - 2) / 6)
-
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  x = resnet_layer(inputs,
-                   filters=filters,
-                   l2=l2)
-  for stack in range(3):
-    for res_block in range(num_res_blocks):
-      strides = 1
-      if stack > 0 and res_block == 0:  # first layer but not first stack
-        strides = 2  # downsample
-      y = resnet_layer(x,
-                       filters=filters,
-                       strides=strides,
-                       dropout_rate=dropout_rate,
-                       l2=l2)
-      y = resnet_layer(y,
-                       filters=filters,
-                       activation=None,
-                       dropout_rate=dropout_rate,
-                       l2=l2)
-      if stack > 0 and res_block == 0:  # first layer but not first stack
-        # linear projection residual shortcut connection to match
-        # changed dims.
-        x = resnet_layer(x,
-                         filters=filters,
-                         kernel_size=1,
-                         strides=strides,
-                         activation=None,
-                         dropout_rate=dropout_rate,
-                         l2=l2)
-      x = tf.keras.layers.add([x, y])
-      x = tf.keras.layers.Activation('relu')(x)
-    filters *= 2
-
-  # v1 does not use BN after last shortcut connection-ReLU
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
-  if dropout_rate > 0.:
-    x = tf.keras.layers.Dropout(dropout_rate)(x, training=True)
-  x = tf.keras.layers.Dense(num_classes,
-                            activation=None,
-                            kernel_initializer='he_normal',
-                            kernel_regularizer=tf.keras.regularizers.l2(l2),
-                            bias_regularizer=tf.keras.regularizers.l2(l2))(x)
-  model = tf.keras.Model(inputs=inputs, outputs=x)
-  return model
 
 
 def ensemble_resnet_v1(input_shape,
@@ -220,16 +107,6 @@ def ensemble_resnet_v1(input_shape,
   Returns:
     tf.keras.Model.
   """
-  if num_models == 1:
-    # TODO(trandustin): Remove this option after moving to baselines codebase.
-    # Selecting this option should be via the deterministic baseline instead of
-    # merging two baselines into one script.
-    return resnet_v1(input_shape=input_shape,
-                     depth=depth,
-                     num_classes=num_classes,
-                     width_multiplier=width_multiplier,
-                     dropout_rate=dropout_rate,
-                     l2=l2)
   if (depth - 2) % 6 != 0:
     raise ValueError('depth should be 6n+2 (e.g., 20, 32, 44).')
   filters = 16 * width_multiplier

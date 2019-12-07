@@ -153,6 +153,35 @@ def make_lr_scheduler(init_lr):
   return tf.keras.callbacks.LearningRateScheduler(schedule_fn)
 
 
+# TODO(trandustin): Merge with make_lr_scheduler.
+class ResnetLearningRateSchedule(
+    tf.keras.optimizers.schedules.LearningRateSchedule):
+  """Resnet learning rate schedule."""
+
+  def __init__(self, steps_per_epoch, initial_learning_rate, schedule):
+    super(ResnetLearningRateSchedule, self).__init__()
+    self.steps_per_epoch = steps_per_epoch
+    self.initial_learning_rate = initial_learning_rate
+    self.schedule = schedule
+
+  def __call__(self, step):
+    lr_epoch = tf.cast(step, tf.float32) / self.steps_per_epoch
+    warmup_lr_multiplier, warmup_end_epoch = self.schedule[0]
+    learning_rate = self.initial_learning_rate * warmup_lr_multiplier * lr_epoch
+    learning_rate /= warmup_end_epoch
+    for mult, start_epoch in self.schedule:
+      learning_rate = tf.where(lr_epoch >= start_epoch,
+                               self.initial_learning_rate * mult,
+                               learning_rate)
+    return learning_rate
+
+  def get_config(self):
+    return {
+        'steps_per_epoch': self.steps_per_epoch,
+        'initial_learning_rate': self.initial_learning_rate,
+    }
+
+
 def disagreement(logits_1, logits_2):
   """Disagreement between the predictions of two classifiers."""
   preds_1 = tf.argmax(logits_1, axis=-1, output_type=tf.int32)
