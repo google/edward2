@@ -10,7 +10,7 @@ It's organized as follows:
   Library code, including
   [Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
 * [`baselines/`](https://github.com/google/edward2/blob/master/baselines):
-  Well-tested baselines for uncertainty models.
+  High-quality implementations of uncertainty models with good performance.
 * [`examples/`](https://github.com/google/edward2/blob/master/examples):
   Examples.
 * [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
@@ -24,23 +24,20 @@ Are you upgrading from Edward? Check out the guide
 To install the latest development version, run
 
 ```sh
-pip install -e "git+https://github.com/google/edward2.git#egg=edward2"
+pip install "git+https://github.com/google/edward2.git#egg=edward2"
 ```
 
-To install the latest stable version (which is not likely to be
-up-to-date), run
+There is not yet a stable version (nor an official release of this library).
+All APIs are subject to change.
 
-```sh
-pip install edward2
-```
-
-Edward2 supports two backends: TensorFlow (the default) and NumPy
-([see below to activate](#using-the-numpy-backend)). Installing
-`edward2` does not automatically install or update TensorFlow or
-NumPy. To get these dependencies, use `pip install
-edward2[tensorflow]` or `pip install edward2[numpy]`. Sometimes
-Edward2 uses the latest changes from TensorFlow in which you'll need
-TensorFlow's nightly package: use `pip install edward2[tf-nightly]`.
+Edward2 supports two backends: TensorFlow (the default) and NumPy ([see below to
+activate](#using-the-numpy-backend)). Installing `edward2` does not
+automatically install or update TensorFlow or NumPy. To get these dependencies,
+use `pip install edward2[tensorflow] @
+"git+https://github.com/google/edward2.git#egg=edward2"` or `pip install
+edward2[numpy] @ ...`. Sometimes Edward2 uses the latest changes from TensorFlow
+in which you'll need TensorFlow's nightly package: use `pip install edward2[tf-
+nightly] @ ...`.
 
 ## 1. Models as Probabilistic Programs
 
