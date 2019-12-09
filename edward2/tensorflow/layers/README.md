@@ -61,7 +61,7 @@ model = tf.keras.Sequential([
   ed.layers.Conv2DFlipout(64, (3, 3), activation='relu'),
   tf.keras.layers.Flatten(),
   ed.layers.DenseVariationalDropout(64, activation='relu'),
-  ed.layers.DenseVariationalDropout(10, activation='softmax'),
+  ed.layers.DenseVariationalDropout(10),
 ])
 
 # Specify custom loss function and run training loop. Or use model.compile and

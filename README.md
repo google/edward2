@@ -1,9 +1,10 @@
 # Edward2
 
-Edward2 is a probabilistic programming language in Python.
-It extends the NumPy or TensorFlow ecosystem so that one can declare models as
-probabilistic programs and manipulate a model's computation for flexible
-training, latent variable inference, and predictions.
+Edward2 is a _simple_ probabilistic programming language. It provides core
+utilities in the NumPy and TensorFlow ecosystems so that one can write models
+as probabilistic programs and manipulate a model's computation for flexible
+training and inference.
+
 It's organized as follows:
 
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
@@ -40,6 +41,14 @@ in which you'll need TensorFlow's nightly package: use `pip install edward2[tf-
 nightly] @ ...`.
 
 ## 1. Models as Probabilistic Programs
+
+Edward2 provides just two utilities to enable probabilistic programming:
+[`RandomVariables`](https://github.com/google/edward2/blob/master/edward2/tensorflow/random_variable.py)
+and
+[tracing](https://github.com/google/edward2/blob/master/edward2/tracer.py).
+We describe them below.
+For a high-level module for neural network uncertainty, see
+[Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
 
 ### Random Variables
 
