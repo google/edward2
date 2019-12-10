@@ -40,6 +40,8 @@ flags.DEFINE_float('random_sign_init', -0.5,
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_float('fast_weight_lr_multiplier', 0.5,
                    'fast weights lr multiplier.')
+flags.DEFINE_float('train_proportion', default=1.0,
+                   help='only use a proportion of training set.')
 flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when total training batch size is 128.')
@@ -50,9 +52,6 @@ flags.DEFINE_string('output_dir', '/tmp/cifar',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
 flags.DEFINE_integer('train_epochs', 300, 'Number of training epochs.')
-flags.DEFINE_integer('steps_per_epoch', None,
-                     'Steps for epoch during training. If unspecified, use '
-                     'enough such that will loop over full dataset.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -94,11 +93,14 @@ def main(argv):
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
         drop_remainder=True,
-        use_bfloat16=FLAGS.use_bfloat16)
+        use_bfloat16=FLAGS.use_bfloat16,
+        proportion=FLAGS.train_proportion)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
     return dataset
 
+  # No matter what percentage of training proportion, we still evaluate the
+  # model on the full test dataset.
   def test_input_fn(ctx):
     """Sets up local (per-core) dataset batching."""
     dataset = utils.load_distributed_dataset(
@@ -119,9 +121,9 @@ def main(argv):
 
   batch_size = ((FLAGS.per_core_batch_size // FLAGS.num_models) *
                 FLAGS.num_cores)
-  steps_per_epoch = FLAGS.steps_per_epoch
-  if not steps_per_epoch:
-    steps_per_epoch = ds_info.splits['train'].num_examples // batch_size
+  # Train_proportion is a float so need to convert steps_per_epoch to int.
+  steps_per_epoch = int((ds_info.splits['train'].num_examples *
+                         FLAGS.train_proportion) // batch_size)
   steps_per_eval = ds_info.splits['test'].num_examples // batch_size
 
   if FLAGS.use_bfloat16:

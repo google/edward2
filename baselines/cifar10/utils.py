@@ -67,7 +67,8 @@ def load_distributed_dataset(split,
                              name,
                              drop_remainder,
                              use_bfloat16,
-                             with_info=False):
+                             with_info=False,
+                             proportion=1.0):
   """Loads CIFAR dataset for training or testing.
 
   Args:
@@ -78,6 +79,7 @@ def load_distributed_dataset(split,
       batches. If True, the batch dimension will be static.
     use_bfloat16: data type, bfloat16 precision or float32.
     with_info: bool.
+    proportion: float, the proportion of dataset to be used.
 
   Returns:
     Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
@@ -87,10 +89,22 @@ def load_distributed_dataset(split,
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
-  dataset, ds_info = tfds.load(name,
-                               split=split,
-                               with_info=True,
-                               as_supervised=True)
+  if proportion == 1.0:
+    dataset, ds_info = tfds.load(name,
+                                 split=split,
+                                 with_info=True,
+                                 as_supervised=True)
+  else:
+    name = '{}:3.*.*'.format(name)
+    # TODO(ywenxu): consider the case where we have splits of train, val, test.
+    if split == tfds.Split.TRAIN:
+      split_str = 'train[:{}%]'.format(int(100 * proportion))
+    else:
+      split_str = 'test[:{}%]'.format(int(100 * proportion))
+    dataset, ds_info = tfds.load(name,
+                                 split=split_str,
+                                 with_info=True,
+                                 as_supervised=True)
 
   # Disable intra-op parallelism to optimize for throughput instead of
   # latency.
