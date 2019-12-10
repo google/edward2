@@ -86,12 +86,12 @@ def ensemble_resnet_layer(inputs,
 
 def ensemble_resnet_v1(input_shape,
                        depth,
-                       num_classes=10,
-                       width_multiplier=1,
-                       num_models=1,
-                       random_sign_init=1.0,
-                       dropout_rate=0.,
-                       l2=0.):
+                       num_classes,
+                       width_multiplier,
+                       num_models,
+                       random_sign_init,
+                       dropout_rate,
+                       l2):
   """Builds BatchEnsemble ResNet v1.
 
   Args:

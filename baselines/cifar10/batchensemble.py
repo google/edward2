@@ -33,17 +33,17 @@ import six
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
-flags.DEFINE_integer('num_models', 4, help='Size of ensemble.')
+flags.DEFINE_integer('num_models', 4, 'Size of ensemble.')
 flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core.')
 flags.DEFINE_float('random_sign_init', -0.5,
                    'Use random sign init for fast weights.')
-flags.DEFINE_integer('seed', default=0, help='random seeds.')
+flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_float('fast_weight_lr_multiplier', 0.5,
                    'fast weights lr multiplier.')
 flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when total training batch size is 128.')
-flags.DEFINE_float('dropout_rate', default=0., help='dropout rate.')
+flags.DEFINE_float('dropout_rate', 0., 'Dropout rate.')
 flags.DEFINE_float('l2', 2e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
 flags.DEFINE_string('output_dir', '/tmp/cifar',
