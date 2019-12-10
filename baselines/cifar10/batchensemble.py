@@ -274,13 +274,13 @@ def main(argv):
 
         tf.summary.scalar('train/loss',
                           train_loss.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('train/negative_log_likelihood',
                           train_nll.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('train/accuracy',
                           train_accuracy.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         logging.info('Train Loss: %s, Accuracy: %s%%',
                      round(float(train_loss.result()), 4),
                      round(float(train_accuracy.result() * 100), 2))
@@ -297,10 +297,10 @@ def main(argv):
           test_step(test_iterator)
         tf.summary.scalar('test/negative_log_likelihood',
                           test_nll.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('test/accuracy',
                           test_accuracy.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         logging.info('Test NLL: %s, Accuracy: %s%%',
                      round(float(test_nll.result()), 4),
                      round(float(test_accuracy.result() * 100), 2))
@@ -312,11 +312,11 @@ def main(argv):
           tf.summary.scalar(
               'test/ensemble_nll_member{}'.format(i),
               test_nlls[i].result(),
-              step=optimizer.iterations)
+              step=epoch + 1)
           tf.summary.scalar(
               'test/ensemble_accuracy_member{}'.format(i),
               test_accs[i].result(),
-              step=optimizer.iterations)
+              step=epoch + 1)
           logging.info('Member %d Test loss: %s, accuracy: %s%%',
                        i, round(float(test_nlls[i].result()), 4),
                        round(float(test_accs[i].result() * 100), 2))

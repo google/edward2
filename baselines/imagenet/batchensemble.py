@@ -369,18 +369,17 @@ def main(argv):
 
         tf.summary.scalar('train/loss',
                           training_loss.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('train/ce_loss',
                           training_celoss.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('train/accuracy',
                           training_accuracy.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         logging.info('Training loss: %s, accuracy: %s%%',
                      round(float(training_loss.result()), 4),
                      round(float(training_accuracy.result() * 100), 2))
 
-        current_step = (epoch + 1) * steps_per_epoch
         result_dict = {
             'train_celoss': training_celoss.result(),
             'train_acc': training_accuracy.result(),
@@ -388,7 +387,7 @@ def main(argv):
         }
         for name in ['train_celoss', 'train_acc', 'train_loss']:
           objective = work_unit.get_measurement_series(label=name)
-          objective.create_measurement(result_dict[name], current_step)
+          objective.create_measurement(result_dict[name], epoch + 1)
 
         training_loss.reset_states()
         training_celoss.reset_states()
@@ -402,22 +401,21 @@ def main(argv):
           test_step(test_iterator)
         tf.summary.scalar('test/loss',
                           test_loss.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         tf.summary.scalar('test/accuracy',
                           test_accuracy.result(),
-                          step=optimizer.iterations)
+                          step=epoch + 1)
         logging.info('Test loss: %s, accuracy: %s%%',
                      round(float(test_loss.result()), 4),
                      round(float(test_accuracy.result() * 100), 2))
 
-        current_step = (epoch + 1) * steps_per_epoch
         result_dict = {
             'test_acc': test_accuracy.result(),
             'test_loss': test_loss.result()
         }
         for name in ['test_acc', 'test_loss']:
           objective = work_unit.get_measurement_series(label=name)
-          objective.create_measurement(result_dict[name], current_step)
+          objective.create_measurement(result_dict[name], epoch + 1)
 
         test_loss.reset_states()
         test_accuracy.reset_states()
@@ -426,10 +424,10 @@ def main(argv):
           for i in range(FLAGS.num_models):
             tf.summary.scalar('test/ensemble_loss_member{}'.format(i),
                               test_losses[i].result(),
-                              step=optimizer.iterations)
+                              step=epoch + 1)
             tf.summary.scalar('test/ensemble_accuracy_member{}'.format(i),
                               test_accs[i].result(),
-                              step=optimizer.iterations)
+                              step=epoch + 1)
             logging.info('Member %d Test loss: %s, accuracy: %s%%',
                          i, round(float(test_losses[i].result()), 4),
                          round(float(test_accs[i].result() * 100), 2))
