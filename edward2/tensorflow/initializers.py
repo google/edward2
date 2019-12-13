@@ -397,6 +397,59 @@ class TrainableGlorotNormal(TrainableNormal):
     }
 
 
+class TrainableNormalFixedStddev(tf.keras.layers.Layer):
+  """Random normal op as an initializer with trainable mean and fixed stddev."""
+
+  def __init__(self,
+               stddev=1.,
+               mean_initializer=tf.keras.initializers.TruncatedNormal(
+                   stddev=1e-5),
+               mean_regularizer=None,
+               mean_constraint=None,
+               seed=None,
+               **kwargs):
+    """Constructs the initializer."""
+    super(TrainableNormalFixedStddev, self).__init__(**kwargs)
+    self.stddev = stddev
+    self.mean_initializer = get(mean_initializer)
+    self.mean_regularizer = regularizers.get(mean_regularizer)
+    self.mean_constraint = constraints.get(mean_constraint)
+    self.seed = seed
+
+  def build(self, shape, dtype=None):
+    if dtype is None:
+      dtype = self.dtype
+    self.mean = self.add_weight(
+        'mean',
+        shape=shape,
+        initializer=self.mean_initializer,
+        regularizer=self.mean_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.built = True
+
+  def __call__(self, shape, dtype=None):
+    if not self.built:
+      self.build(shape, dtype)
+    mean = self.mean
+    if self.mean_constraint:
+      mean = self.mean_constraint(mean)
+    return generated_random_variables.Independent(
+        generated_random_variables.Normal(loc=mean,
+                                          scale=self.stddev).distribution,
+        reinterpreted_batch_ndims=len(shape))
+
+  def get_config(self):
+    return {
+        'stddev': self.stddev,
+        'mean_initializer': serialize(self.mean_initializer),
+        'mean_regularizer': regularizers.serialize(self.mean_regularizer),
+        'mean_constraint': constraints.serialize(self.mean_constraint),
+        'seed': self.seed,
+    }
+
+
 class RandomSign(tf.keras.initializers.Initializer):
   """Initializer that generates tensors initialized to +/- 1.
 
@@ -498,6 +551,7 @@ trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
 trainable_glorot_normal = TrainableGlorotNormal
+trainable_normal_fixed_stddev = TrainableNormalFixedStddev
 trainable_mixture_of_deltas = TrainableMixtureOfDeltas
 random_sign = RandomSign
 # pylint: enable=invalid-name
