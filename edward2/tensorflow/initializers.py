@@ -397,6 +397,37 @@ class TrainableGlorotNormal(TrainableNormal):
     }
 
 
+class TrainableNormalSharedStddev(TrainableNormal):
+  """Random normal op as an initializer with trainable mean and stddev.
+
+  The stddev parameter is a scalar shared across the weight. This enables, e.g.,
+  learnable dropout rates per-layer during Gaussian variational dropout rather
+  than learnable dropout rates per-weight.
+  """
+
+  def build(self, shape, dtype=None):
+    if dtype is None:
+      dtype = self.dtype
+
+    self.mean = self.add_weight(
+        'mean',
+        shape=shape,
+        initializer=self.mean_initializer,
+        regularizer=self.mean_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.stddev = self.add_weight(
+        'stddev',
+        shape=(),
+        initializer=self.stddev_initializer,
+        regularizer=self.stddev_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.built = True
+
+
 class TrainableNormalFixedStddev(tf.keras.layers.Layer):
   """Random normal op as an initializer with trainable mean and fixed stddev."""
 
@@ -551,6 +582,7 @@ trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
 trainable_glorot_normal = TrainableGlorotNormal
+trainable_normal_shared_stddev = TrainableNormalSharedStddev
 trainable_normal_fixed_stddev = TrainableNormalFixedStddev
 trainable_mixture_of_deltas = TrainableMixtureOfDeltas
 random_sign = RandomSign
