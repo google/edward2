@@ -87,38 +87,37 @@ class ActNorm(tf.keras.layers.Layer):
     return log_det_jacobian
 
 
-def ensemble_batchnorm(x,
-                       axis,
-                       name,
-                       num_models=1,
-                       use_tpu=True):
-  """A modified batch norm layer for Batch Ensemble model.
+def ensemble_batchnorm(x, num_models=1, **kwargs):
+  """Ensemble of batch normalization layers.
+
+  It applies a separate batch normalization for each ensemble member's input
+  activations in the input Tensor.
 
   Args:
-    x: input tensor.
-    axis: axis for the batch normalization.
-    name: name for batch normalization layer.
-    num_models: number of ensemble members.
-    use_tpu: whether the model is running on TPU.
+    x: Tensor of shape [num_models * per_model_batch_size, ...].
+    num_models: Number of ensemble members.
+    **kwargs: Keyword arguments to batch normalization layers.
 
   Returns:
-    Output tensor for the block.
+    Tensor of same shape as x.
   """
-  batch_norm_decay = 0.9
-  batch_norm_epsilon = 1e-5
-  # In BatchEnsemble inference stage, the input to the model is tiled which
-  # leads to dynamic shape because of the tf.split function. Such operation
-  # is not supported in tf2.0 on TPU. For current workaround, we use single
-  # BatchNormalization layer for all ensemble member. This is not correct in
-  # math but works in practice.
-  if num_models == 1 or use_tpu:
-    return tf.keras.layers.BatchNormalization(axis=axis,
-                                              momentum=batch_norm_decay,
-                                              epsilon=batch_norm_epsilon,
-                                              name=name)(x)
-  split_inputs = tf.split(x, num_models, axis=0)
+  if num_models == 1:
+    return tf.keras.layers.BatchNormalization(**kwargs)(x)
+
+  def batch_reshape(x):
+    split_batch_shape = [num_models, tf.shape(x)[0] // num_models]
+    x = tf.reshape(x, tf.concat([split_batch_shape, tf.shape(x)[1:]], axis=0))
+    return x
+
+  x = tf.keras.layers.Lambda(batch_reshape)(x)
+  name = kwargs.get('name')
+  normalized_outputs = []
   for i in range(num_models):
-    split_inputs[i] = tf.keras.layers.BatchNormalization(
-        axis=axis, momentum=batch_norm_decay, epsilon=batch_norm_epsilon,
-        name=name + '_{}'.format(i))(split_inputs[i])
-  return tf.concat(split_inputs, axis=0)
+    if name is not None:
+      name_i = name + '_{}'.format(i)
+      kwargs['name'] = name_i
+    outputs = tf.keras.layers.BatchNormalization(**kwargs)(x[i])
+    normalized_outputs.append(outputs)
+
+  x = tf.keras.layers.Concatenate(axis=0)(normalized_outputs)
+  return x

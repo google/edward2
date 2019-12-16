@@ -42,8 +42,7 @@ def ensemble_identity_block(input_tensor,
                             stage,
                             block,
                             num_models=1,
-                            random_sign_init=1.0,
-                            use_tpu=True):
+                            random_sign_init=1.0):
   """The identity block is the block that has no conv layer at shortcut.
 
   Args:
@@ -59,7 +58,6 @@ def ensemble_identity_block(input_tensor,
           intialized as +/- 1 with probability random_sign_init. If
           random_sign_init < 0, fast weight is generated with Gaussian mean 1,
           std -random_sign_init.
-      use_tpu: whether the model runs on TPU.
 
   Returns:
       Output tensor for the block.
@@ -93,11 +91,12 @@ def ensemble_identity_block(input_tensor,
       kernel_initializer='he_normal',
       name=conv_name_base + '2a',
       num_models=num_models)(input_tensor)
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2a',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2a',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
 
   x = tf.keras.layers.Activation('relu')(x)
 
@@ -110,11 +109,12 @@ def ensemble_identity_block(input_tensor,
       kernel_initializer='he_normal',
       name=conv_name_base + '2b',
       num_models=num_models)(x)
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2b',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2b',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
 
   x = tf.keras.layers.Activation('relu')(x)
 
@@ -126,11 +126,12 @@ def ensemble_identity_block(input_tensor,
       kernel_initializer='he_normal',
       name=conv_name_base + '2c',
       num_models=num_models)(x)
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2c',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2c',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
 
   x = tf.keras.layers.add([x, input_tensor])
   x = tf.keras.layers.Activation('relu')(x)
@@ -144,8 +145,7 @@ def ensemble_conv_block(input_tensor,
                         block,
                         strides=(2, 2),
                         num_models=1,
-                        random_sign_init=False,
-                        use_tpu=True):
+                        random_sign_init=False):
   """A block that has a conv layer at shortcut.
 
   Args:
@@ -160,7 +160,6 @@ def ensemble_conv_block(input_tensor,
           single model case.
       random_sign_init: whether uses random sign initializer to initializer
           the fast weights.
-      use_tpu: whether the model runs on TPU.
 
   Returns:
       Output tensor for the block.
@@ -198,11 +197,12 @@ def ensemble_conv_block(input_tensor,
       kernel_initializer='he_normal',
       name=conv_name_base + '2a',
       num_models=num_models)(input_tensor)
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2a',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2a',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
   x = tf.keras.layers.Activation('relu')(x)
 
   x = ed.layers.BatchEnsembleConv2D(
@@ -215,11 +215,12 @@ def ensemble_conv_block(input_tensor,
       kernel_initializer='he_normal',
       name=conv_name_base + '2b',
       num_models=num_models)(x)
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2b',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2b',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
 
   x = tf.keras.layers.Activation('relu')(x)
 
@@ -232,11 +233,12 @@ def ensemble_conv_block(input_tensor,
       name=conv_name_base + '2c',
       num_models=num_models)(x)
 
-  x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
-      name=bn_name_base+'2c',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  x = ed.layers.ensemble_batchnorm(x,
+                                   num_models=1,
+                                   axis=bn_axis,
+                                   name=bn_name_base+'2c',
+                                   epsilon=BATCH_NORM_EPSILON,
+                                   momentum=BATCH_NORM_DECAY)
 
   shortcut = ed.layers.BatchEnsembleConv2D(
       filters3, (1, 1),
@@ -246,11 +248,12 @@ def ensemble_conv_block(input_tensor,
       gamma_initializer=gamma_initializer,
       kernel_initializer='he_normal',
       name=conv_name_base + '1')(input_tensor)
-  shortcut = ed.layers.ensemble_batchnorm(
-      shortcut, axis=bn_axis,
-      name=bn_name_base+'1',
-      num_models=num_models,
-      use_tpu=use_tpu)
+  shortcut = ed.layers.ensemble_batchnorm(shortcut,
+                                          num_models=1,
+                                          axis=bn_axis,
+                                          name=bn_name_base+'1',
+                                          epsilon=BATCH_NORM_EPSILON,
+                                          momentum=BATCH_NORM_DECAY)
 
   x = tf.keras.layers.add([x, shortcut])
   x = tf.keras.layers.Activation('relu')(x)
@@ -474,8 +477,7 @@ def resnet50(num_classes):
 
 def ensemble_resnet50(num_classes,
                       num_models=1,
-                      random_sign_init=False,
-                      use_tpu=True):
+                      random_sign_init=False):
   """Instantiates the BatchEnsemble ResNet50 architecture.
 
   Args:
@@ -483,7 +485,6 @@ def ensemble_resnet50(num_classes,
     num_models: the ensemble size, when it is one, it goes back to the
         single model case.
     random_sign_init: float, probability of RandomSign initializer.
-    use_tpu: whether the model runs on TPU.
 
   Returns:
       A Keras model instance.
@@ -522,10 +523,10 @@ def ensemble_resnet50(num_classes,
       name='conv1',
       num_models=num_models)(x)
   x = ed.layers.ensemble_batchnorm(
-      x, axis=bn_axis,
+      x,
+      axis=bn_axis,
       name='bn_conv1',
-      num_models=num_models,
-      use_tpu=use_tpu)
+      num_models=1)
   x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
 
@@ -535,100 +536,84 @@ def ensemble_resnet50(num_classes,
       stage=2, block='a',
       strides=(1, 1),
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [64, 64, 256],
       stage=2, block='b',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [64, 64, 256],
       stage=2, block='c',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
 
   x = ensemble_conv_block(
       x, 3, [128, 128, 512],
       stage=3, block='a',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [128, 128, 512],
       stage=3, block='b',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [128, 128, 512],
       stage=3, block='c',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [128, 128, 512],
       stage=3, block='d',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
 
   x = ensemble_conv_block(
       x, 3, [256, 256, 1024],
       stage=4, block='a',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [256, 256, 1024],
       stage=4, block='b',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [256, 256, 1024],
       stage=4, block='c',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [256, 256, 1024],
       stage=4, block='d',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [256, 256, 1024],
       stage=4, block='e',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [256, 256, 1024],
       stage=4, block='f',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
 
   x = ensemble_conv_block(
       x, 3, [512, 512, 2048],
       stage=5, block='a',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [512, 512, 2048],
       stage=5, block='b',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
   x = ensemble_identity_block(
       x, 3, [512, 512, 2048],
       stage=5, block='c',
       num_models=num_models,
-      use_tpu=use_tpu,
       random_sign_init=random_sign_init)
 
   x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
