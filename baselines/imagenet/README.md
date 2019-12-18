@@ -2,7 +2,8 @@
 
 | Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Top-5 Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| BatchEnsemble<sup>1</sup> | - | - / 76.13% | - | - (32 TPUv2 cores) | - |
+| BatchEnsemble<sup>1</sup> | - | - / 76.13% | - | - (32 TPUv2 cores) | 25.8M |
+| Deterministic | 0.907 / 0.935 | 77.9% / 76.1% | - | 5 (32 TPUv3 cores) | 25.6M |
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.

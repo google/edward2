@@ -26,6 +26,41 @@ IMAGE_SIZE = 224
 CROP_PADDING = 32
 
 
+# TODO(trandustin): Refactor similar to CIFAR code.
+class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+  """Resnet learning rate schedule."""
+
+  def __init__(self, steps_per_epoch, initial_learning_rate, num_epochs,
+               schedule):
+    super(LearningRateSchedule, self).__init__()
+    self.num_epochs = num_epochs
+    self.steps_per_epoch = steps_per_epoch
+    self.initial_learning_rate = initial_learning_rate
+    self.schedule = schedule
+
+  def __call__(self, step):
+    lr_epoch = tf.cast(step, tf.float32) / self.steps_per_epoch
+    warmup_lr_multiplier, warmup_end_epoch = self.schedule[0]
+    # Scale learning rate schedule by total epochs at vanilla settings.
+    warmup_end_epoch = (warmup_end_epoch * self.num_epochs) // 90
+    learning_rate = (
+        self.initial_learning_rate * warmup_lr_multiplier * lr_epoch /
+        warmup_end_epoch)
+    for mult, start_epoch in self.schedule:
+      start_epoch = (start_epoch * self.num_epochs) // 90
+      learning_rate = tf.where(lr_epoch >= start_epoch,
+                               self.initial_learning_rate * mult, learning_rate)
+    return learning_rate
+
+  def get_config(self):
+    return {
+        'steps_per_epoch': self.steps_per_epoch,
+        'initial_learning_rate': self.initial_learning_rate,
+        'num_epochs': self.num_epochs,
+        'schedule': self.schedule,
+    }
+
+
 def distorted_bounding_box_crop(image_bytes,
                                 bbox,
                                 min_object_covered=0.1,

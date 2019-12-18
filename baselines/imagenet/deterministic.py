@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Batch Ensemble ResNet-50."""
+"""ResNet-50 on ImageNet trained with maximum likelihood and gradient descent.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -26,34 +27,28 @@ from absl import app
 from absl import flags
 from absl import logging
 
-import batchensemble_model  # local file import
+import deterministic_model  # local file import
 import utils  # local file import
 
 import six
 import tensorflow.compat.v2 as tf
 
-flags.DEFINE_integer('num_models', 4, 'Size of ensemble.')
 flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')
-flags.DEFINE_float('random_sign_init', -0.5,
-                   'Use random sign init for fast weights.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when train batch size is 256.')
-flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('l2', 1e-4, 'L2 coefficient.')
-flags.DEFINE_float('fast_weight_lr_multiplier', 2.5,
-                   'fast weights lr multiplier.')
 flags.DEFINE_string('data_dir', None, 'Path to training and testing data.')
 flags.mark_flag_as_required('data_dir')
 flags.DEFINE_string('output_dir', '/tmp/imagenet',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
-flags.DEFINE_integer('train_epochs', 100, 'Number of training epochs.')
+flags.DEFINE_integer('train_epochs', 90, 'Number of training epochs.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
 flags.DEFINE_bool('use_bfloat16', False, 'Whether to use mixed precision.')
-flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
+flags.DEFINE_integer('num_cores', 32, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
 FLAGS = flags.FLAGS
@@ -81,17 +76,7 @@ def main(argv):
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
-  # In BatchEnsemble version 2, the
-  # input images are not only tiled in the inference mode but also tiled in the
-  # training. BatchEnsemble version 2 means each ensemble member is trained with
-  # the same batch size as single model.
-  if FLAGS.version2:
-    logging.info('Training BatchEnsemble version 2')
-    batch_size = ((FLAGS.per_core_batch_size // FLAGS.num_models) *
-                  FLAGS.num_cores)
-  else:
-    batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
-
+  batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
   steps_per_epoch = APPROX_IMAGENET_TRAIN_IMAGES // batch_size
   steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
 
@@ -131,10 +116,7 @@ def main(argv):
 
   with strategy.scope():
     logging.info('Building Keras ResNet-50 model')
-    model = batchensemble_model.ensemble_resnet50(
-        num_classes=NUM_CLASSES,
-        num_models=FLAGS.num_models,
-        random_sign_init=FLAGS.random_sign_init)
+    model = deterministic_model.resnet50(num_classes=NUM_CLASSES)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -154,13 +136,6 @@ def main(argv):
     test_nll = tf.keras.metrics.Mean('test_nll', dtype=tf.float32)
     test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
         'test_accuracy', dtype=tf.float32)
-    test_nlls = []
-    test_accs = []
-    for i in range(FLAGS.num_models):
-      test_nlls.append(
-          tf.keras.metrics.Mean('test_nll_{}'.format(i), dtype=tf.float32))
-      test_accs.append(tf.keras.metrics.SparseCategoricalAccuracy(
-          'test_acc_{}'.format(i), dtype=tf.float32))
     logging.info('Finished building Keras ResNet-50 model')
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
@@ -183,10 +158,6 @@ def main(argv):
       """Per-Replica StepFn."""
       images, labels = inputs
 
-      if FLAGS.version2:
-        images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
-        labels = tf.tile(labels, [FLAGS.num_models, 1])
-
       with tf.GradientTape() as tape:
         predictions = model(images, training=True)
         if FLAGS.use_bfloat16:
@@ -197,9 +168,8 @@ def main(argv):
         loss1 = tf.reduce_mean(prediction_loss)
         filtered_variables = []
         for var in model.trainable_variables:
-          # Apply l2 on the slow weights and bias terms. This excludes BN
-          # parameters and fast weight approximate posterior/prior parameters,
-          # but pay caution to their naming scheme.
+          # Apply l2 on the weights. This excludes BN parameters and biases, but
+          # pay caution to their naming scheme.
           if 'kernel' in var.name or 'bias' in var.name:
             filtered_variables.append(tf.reshape(var, (-1,)))
 
@@ -210,23 +180,7 @@ def main(argv):
         scaled_loss = loss / strategy.num_replicas_in_sync
 
       grads = tape.gradient(scaled_loss, model.trainable_variables)
-
-      # Separate learning rate implementation.
-      if FLAGS.fast_weight_lr_multiplier != 1.0:
-        grads_and_vars = []
-        for grad, var in zip(grads, model.trainable_variables):
-          # Apply different learning rate on the fast weight approximate
-          # posterior/prior parameters. This is excludes BN and slow weights,
-          # but pay caution to the naming scheme.
-          if (('bn' not in var.name or 'batch_norm' not in var.name) and
-              'kernel' not in var.name):
-            grads_and_vars.append((grad * FLAGS.fast_weight_lr_multiplier,
-                                   var))
-          else:
-            grads_and_vars.append((grad, var))
-        optimizer.apply_gradients(grads_and_vars)
-      else:
-        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+      optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
       train_loss.update_state(loss)
       train_nll.update_state(loss1)
@@ -240,26 +194,15 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
       predictions = model(images, training=False)
       if FLAGS.use_bfloat16:
         predictions = tf.cast(predictions, tf.float32)
 
-      per_predictions = tf.split(
-          predictions, num_or_size_splits=FLAGS.num_models, axis=0)
-      for i in range(FLAGS.num_models):
-        member_prediction = per_predictions[i]
-        member_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            labels, member_prediction)
-        test_nlls[i].update_state(member_loss)
-        test_accs[i].update_state(labels, member_prediction)
-
-      ensemble_prediction = tf.add_n(per_predictions) / FLAGS.num_models
       loss = tf.keras.losses.sparse_categorical_crossentropy(
-          labels, ensemble_prediction)
+          labels, predictions)
       loss = safe_mean(loss)
       test_nll.update_state(loss)
-      test_accuracy.update_state(labels, ensemble_prediction)
+      test_accuracy.update_state(labels, predictions)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -319,19 +262,6 @@ def main(argv):
 
       test_nll.reset_states()
       test_accuracy.reset_states()
-
-      for i in range(FLAGS.num_models):
-        tf.summary.scalar('test/ensemble_nll_member{}'.format(i),
-                          test_nlls[i].result(),
-                          step=epoch + 1)
-        tf.summary.scalar('test/ensemble_accuracy_member{}'.format(i),
-                          test_accs[i].result(),
-                          step=epoch + 1)
-        logging.info('Member %d Test loss: %s, accuracy: %s%%',
-                     i, round(float(test_nlls[i].result()), 4),
-                     round(float(test_accs[i].result() * 100), 2))
-        test_nlls[i].reset_states()
-        test_accs[i].reset_states()
 
     checkpoint_name = checkpoint.save(os.path.join(
         FLAGS.output_dir, 'checkpoint'))
