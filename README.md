@@ -3,13 +3,10 @@
 Edward2 is a _simple_ probabilistic programming language. It provides core
 utilities in the NumPy and TensorFlow ecosystems so that one can write models
 as probabilistic programs and manipulate a model's computation for flexible
-training and inference.
-
-It's organized as follows:
+training and inference. It's organized as follows:
 
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
-  Library code, including
-  [Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
+  Library code.
 * [`baselines/`](https://github.com/google/edward2/blob/master/baselines):
   High-quality implementations of uncertainty models with good performance.
 * [`examples/`](https://github.com/google/edward2/blob/master/examples):
@@ -19,6 +16,12 @@ It's organized as follows:
 
 Are you upgrading from Edward? Check out the guide
 [`Upgrading_from_Edward_to_Edward2.md`](https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md).
+The core utilities are fairly low-level: if you'd like a high-level module for
+uncertainty modeling, check out the guide for
+[Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
+We recommend the
+[`baselines/`](https://github.com/google/edward2/blob/master/baselines)
+if you'd like to build on research-ready code.
 
 ## Installation
 
@@ -37,18 +40,10 @@ automatically install or update TensorFlow or NumPy. To get these dependencies,
 use `pip install edward2[tensorflow] @
 "git+https://github.com/google/edward2.git#egg=edward2"` or `pip install
 edward2[numpy] @ ...`. Sometimes Edward2 uses the latest changes from TensorFlow
-in which you'll need TensorFlow's nightly package: use `pip install edward2[tf-
-nightly] @ ...`.
+in which you'll need TensorFlow's nightly package: use
+`pip install edward2[tf-nightly] @ ...`.
 
 ## 1. Models as Probabilistic Programs
-
-Edward2 provides just two utilities to enable probabilistic programming:
-[`RandomVariables`](https://github.com/google/edward2/blob/master/edward2/tensorflow/random_variable.py)
-and
-[tracing](https://github.com/google/edward2/blob/master/edward2/tracer.py).
-We describe them below.
-For a high-level module for neural network uncertainty, see
-[Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
 
 ### Random Variables
 

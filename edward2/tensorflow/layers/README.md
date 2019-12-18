@@ -7,7 +7,8 @@ abstraction over deterministic and stochastic functions and allows for
 scalability via the underlying system.
 
 For examples using Bayesian Layers, see
-[`examples/`](https://github.com/google/edward2/blob/master/examples) and the
+[`baselines/`](https://github.com/google/edward2/blob/master/baselines),
+[`examples/`](https://github.com/google/edward2/blob/master/examples), and the
 active research projects in
 [`experimental/`](https://github.com/google/edward2/blob/master/experimental).
 
@@ -79,7 +80,9 @@ for _ in range(num_steps):
   gradients = tape.gradient(loss, model.variables)  # use any optimizer here
 ```
 
-For testing, one can use a variety of approaches. Here are the two most popular:
+For testing, there are two popular approaches: Monte Carlo averaging and
+heuristics that require only a single forward pass. (Other approaches are also
+supported.)
 
 ```python
 test_features = ...
@@ -185,8 +188,8 @@ def loss_fn(features):
 ```
 
 For training and testing, use typical setups for TensorFlow 2.0. Note testing
-does Monte Carlo averaging like BNN and GP layers (unless you include them
-in your model using stochastic output layers).
+does not require Monte Carlo averaging like BNN and GP layers (unless you
+include those layers in your model).
 
 ## 4. Reversible Layers
 
@@ -223,8 +226,8 @@ def loss_fn(features):
 ```
 
 For training and testing, use typical setups for TensorFlow 2.0. Note testing
-does Monte Carlo averaging like BNN and GP layers (unless you include them
-in your model using reversible layers).
+does not require Monte Carlo averaging like BNN and GP layers (unless you
+also include those layers in your model).
 
 ## 5. Other Layers
 
