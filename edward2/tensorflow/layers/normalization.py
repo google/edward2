@@ -87,38 +87,30 @@ class ActNorm(tf.keras.layers.Layer):
     return log_det_jacobian
 
 
-def ensemble_batchnorm(x,
-                       axis,
-                       name,
-                       num_models=1,
-                       use_tpu=True):
+def ensemble_batchnorm(x, num_models=1, use_tpu=True, **kwargs):
   """A modified batch norm layer for Batch Ensemble model.
 
   Args:
     x: input tensor.
-    axis: axis for the batch normalization.
-    name: name for batch normalization layer.
     num_models: number of ensemble members.
     use_tpu: whether the model is running on TPU.
+    **kwargs: Keyword arguments to batch normalization layers.
 
   Returns:
     Output tensor for the block.
   """
-  batch_norm_decay = 0.9
-  batch_norm_epsilon = 1e-5
   # In BatchEnsemble inference stage, the input to the model is tiled which
   # leads to dynamic shape because of the tf.split function. Such operation
   # is not supported in tf2.0 on TPU. For current workaround, we use single
   # BatchNormalization layer for all ensemble member. This is not correct in
   # math but works in practice.
   if num_models == 1 or use_tpu:
-    return tf.keras.layers.BatchNormalization(axis=axis,
-                                              momentum=batch_norm_decay,
-                                              epsilon=batch_norm_epsilon,
-                                              name=name)(x)
+    return tf.keras.layers.BatchNormalization(**kwargs)(x)
+  name = kwargs.get('name')
   split_inputs = tf.split(x, num_models, axis=0)
   for i in range(num_models):
-    split_inputs[i] = tf.keras.layers.BatchNormalization(
-        axis=axis, momentum=batch_norm_decay, epsilon=batch_norm_epsilon,
-        name=name + '_{}'.format(i))(split_inputs[i])
+    if name is not None:
+      kwargs['name'] = name + '_{}'.format(i)
+    split_inputs[i] = tf.keras.layers.BatchNormalization(**kwargs)(
+        split_inputs[i])
   return tf.concat(split_inputs, axis=0)

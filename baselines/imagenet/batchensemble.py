@@ -132,9 +132,11 @@ def main(argv):
   with strategy.scope():
     logging.info('Building Keras ResNet-50 model')
     model = batchensemble_model.ensemble_resnet50(
+        input_shape=(224, 224, 3),
         num_classes=NUM_CLASSES,
         num_models=FLAGS.num_models,
-        random_sign_init=FLAGS.random_sign_init)
+        random_sign_init=FLAGS.random_sign_init,
+        use_tpu=not FLAGS.use_gpu)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
