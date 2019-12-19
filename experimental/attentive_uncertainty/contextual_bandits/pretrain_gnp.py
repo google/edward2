@@ -23,7 +23,7 @@ from __future__ import print_function
 from edward2.experimental.attentive_uncertainty import generalized_neural_process
 from edward2.experimental.attentive_uncertainty.contextual_bandits import utils
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 tf.compat.v1.enable_eager_execution()
 

@@ -26,7 +26,7 @@ from edward2.experimental.attentive_uncertainty import attention
 from edward2.experimental.attentive_uncertainty import layers
 from edward2.experimental.attentive_uncertainty import utils
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 eps = tf.keras.backend.epsilon()
 

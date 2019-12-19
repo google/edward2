@@ -31,7 +31,7 @@ from edward2.experimental.attentive_uncertainty import attention
 from edward2.experimental.attentive_uncertainty.contextual_bandits import offline_contextual_bandits
 from edward2.experimental.attentive_uncertainty.contextual_bandits import online_contextual_bandits
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from deep_contextual_bandits import contextual_bandit  # local file import
 from deep_contextual_bandits import neural_linear_sampling  # local file import

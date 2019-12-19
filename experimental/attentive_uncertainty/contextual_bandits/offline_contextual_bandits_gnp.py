@@ -22,7 +22,7 @@ from __future__ import division
 from __future__ import print_function
 
 from edward2.experimental.attentive_uncertainty import generalized_neural_process
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from deep_contextual_bandits import bandit_algorithm  # local file import
 from deep_contextual_bandits import contextual_dataset  # local file import

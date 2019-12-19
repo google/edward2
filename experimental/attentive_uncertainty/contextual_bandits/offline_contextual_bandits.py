@@ -23,7 +23,7 @@ from __future__ import print_function
 from edward2.experimental.attentive_uncertainty import regressor
 from edward2.experimental.attentive_uncertainty.contextual_bandits import utils
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from deep_contextual_bandits import bandit_algorithm  # local file import
 from deep_contextual_bandits import contextual_dataset  # local file import

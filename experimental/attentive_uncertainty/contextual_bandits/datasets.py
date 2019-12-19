@@ -24,7 +24,7 @@ import os
 from absl import app
 from absl import flags
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from deep_contextual_bandits import synthetic_data_sampler  # local file import
 gfile = tf.compat.v1.gfile

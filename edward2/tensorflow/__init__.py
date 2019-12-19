@@ -23,7 +23,7 @@ from __future__ import print_function
 # TensorFlow is not available.
 # pylint: disable=g-import-not-at-top
 try:
-  import tensorflow as tf  # pylint: disable=unused-import
+  import tensorflow.compat.v1 as tf  # pylint: disable=unused-import
   from tensorflow_probability import distributions
 except ImportError:
   pass
