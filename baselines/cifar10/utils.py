@@ -26,12 +26,15 @@ import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
 
-def load_dataset(split, with_info=False):
+def load_dataset(split, with_info=False, data_augmentation=True):
   """Returns a tf.data.Dataset with <image, label> pairs.
 
   Args:
     split: tfds.Split.
     with_info: bool.
+    data_augmentation: bool, if True perform simple data augmentation on the
+      TRAIN split with random left/right flips and random cropping.  If False,
+      do not perform any data augmentation.
 
   Returns:
     Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
@@ -48,7 +51,7 @@ def load_dataset(split, with_info=False):
 
   def preprocess(image, label):
     """Image preprocessing function."""
-    if split == tfds.Split.TRAIN:
+    if data_augmentation and split == tfds.Split.TRAIN:
       image = tf.image.random_flip_left_right(image)
       image = tf.pad(image, [[4, 4], [4, 4], [0, 0]])
       image = tf.image.random_crop(image, image_shape)
