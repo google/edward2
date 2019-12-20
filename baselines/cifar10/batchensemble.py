@@ -208,13 +208,11 @@ def main(argv):
       if FLAGS.fast_weight_lr_multiplier != 1.0:
         grads_and_vars = []
         for grad, var in zip(grads, model.trainable_variables):
-          if 'bn' not in var.name or 'batch_norm' not in var.name:
-            if ('alpha' in var.name) or ('gamma' in var.name) or (
-                'bias' in var.name):
-              grads_and_vars.append((grad * FLAGS.fast_weight_lr_multiplier,
-                                     var))
-            else:
-              grads_and_vars.append((grad, var))
+          # Apply different learning rate on the fast weight approximate
+          # posterior/prior parameters. This is excludes BN and slow weights,
+          # but pay caution to the naming scheme.
+          if ('batch_norm' not in var.name and 'kernel' not in var.name):
+            grads_and_vars.append((grad * FLAGS.fast_weight_lr_multiplier, var))
           else:
             grads_and_vars.append((grad, var))
         optimizer.apply_gradients(grads_and_vars)
