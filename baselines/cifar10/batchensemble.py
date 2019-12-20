@@ -264,16 +264,19 @@ def main(argv):
       for step in range(steps_per_epoch):
         train_step(train_iterator)
 
-        current_step = epoch * steps_per_epoch + step
+        current_step = epoch * steps_per_epoch + (step + 1)
         max_steps = steps_per_epoch * FLAGS.train_epochs
         time_elapsed = time.time() - start_time
         steps_per_sec = float(current_step) / time_elapsed
-        eta_seconds = (max_steps - current_step) / (steps_per_sec + 1e-7)
-        message = ('{:.1f}% completion, at step {:d}. {:.1f} steps/s. '
-                   'ETA: {:.0f} min'.format(100 * current_step / max_steps,
-                                            current_step,
-                                            steps_per_sec,
-                                            eta_seconds / 60))
+        eta_seconds = (max_steps - current_step) / steps_per_sec
+        message = ('{:.1%} completion: epoch {:d}/{:d}. {:.1f} steps/s. '
+                   'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
+                       current_step / max_steps,
+                       epoch + 1,
+                       FLAGS.train_epochs,
+                       steps_per_sec,
+                       eta_seconds / 60,
+                       time_elapsed / 60))
         if step % 20 == 0:
           logging.info(message)
 
