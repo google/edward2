@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import itertools
 from absl import logging
 
 import tensorflow.compat.v2 as tf
@@ -196,6 +197,7 @@ class ResnetLearningRateSchedule(
     }
 
 
+# TODO(ghassen): disagreement and double_fault could be extended beyond pairs.
 def disagreement(logits_1, logits_2):
   """Disagreement between the predictions of two classifiers."""
   preds_1 = tf.argmax(logits_1, axis=-1, output_type=tf.int32)
@@ -234,7 +236,7 @@ def double_fault(logits_1, logits_2, labels):
   return tf.reduce_mean(double_faults)
 
 
-def average_kl_divergence(logits_1, logits_2):
+def logit_kl_divergence(logits_1, logits_2):
   """Average KL divergence between logit distributions of two classifiers."""
   probs_1 = tf.nn.softmax(logits_1)
   probs_2 = tf.nn.softmax(logits_2)
@@ -276,4 +278,38 @@ def cosine_distance(x, y):
   y_norm = tf.reshape(y_norm, (-1, 1))
   normalized_x = x / x_norm
   normalized_y = y / y_norm
-  return tf.reduce_sum(normalized_x * normalized_y)
+  return tf.reduce_mean(tf.reduce_sum(normalized_x * normalized_y, axis=-1))
+
+
+# TODO(ghassen): we could extend this to take an arbitrary list of metric fns.
+def average_pairwise_diversity(probs, labels, num_models):
+  """Average pairwise distance computation across models."""
+  if probs.shape[0] != num_models:
+    raise ValueError('The number of models {0} does not match '
+                     'the probs length {1}'.format(num_models, probs.shape[0]))
+
+  pairwise_disagreement = []
+  pairwise_double_fault = []
+  pairwise_kl_divergence = []
+  pairwise_cosine_distance = []
+  for pair in list(itertools.combinations(range(num_models), 2)):
+    probs_1 = probs[pair[0]]
+    probs_2 = probs[pair[1]]
+    pairwise_disagreement.append(disagreement(probs_1, probs_2))
+    pairwise_double_fault.append(double_fault(probs_1, probs_2, labels))
+    pairwise_kl_divergence.append(
+        tf.reduce_mean(kl_divergence(probs_1, probs_2)))
+    pairwise_cosine_distance.append(cosine_distance(probs_1, probs_2))
+
+  # TODO(ghassen): we could also return max and min pairwise metrics.
+  average_disagreement = tf.reduce_mean(tf.stack(pairwise_disagreement))
+  average_double_fault = tf.reduce_mean(tf.stack(pairwise_double_fault))
+  average_kl_divergence = tf.reduce_mean(tf.stack(pairwise_kl_divergence))
+  average_cosine_distance = tf.reduce_mean(tf.stack(pairwise_cosine_distance))
+
+  return {
+      'disagreement': average_disagreement,
+      'double_fault': average_double_fault,
+      'average_kl': average_kl_divergence,
+      'cosine_similarity': average_cosine_distance
+  }
