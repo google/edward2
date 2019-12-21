@@ -32,9 +32,8 @@ class RandomVariable(object):
   `RandomVariable` encapsulates properties of a random variable, namely, its
   distribution, sample shape, and (optionally overridden) value. Its `value`
   property is a `tf.Tensor`, which embeds the `RandomVariable` object into the
-  TensorFlow graph. `RandomVariable` also features operator overloading and
-  registration to TensorFlow sessions, enabling idiomatic usage as if one were
-  operating on `tf.Tensor`s.
+  TensorFlow graph. `RandomVariable` also features operator overloading,
+  enabling idiomatic usage as if one were operating on `tf.Tensor`s.
 
   The random variable's shape is given by
 
@@ -51,16 +50,15 @@ class RandomVariable(object):
   #### Examples
 
   ```python
+  import edward2 as ed
   import tensorflow_probability as tfp
-  from tensorflow_probability import edward2 as ed
-  tfd = tfp.distributions
 
   z1 = tf.constant([[1.0, -0.8], [0.3, -1.0]])
   z2 = tf.constant([[0.9, 0.2], [2.0, -0.1]])
-  x = ed.RandomVariable(tfd.Bernoulli(logits=tf.matmul(z1, z2)))
+  x = ed.RandomVariable(tfp.distributions.Bernoulli(logits=tf.matmul(z1, z2)))
 
-  loc = ed.RandomVariable(tfd.Normal(0., 1.))
-  x = ed.RandomVariable(tfd.Normal(loc, 1.), sample_shape=50)
+  loc = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
+  x = ed.RandomVariable(tfp.distributions.Normal(loc, 1.), sample_shape=50)
   assert x.shape.as_list() == [50]
   assert x.sample_shape.as_list() == [50]
   assert x.distribution.batch_shape.as_list() == []
@@ -75,11 +73,12 @@ class RandomVariable(object):
     """Create a new random variable.
 
     Args:
-      distribution: tfd.Distribution governing the distribution of the random
-        variable, such as sampling and log-probabilities.
+      distribution: Distribution of the random variable. At minimum, the
+        distribution object must have the attributes `dtype`, `batch_shape`,
+        `event_shape`, `sample`, and `name`.
       sample_shape: tf.TensorShape of samples to draw from the random variable.
         Default is `()` corresponding to a single sample.
-      value: Fixed tf.Tensor to associate with random variable. Must have shape
+      value: tf.Tensor to associate with random variable. Must have shape
         `sample_shape + distribution.batch_shape + distribution.event_shape`.
         Default is to sample from random variable according to `sample_shape`.
 

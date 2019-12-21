@@ -99,12 +99,12 @@ Broadly, the function's outputs capture what the probabilistic program is over
 (the `y` in `p(y | x)`), and the function's inputs capture what the
 probabilistic program conditions on (the `x` in `p(y | x)`). Note it's best
 practice to write names to all random variables: this is useful for cleaner
-TensorFlow name scopes as well as for manipulating model computation.
+names in the computational graph as well as for manipulating model computation.
 
-## TensorFlow Sessions
+## Graph vs Eager Execution
 
-__Edward__. In graph mode, you fetch values from the TensorFlow graph using a
-built-in Edward session. Eager mode is not available.
+__Edward__. In TensorFlow graph mode, you fetch values from the TensorFlow graph
+using a built-in Edward session. Eager mode is not available.
 
 ```python
 # Generate from model: returns np.ndarray of shape (data_size, feature_size).
@@ -112,8 +112,8 @@ with ed.get_session() as sess:
   sess.run(x)
 ```
 
-__Edward2__. Edward2 operates with TF 2.0, which always uses eager execution so
-there is no TensorFlow session.
+__Edward2__. Edward2 operates with TensorFlow 2.0. It always uses eager
+execution so there is no TensorFlow session.
 
 ```python
 # Generate from model: returns tf.Tensor of shape (data_size, feature_size).

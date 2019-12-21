@@ -62,13 +62,12 @@ def trace(tracer):
   def tracer(f, *args, **kwargs):
     if kwargs.get("name") == "y":
       kwargs["value"] = 42
-    return traceable(f)(*args, **kwargs)
+    return ed.traceable(f)(*args, **kwargs)
 
   with ed.trace(tracer):
     y = model()
 
-  with tf.Session() as sess:
-    assert sess.run(y.value) == 42
+  assert y == 42
   ```
 
   Wrapping `f` as `traceable` allows tracers down the stack to
@@ -107,15 +106,15 @@ def get_next_tracer():
     return x + y
 
   def double(f, *args, **kwargs):
-    return 2. * traceable(f)(*args, **kwargs)
+    return 2. * ed.traceable(f)(*args, **kwargs)
 
   def set_y(f, *args, **kwargs):
     if kwargs.get("name") == "y":
       kwargs["value"] = 0.42
-    return traceable(f)(*args, **kwargs)
+    return ed.traceable(f)(*args, **kwargs)
 
-  with trace(double):
-    with trace(set_y):
+  with ed.trace(double):
+    with ed.trace(set_y):
       z = model()
   ```
 
