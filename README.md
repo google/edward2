@@ -129,18 +129,18 @@ def logistic_regression_posterior(coeffs_loc, coeffs_scale,
   coeffs = ed.MultivariateNormalTriL(
       loc=coeffs_loc,
       scale_tril=tfp.trainable_distributions.tril_with_diag_softplus_and_shift(
-        coeffs_scale_tril),
+          coeffs_scale),
       name="coeffs_posterior")
   intercept = ed.Normal(
       loc=intercept_loc,
       scale=tf.nn.softplus(intercept_scale) + 1e-5,
       name="intercept_posterior")
   return coeffs, intercept
-return logistic_regression_posterior
 
 coeffs_loc = tf.Variable(tf.random.normal([num_features]))
 coeffs_scale = tf.Variable(tf.random.normal(
-    [num_features*(num_features+1) // 2])))
+    [num_features*(num_features+1) // 2]))
+
 intercept_loc = tf.Variable(tf.random.normal([]))
 intercept_scale = tf.Variable(tf.random.normal([]))
 posterior_coeffs, posterior_intercept = logistic_regression_posterior(
@@ -181,8 +181,8 @@ with ed.trace(set_prior_to_posterior_mean):
   predictions = logistic_regression(features)
 
 training_accuracy = (
-  tf.reduce_sum(tf.cast(tf.equal(predictions, outcomes), tf.float32)) /
-  outcomes.shape[0])
+    tf.reduce_sum(tf.cast(tf.equal(predictions, outcomes), tf.float32)) /
+    tf.cast(outcomes.shape[0], tf.float32))
 ```
 
 ### Program Transformations
