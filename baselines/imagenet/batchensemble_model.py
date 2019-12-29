@@ -224,6 +224,6 @@ def ensemble_resnet50(input_shape,
       kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),
-      activation='softmax',
+      activation=None,
       name='fc1000')(x)
   return tf.keras.Model(inputs=inputs, outputs=x, name='resnet50')

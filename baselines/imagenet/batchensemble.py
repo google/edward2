@@ -40,18 +40,18 @@ flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when train batch size is 256.')
 flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('l2', 1e-4, 'L2 coefficient.')
-flags.DEFINE_float('fast_weight_lr_multiplier', 2.5,
+flags.DEFINE_float('fast_weight_lr_multiplier', 0.5,
                    'fast weights lr multiplier.')
 flags.DEFINE_string('data_dir', None, 'Path to training and testing data.')
 flags.mark_flag_as_required('data_dir')
 flags.DEFINE_string('output_dir', '/tmp/imagenet',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
-flags.DEFINE_integer('train_epochs', 100, 'Number of training epochs.')
+flags.DEFINE_integer('train_epochs', 135, 'Number of training epochs.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
-flags.DEFINE_bool('use_bfloat16', False, 'Whether to use mixed precision.')
+flags.DEFINE_bool('use_bfloat16', True, 'Whether to use mixed precision.')
 flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
@@ -66,13 +66,6 @@ NUM_CLASSES = 1000
 _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
     (1.0, 5), (0.1, 30), (0.01, 60), (0.001, 80)
 ]
-
-
-# TODO(trandustin): Replace with logits similar to CIFAR code.
-def safe_mean(losses):
-  total = tf.reduce_sum(losses)
-  num_elements = tf.dtypes.cast(tf.size(losses), dtype=losses.dtype)
-  return tf.math.divide_no_nan(total, num_elements)
 
 
 def main(argv):
@@ -186,13 +179,14 @@ def main(argv):
         labels = tf.tile(labels, [FLAGS.num_models, 1])
 
       with tf.GradientTape() as tape:
-        predictions = model(images, training=True)
+        logits = model(images, training=True)
         if FLAGS.use_bfloat16:
-          predictions = tf.cast(predictions, tf.float32)
+          logits = tf.cast(logits, tf.float32)
 
-        prediction_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            labels, predictions)
-        loss1 = tf.reduce_mean(prediction_loss)
+        negative_log_likelihood = tf.reduce_mean(
+            tf.keras.losses.sparse_categorical_crossentropy(labels,
+                                                            logits,
+                                                            from_logits=True))
         filtered_variables = []
         for var in model.trainable_variables:
           # Apply l2 on the slow weights and bias terms. This excludes BN
@@ -203,8 +197,8 @@ def main(argv):
 
         l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
             tf.concat(filtered_variables, axis=0))
+        loss = negative_log_likelihood + l2_loss
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
-        loss = loss1 + l2_loss
         scaled_loss = loss / strategy.num_replicas_in_sync
 
       grads = tape.gradient(scaled_loss, model.trainable_variables)
@@ -213,11 +207,9 @@ def main(argv):
       if FLAGS.fast_weight_lr_multiplier != 1.0:
         grads_and_vars = []
         for grad, var in zip(grads, model.trainable_variables):
-          # Apply different learning rate on the fast weight approximate
-          # posterior/prior parameters. This is excludes BN and slow weights,
-          # but pay caution to the naming scheme.
-          if (('bn' not in var.name or 'batch_norm' not in var.name) and
-              'kernel' not in var.name):
+          # Apply different learning rate on the fast weights. This excludes BN
+          # and slow weights, but pay caution to the naming scheme.
+          if ('batch_norm' not in var.name and 'kernel' not in var.name):
             grads_and_vars.append((grad * FLAGS.fast_weight_lr_multiplier,
                                    var))
           else:
@@ -227,8 +219,9 @@ def main(argv):
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
       metrics['train/loss'].update_state(loss)
-      metrics['train/negative_log_likelihood'].update_state(loss)
-      metrics['train/accuracy'].update_state(labels, predictions)
+      metrics['train/negative_log_likelihood'].update_state(
+          negative_log_likelihood)
+      metrics['train/accuracy'].update_state(labels, logits)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -239,26 +232,28 @@ def main(argv):
       """Per-Replica StepFn."""
       images, labels = inputs
       images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
-      predictions = model(images, training=False)
+      logits = model(images, training=False)
       if FLAGS.use_bfloat16:
-        predictions = tf.cast(predictions, tf.float32)
+        logits = tf.cast(logits, tf.float32)
+      probs = tf.nn.softmax(logits)
 
-      per_predictions = tf.split(
-          predictions, num_or_size_splits=FLAGS.num_models, axis=0)
+      per_probs = tf.split(
+          probs, num_or_size_splits=FLAGS.num_models, axis=0)
       for i in range(FLAGS.num_models):
-        member_prediction = per_predictions[i]
+        member_probs = per_probs[i]
         member_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            labels, member_prediction)
+            labels, member_probs)
         metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
         metrics['test/accuracy_member_{}'.format(i)].update_state(
-            labels, member_prediction)
+            labels, member_probs)
 
-      ensemble_prediction = tf.add_n(per_predictions) / FLAGS.num_models
-      loss = tf.keras.losses.sparse_categorical_crossentropy(
-          labels, ensemble_prediction)
-      loss = safe_mean(loss)
-      metrics['test/negative_log_likelihood'].update_state(loss)
-      metrics['test/accuracy'].update_state(labels, ensemble_prediction)
+      probs = tf.reduce_mean(per_probs, axis=0)
+      negative_log_likelihood = tf.reduce_mean(
+          tf.keras.losses.sparse_categorical_crossentropy(
+              labels, probs))
+      metrics['test/negative_log_likelihood'].update_state(
+          negative_log_likelihood)
+      metrics['test/accuracy'].update_state(labels, probs)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -308,9 +303,10 @@ def main(argv):
     for metric in metrics.values():
       metric.reset_states()
 
-    checkpoint_name = checkpoint.save(os.path.join(
-        FLAGS.output_dir, 'checkpoint'))
-    logging.info('Saved checkpoint to %s', checkpoint_name)
+    if (epoch + 1) % 20 == 0:
+      checkpoint_name = checkpoint.save(os.path.join(
+          FLAGS.output_dir, 'checkpoint'))
+      logging.info('Saved checkpoint to %s', checkpoint_name)
 
 
 if __name__ == '__main__':
