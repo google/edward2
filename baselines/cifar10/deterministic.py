@@ -27,8 +27,6 @@ from absl import flags
 from absl import logging
 
 import utils  # local file import
-import six
-from six.moves import range
 
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
@@ -209,6 +207,9 @@ def main(argv):
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
     tf.keras.mixed_precision.experimental.set_policy(policy)
 
+  summary_writer = tf.summary.create_file_writer(
+      os.path.join(FLAGS.output_dir, 'summaries'))
+
   with strategy.scope():
     logging.info('Building Keras ResNet-32 model')
     model = resnet_v1(input_shape=ds_info.features['image'].shape,
@@ -226,13 +227,13 @@ def main(argv):
     optimizer = tf.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
-    train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-    train_nll = tf.keras.metrics.Mean('train_nll', dtype=tf.float32)
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'train_accuracy', dtype=tf.float32)
-    test_nll = tf.keras.metrics.Mean('test_nll', dtype=tf.float32)
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'test_accuracy', dtype=tf.float32)
+    metrics = {
+        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss': tf.keras.metrics.Mean(),
+        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+    }
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
@@ -243,9 +244,6 @@ def main(argv):
       checkpoint.restore(latest_checkpoint)
       logging.info('Loaded checkpoint %s', latest_checkpoint)
       initial_epoch = optimizer.iterations.numpy() // steps_per_epoch
-
-  summary_writer = tf.summary.create_file_writer(
-      os.path.join(FLAGS.output_dir, 'summaries/'))
 
   @tf.function
   def train_step(iterator):
@@ -269,9 +267,10 @@ def main(argv):
       grads = tape.gradient(scaled_loss, model.trainable_variables)
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-      train_loss.update_state(loss)
-      train_nll.update_state(negative_log_likelihood)
-      train_accuracy.update_state(labels, logits)
+      metrics['train/loss'].update_state(loss)
+      metrics['train/negative_log_likelihood'].update_state(
+          negative_log_likelihood)
+      metrics['train/accuracy'].update_state(labels, logits)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -288,8 +287,9 @@ def main(argv):
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(
               labels, probs))
-      test_nll.update_state(negative_log_likelihood)
-      test_accuracy.update_state(labels, probs)
+      metrics['test/negative_log_likelihood'].update_state(
+          negative_log_likelihood)
+      metrics['test/accuracy'].update_state(labels, probs)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -297,61 +297,43 @@ def main(argv):
   start_time = time.time()
   for epoch in range(initial_epoch, FLAGS.train_epochs):
     logging.info('Starting to run epoch: %s', epoch)
+    for step in range(steps_per_epoch):
+      train_step(train_iterator)
+
+      current_step = epoch * steps_per_epoch + (step + 1)
+      max_steps = steps_per_epoch * FLAGS.train_epochs
+      time_elapsed = time.time() - start_time
+      steps_per_sec = float(current_step) / time_elapsed
+      eta_seconds = (max_steps - current_step) / steps_per_sec
+      message = ('{:.1%} completion: epoch {:d}/{:d}. {:.1f} steps/s. '
+                 'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
+                     current_step / max_steps,
+                     epoch + 1,
+                     FLAGS.train_epochs,
+                     steps_per_sec,
+                     eta_seconds / 60,
+                     time_elapsed / 60))
+      if step % 20 == 0:
+        logging.info(message)
+
+    test_iterator = iter(test_dataset)
+    for step in range(steps_per_eval):
+      if step % 20 == 0:
+        logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
+      test_step(test_iterator)
+
+    logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
+                 metrics['train/loss'].result(),
+                 metrics['train/accuracy'].result() * 100)
+    logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
+                 metrics['test/negative_log_likelihood'].result(),
+                 metrics['test/accuracy'].result() * 100)
     with summary_writer.as_default():
-      for step in range(steps_per_epoch):
-        train_step(train_iterator)
+      for name, metric in metrics.items():
+        tf.summary.scalar(name, metric.result(), step=epoch + 1)
 
-        current_step = epoch * steps_per_epoch + (step + 1)
-        max_steps = steps_per_epoch * FLAGS.train_epochs
-        time_elapsed = time.time() - start_time
-        steps_per_sec = float(current_step) / time_elapsed
-        eta_seconds = (max_steps - current_step) / steps_per_sec
-        message = ('{:.1%} completion: epoch {:d}/{:d}. {:.1f} steps/s. '
-                   'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
-                       current_step / max_steps,
-                       epoch + 1,
-                       FLAGS.train_epochs,
-                       steps_per_sec,
-                       eta_seconds / 60,
-                       time_elapsed / 60))
-        if step % 20 == 0:
-          logging.info(message)
-
-      tf.summary.scalar('train/loss',
-                        train_loss.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('train/negative_log_likelihood',
-                        train_nll.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('train/accuracy',
-                        train_accuracy.result(),
-                        step=epoch + 1)
-      logging.info('Train Loss: %s, Accuracy: %s%%',
-                   round(float(train_loss.result()), 4),
-                   round(float(train_accuracy.result() * 100), 2))
-
-      train_loss.reset_states()
-      train_nll.reset_states()
-      train_accuracy.reset_states()
-
-      test_iterator = iter(test_dataset)
-      for step in range(steps_per_eval):
-        if step % 20 == 0:
-          logging.info('Starting to run eval step %s of epoch: %s', step,
-                       epoch)
-        test_step(test_iterator)
-      tf.summary.scalar('test/negative_log_likelihood',
-                        test_nll.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('test/accuracy',
-                        test_accuracy.result(),
-                        step=epoch + 1)
-      logging.info('Test NLL: %s, Accuracy: %s%%',
-                   round(float(test_nll.result()), 4),
-                   round(float(test_accuracy.result() * 100), 2))
-
-      test_nll.reset_states()
-      test_accuracy.reset_states()
+    for metric in metrics.values():
+      metric.reset_states()
 
     if (epoch + 1) % 20 == 0:
       checkpoint_name = checkpoint.save(

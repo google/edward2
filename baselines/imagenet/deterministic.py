@@ -30,7 +30,6 @@ from absl import logging
 import deterministic_model  # local file import
 import utils  # local file import
 
-import six
 import tensorflow.compat.v2 as tf
 
 flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')
@@ -130,13 +129,13 @@ def main(argv):
     optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate,
                                         momentum=0.9,
                                         nesterov=True)
-    train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-    train_nll = tf.keras.metrics.Mean('train_nll', dtype=tf.float32)
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'train_accuracy', dtype=tf.float32)
-    test_nll = tf.keras.metrics.Mean('test_nll', dtype=tf.float32)
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'test_accuracy', dtype=tf.float32)
+    metrics = {
+        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss': tf.keras.metrics.Mean(),
+        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+    }
     logging.info('Finished building Keras ResNet-50 model')
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
@@ -183,9 +182,9 @@ def main(argv):
       grads = tape.gradient(scaled_loss, model.trainable_variables)
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-      train_loss.update_state(loss)
-      train_nll.update_state(loss1)
-      train_accuracy.update_state(labels, predictions)
+      metrics['train/loss'].update_state(loss)
+      metrics['train/negative_log_likelihood'].update_state(loss1)
+      metrics['train/accuracy'].update_state(labels, predictions)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -202,8 +201,8 @@ def main(argv):
       loss = tf.keras.losses.sparse_categorical_crossentropy(
           labels, predictions)
       loss = safe_mean(loss)
-      test_nll.update_state(loss)
-      test_accuracy.update_state(labels, predictions)
+      metrics['test/negative_log_likelihood'].update_state(loss)
+      metrics['test/accuracy'].update_state(labels, predictions)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -211,61 +210,43 @@ def main(argv):
   start_time = time.time()
   for epoch in range(initial_epoch, FLAGS.train_epochs):
     logging.info('Starting to run epoch: %s', epoch)
+    for step in range(steps_per_epoch):
+      train_step(train_iterator)
+
+      current_step = epoch * steps_per_epoch + (step + 1)
+      max_steps = steps_per_epoch * FLAGS.train_epochs
+      time_elapsed = time.time() - start_time
+      steps_per_sec = float(current_step) / time_elapsed
+      eta_seconds = (max_steps - current_step) / steps_per_sec
+      message = ('{:.1%} completion: epoch {:d}/{:d}. {:.1f} steps/s. '
+                 'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
+                     current_step / max_steps,
+                     epoch + 1,
+                     FLAGS.train_epochs,
+                     steps_per_sec,
+                     eta_seconds / 60,
+                     time_elapsed / 60))
+      if step % 20 == 0:
+        logging.info(message)
+
+    test_iterator = iter(test_dataset)
+    for step in range(steps_per_eval):
+      if step % 20 == 0:
+        logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
+      test_step(test_iterator)
+
+    logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
+                 metrics['train/loss'].result(),
+                 metrics['train/accuracy'].result() * 100)
+    logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
+                 metrics['test/negative_log_likelihood'].result(),
+                 metrics['test/accuracy'].result() * 100)
     with summary_writer.as_default():
-      for step in range(steps_per_epoch):
-        train_step(train_iterator)
+      for name, metric in metrics.items():
+        tf.summary.scalar(name, metric.result(), step=epoch + 1)
 
-        current_step = epoch * steps_per_epoch + (step + 1)
-        max_steps = steps_per_epoch * FLAGS.train_epochs
-        time_elapsed = time.time() - start_time
-        steps_per_sec = float(current_step) / time_elapsed
-        eta_seconds = (max_steps - current_step) / steps_per_sec
-        message = ('{:.1%} completion: epoch {:d}/{:d}. {:.1f} steps/s. '
-                   'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
-                       current_step / max_steps,
-                       epoch + 1,
-                       FLAGS.train_epochs,
-                       steps_per_sec,
-                       eta_seconds / 60,
-                       time_elapsed / 60))
-        if step % 20 == 0:
-          logging.info(message)
-
-      tf.summary.scalar('train/loss',
-                        train_loss.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('train/nll',
-                        train_nll.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('train/accuracy',
-                        train_accuracy.result(),
-                        step=epoch + 1)
-      logging.info('Train loss: %s, Accuracy: %s%%',
-                   round(float(train_loss.result()), 4),
-                   round(float(train_accuracy.result() * 100), 2))
-
-      train_loss.reset_states()
-      train_nll.reset_states()
-      train_accuracy.reset_states()
-
-      test_iterator = iter(test_dataset)
-      for step in range(steps_per_eval):
-        if step % 20 == 0:
-          logging.info('Starting to run eval step %s of epoch: %s', step,
-                       epoch)
-        test_step(test_iterator)
-      tf.summary.scalar('test/negative_log_likelihood',
-                        test_nll.result(),
-                        step=epoch + 1)
-      tf.summary.scalar('test/accuracy',
-                        test_accuracy.result(),
-                        step=epoch + 1)
-      logging.info('Test NLL: %s, Accuracy: %s%%',
-                   round(float(test_nll.result()), 4),
-                   round(float(test_accuracy.result() * 100), 2))
-
-      test_nll.reset_states()
-      test_accuracy.reset_states()
+    for metric in metrics.values():
+      metric.reset_states()
 
     checkpoint_name = checkpoint.save(os.path.join(
         FLAGS.output_dir, 'checkpoint'))
