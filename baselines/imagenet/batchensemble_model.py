@@ -136,7 +136,8 @@ def bottleneck_block(inputs,
         kernel_initializer='he_normal',
         alpha_initializer=make_random_sign_initializer(random_sign_init),
         gamma_initializer=make_random_sign_initializer(random_sign_init),
-        name=conv_name_base + '1')(inputs)
+        name=conv_name_base + '1',
+        num_models=num_models)(inputs)
     shortcut = ed.layers.ensemble_batchnorm(
         shortcut,
         num_models=num_models,
