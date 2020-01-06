@@ -32,6 +32,18 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 @test_util.run_all_in_graph_and_eager_modes
 class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
 
+  def testCauchyKLDivergence(self):
+    shape = (3,)
+    regularizer = ed.regularizers.get('cauchy_kl_divergence')
+    variational_posterior = ed.Independent(
+        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+        reinterpreted_batch_ndims=1)
+    kl = regularizer(variational_posterior)
+    kl_value = self.evaluate(kl)
+    # KL uses a single-sample estimate, which is not necessarily >0. We only
+    # check shape.
+    self.assertEqual(kl_value.shape, ())
+
   def testHalfCauchyKLDivergence(self):
     shape = (3,)
     regularizer = ed.regularizers.get('half_cauchy_kl_divergence')

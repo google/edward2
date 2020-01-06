@@ -44,6 +44,35 @@ import six
 import tensorflow.compat.v2 as tf
 
 
+class CauchyKLDivergence(tf.keras.regularizers.Regularizer):
+  """KL divergence regularizer from an input to the Cauchy distribution."""
+
+  def __init__(self, loc=0., scale=1., scale_factor=1.):
+    """Constructs regularizer where default uses the standard Cauchy."""
+    self.loc = loc
+    self.scale = scale
+    self.scale_factor = scale_factor
+
+  def __call__(self, x):
+    """Computes regularization using an unbiased Monte Carlo estimate."""
+    prior = generated_random_variables.Independent(
+        generated_random_variables.Cauchy(
+            loc=tf.broadcast_to(self.loc, x.distribution.event_shape),
+            scale=tf.broadcast_to(self.scale, x.distribution.event_shape)
+        ).distribution,
+        reinterpreted_batch_ndims=len(x.distribution.event_shape))
+    negative_entropy = x.distribution.log_prob(x)
+    cross_entropy = -prior.distribution.log_prob(x)
+    return self.scale_factor * (negative_entropy + cross_entropy)
+
+  def get_config(self):
+    return {
+        'loc': self.loc,
+        'scale': self.scale,
+        'scale_factor': self.scale_factor,
+    }
+
+
 class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the half-Cauchy distribution."""
 
@@ -294,6 +323,7 @@ class UniformKLDivergence(tf.keras.regularizers.Regularizer):
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
+cauchy_kl_divergence = CauchyKLDivergence
 half_cauchy_kl_divergence = HalfCauchyKLDivergence
 log_uniform_kl_divergence = LogUniformKLDivergence
 normal_kl_divergence = NormalKLDivergence
