@@ -2,7 +2,7 @@
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic<sup>5</sup> | 1.5e-3 / 0.234 | 99.9% / 94.3% | 1.3 (32 TPUv2 cores) | 7.44M |
+| Deterministic<sup>0</sup> | 1e-4 / 0.158 | 99.9% / 96.1% | 6.4 (1 P100 GPU) | 36.5M |
 | Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 0.85 (1 P100 GPU) | 274K |
 | BatchEnsemble (size=4)<sup>5</sup> | 0.08 / 0.197 | 99.9% / 95.4% | 3.25 (32 TPUv2 cores) | 7.47M |
 | Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 0.75 (5 P100 GPU) | 1.37M |
@@ -51,6 +51,7 @@ We note results in the literature below. Note there are differences in the setup
 | | cSGHMC | - | - / 95.73% | 200 epochs | 140.4M |
 | | Ensemble of cSGHMC (size=4) | - | - / 96.05% | 800 epochs | 561.6M |
 
+0. Uses Wide Resnet 28-10.
 1. Trains on 45k examples.
 2. Not a ResNet (VGG). Parameter count is guestimated from counting number of parameters in [original model](http://torch.ch/blog/2015/07/30/cifar.html) to be 14.9M multiplied by the compression rate.
 3. Uses Wide ResNet (WRN-28-10).

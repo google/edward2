@@ -71,6 +71,7 @@ def load_distributed_dataset(split,
                              name,
                              drop_remainder,
                              use_bfloat16,
+                             normalize=False,
                              with_info=False,
                              proportion=1.0):
   """Loads CIFAR dataset for training or testing.
@@ -82,6 +83,7 @@ def load_distributed_dataset(split,
     drop_remainder: A boolean indicates whether to drop the remainder of the
       batches. If True, the batch dimension will be static.
     use_bfloat16: data type, bfloat16 precision or float32.
+    normalize: Whether to apply mean-std normalization on features.
     with_info: bool.
     proportion: float, the proportion of dataset to be used.
 
@@ -133,6 +135,10 @@ def load_distributed_dataset(split,
       image = tf.image.random_flip_left_right(image)
 
     image = tf.image.convert_image_dtype(image, dtype)
+    if normalize:
+      mean = tf.constant([0.4914, 0.4822, 0.4465])
+      std = tf.constant([0.2023, 0.1994, 0.2010])
+      image = (image - mean) / std
     label = tf.cast(label, dtype)
     return image, label
 
@@ -172,25 +178,40 @@ def make_lr_scheduler(init_lr):
 
 
 # TODO(trandustin): Merge with make_lr_scheduler.
-class ResnetLearningRateSchedule(
-    tf.keras.optimizers.schedules.LearningRateSchedule):
-  """Resnet learning rate schedule."""
+class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+  """Learning rate schedule.
 
-  def __init__(self, steps_per_epoch, initial_learning_rate, schedule):
-    super(ResnetLearningRateSchedule, self).__init__()
+  It starts with a linear warmup to the initial learning rate over
+  `warmup_epochs`. This is found to be helpful for large batch size training
+  (Goyal et al., 2018). The learning rate's value then uses the initial
+  learning rate, and decays by a multiplier at the start of each epoch in
+  `decay_epochs`. The stepwise decaying schedule follows He et al. (2015).
+  """
+
+  def __init__(self,
+               steps_per_epoch,
+               initial_learning_rate,
+               decay_ratio,
+               decay_epochs,
+               warmup_epochs):
+    super(LearningRateSchedule, self).__init__()
     self.steps_per_epoch = steps_per_epoch
     self.initial_learning_rate = initial_learning_rate
-    self.schedule = schedule
+    self.decay_ratio = decay_ratio
+    self.decay_epochs = decay_epochs
+    self.warmup_epochs = warmup_epochs
 
   def __call__(self, step):
     lr_epoch = tf.cast(step, tf.float32) / self.steps_per_epoch
-    warmup_lr_multiplier, warmup_end_epoch = self.schedule[0]
-    learning_rate = self.initial_learning_rate * warmup_lr_multiplier * lr_epoch
-    learning_rate /= warmup_end_epoch
-    for mult, start_epoch in self.schedule:
-      learning_rate = tf.where(lr_epoch >= start_epoch,
-                               self.initial_learning_rate * mult,
-                               learning_rate)
+    learning_rate = self.initial_learning_rate
+    if self.warmup_epochs >= 1:
+      learning_rate *= lr_epoch / self.warmup_epochs
+    decay_epochs = [self.warmup_epochs] + self.decay_epochs
+    for index, start_epoch in enumerate(decay_epochs):
+      learning_rate = tf.where(
+          lr_epoch >= start_epoch,
+          self.initial_learning_rate * self.decay_ratio**index,
+          learning_rate)
     return learning_rate
 
   def get_config(self):

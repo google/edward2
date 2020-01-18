@@ -44,6 +44,12 @@ flags.DEFINE_float('train_proportion', default=1.0,
 flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when total training batch size is 128.')
+flags.DEFINE_integer('lr_warmup_epochs', 1,
+                     'Number of epochs for a linear warmup to the initial '
+                     'learning rate. Use 0 to do no warmup.')
+flags.DEFINE_float('lr_decay_ratio', 0.1, 'Amount to decay learning rate.')
+flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
+                  'Epochs to decay learning rate by.')
 flags.DEFINE_float('dropout_rate', 0., 'Dropout rate.')
 flags.DEFINE_float('l2', 2e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
@@ -59,12 +65,6 @@ flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
 FLAGS = flags.FLAGS
-
-_LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
-    (1.0, 1), (0.1, 80), (0.01, 160), (0.001, 180)
-]
-_LR_SCHEDULE = [(multiplier, np.floor(FLAGS.train_epochs / 200 * start_epoch))
-                for multiplier, start_epoch in _LR_SCHEDULE]
 
 
 def main(argv):
@@ -147,9 +147,14 @@ def main(argv):
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
     base_lr = FLAGS.base_learning_rate * batch_size / 128
-    lr_schedule = utils.ResnetLearningRateSchedule(steps_per_epoch,
-                                                   base_lr,
-                                                   _LR_SCHEDULE)
+    lr_decay_epochs = [np.floor(FLAGS.train_epochs / 200 * start_epoch)
+                       for start_epoch in FLAGS.lr_decay_epochs]
+    lr_schedule = utils.LearningRateSchedule(
+        steps_per_epoch,
+        base_lr,
+        decay_ratio=FLAGS.lr_decay_ratio,
+        decay_epochs=lr_decay_epochs,
+        warmup_epochs=FLAGS.lr_warmup_epochs)
     optimizer = tf.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
