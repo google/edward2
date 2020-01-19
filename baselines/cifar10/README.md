@@ -2,7 +2,7 @@
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic<sup>0</sup> | 1e-4 / 0.158 | 99.9% / 96.1% | 6.4 (1 P100 GPU) | 36.5M |
+| Deterministic<sup>0</sup> | 1e-4 / 0.152 | 99.9% / 96.2% | 1.2 (8 TPUv2 cores) | 36.5M |
 | Dropout | 0.137 / 0.324 | 95.1% / 90.0% | 0.85 (1 P100 GPU) | 274K |
 | BatchEnsemble (size=4)<sup>5</sup> | 0.08 / 0.197 | 99.9% / 95.4% | 3.25 (32 TPUv2 cores) | 7.47M |
 | Ensemble (size=5) | 0.011 / 0.184 | 99.9% / 94.1% | 0.75 (5 P100 GPU) | 1.37M |

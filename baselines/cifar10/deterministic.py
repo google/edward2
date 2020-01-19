@@ -42,13 +42,13 @@ flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core/GPU.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when total batch size is 128. It is '
                    'scaled by the ratio of the total batch size to 128.')
-flags.DEFINE_integer('lr_warmup_epochs', 0,
+flags.DEFINE_integer('lr_warmup_epochs', 1,
                      'Number of epochs for a linear warmup to the initial '
                      'learning rate. Use 0 to do no warmup.')
 flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
 flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
                   'Epochs to decay learning rate by.')
-flags.DEFINE_float('l2', 1e-4, 'L2 regularization coefficient.')
+flags.DEFINE_float('l2', 2e-4, 'L2 regularization coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
 flags.DEFINE_string('output_dir', '/tmp/cifar', 'Output directory.')
 flags.DEFINE_integer('train_epochs', 200, 'Number of training epochs.')
@@ -56,7 +56,7 @@ flags.DEFINE_integer('train_epochs', 200, 'Number of training epochs.')
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
 flags.DEFINE_bool('use_bfloat16', False, 'Whether to use mixed precision.')
-flags.DEFINE_integer('num_cores', 32, 'Number of TPU cores or number of GPUs.')
+flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
 FLAGS = flags.FLAGS
