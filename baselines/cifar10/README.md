@@ -62,11 +62,13 @@ We note results in the literature below. Note there are differences in the setup
 8. Scales KL by an additional factor of 10.
 9. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
 10. Uses ResNet-18. cSGHMC uses a total of 12 copies of the full size of weights for prediction. Ensembles use 4 times cSGHMC's number. The authors use a T=1/200 temperature scaling on the log-posterior (see the newly added appendix I at https://openreview.net/forum?id=rkeS1RVtPS).
+11. Results are slightly worse than open-source implementations such as the [original paper](https://github.com/szagoruyko/wide-residual-networks)'s 80.75% test accuracy and [`meliketoy/wide-resnet.pytorch`](https://github.com/meliketoy/wide-resnet.pytorch)'s 81.02%. Our experiments only tuned over l2, so there may be more work to be done.
 
 ## CIFAR-100
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Deterministic<sup>0,11</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | 1.1 (8 TPUv2 cores) | 36.5M |
 | BatchEnsemble (size=4)<sup>5</sup> | 0.38 / 0.89 | 99.9% / 79.0% | 3.85 (32 TPUv2 cores) | 7.47M |
 
 We note results in the literature below. Note there are differences in the setup
