@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for deterministic ResNet-20."""
+"""Tests for WRN 28-10."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -28,7 +28,7 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 @test_util.run_all_in_graph_and_eager_modes
 class DeterministicTest(tf.test.TestCase):
 
-  def testResNetV1(self):
+  def testWideResnet(self):
     tf.random.set_seed(83922)
     dataset_size = 10
     batch_size = 5
