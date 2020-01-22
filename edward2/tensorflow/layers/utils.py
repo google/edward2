@@ -42,17 +42,19 @@ def add_weight(cls):
                   regularizer=None,
                   **kwargs):
     """Adds weight."""
+    # Rely on the keras trackable machinery to pick up weights where applicable.
+    # The name for the field is arbitrary.
+    if getattr(self, 'tracked_add_weight_dependencies', None) is None:
+      self.tracked_add_weight_dependencies = []
+    self.tracked_add_weight_dependencies.append((regularizer, initializer))
+
     if isinstance(regularizer, tf.keras.layers.Layer):
       # If regularizer is trainable, build and add its parameters to the layer.
       if not regularizer.built:
         regularizer.build(shape)
-      self._trainable_weights.extend(regularizer.trainable_weights)  # pylint: disable=protected-access
-      self._non_trainable_weights.extend(regularizer.non_trainable_weights)  # pylint: disable=protected-access
     if isinstance(initializer, tf.keras.layers.Layer):
       # If initializer is trainable, build and add its parameters to the layer.
       weight = initializer(shape, dtype)
-      self._trainable_weights.extend(initializer.trainable_weights)  # pylint: disable=protected-access
-      self._non_trainable_weights.extend(initializer.non_trainable_weights)  # pylint: disable=protected-access
       if regularizer is not None:
         # TODO(trandustin): Replace need for this with
         # Layer._handle_weight_regularization. For Eager compatibility, random
