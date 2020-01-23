@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2019 The Edward2 Authors.
+# Copyright 2020 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,168 +13,148 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ResNet32 model for Keras adapted from tf.keras.applications.ResNet50.
-
-# Reference:
-- [Deep Residual Learning for Image Recognition](
-    https://arxiv.org/abs/1512.03385)
-Adapted from code contributed by BigMoyan.
-"""
+"""BatchEnsemble for a Wide ResNet architecture."""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
 import edward2 as ed
 import tensorflow.compat.v2 as tf
 
 
-def ensemble_resnet_layer(inputs,
-                          filters=16,
-                          kernel_size=3,
-                          strides=1,
-                          num_models=1,
-                          random_sign_init=1.0,
-                          activation='relu',
-                          dropout_rate=0.,
-                          l2=0.):
-  """BatchEnsemble 2D Convolution-Batch Normalization-Activation stack builder.
+BatchNormalization = functools.partial(  # pylint: disable=invalid-name
+    tf.keras.layers.BatchNormalization,
+    epsilon=1e-5,  # using epsilon and momentum defaults from Torch
+    momentum=0.9)
+BatchEnsembleConv2D = functools.partial(  # pylint: disable=invalid-name
+    ed.layers.BatchEnsembleConv2D,
+    kernel_size=3,
+    padding='same',
+    use_bias=False,
+    kernel_initializer='he_normal')
+
+
+def make_sign_initializer(random_sign_init):
+  if random_sign_init > 0:
+    return ed.initializers.RandomSign(random_sign_init)
+  else:
+    return tf.keras.initializers.RandomNormal(mean=1.0,
+                                              stddev=-random_sign_init)
+
+
+def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
+  """Basic residual block of two 3x3 convs.
 
   Args:
     inputs: tf.Tensor.
     filters: Number of filters for Conv2D.
-    kernel_size: Kernel dimensions for Conv2D.
-    strides: Stride dimensinons for Conv2D.
+    strides: Stride dimensions for Conv2D.
     num_models: Number of ensemble members.
     random_sign_init: Probability of 1 in random sign init.
-    activation: tf.keras.activations.Activation.
-    dropout_rate: Dropout rate.
     l2: L2 regularization coefficient.
 
   Returns:
     tf.Tensor.
   """
-  if random_sign_init > 0:
-    alpha_initializer = ed.initializers.RandomSign(random_sign_init)
-    gamma_initializer = ed.initializers.RandomSign(random_sign_init)
-  else:
-    alpha_initializer = tf.keras.initializers.RandomNormal(
-        mean=1.0, stddev=-random_sign_init)
-    gamma_initializer = tf.keras.initializers.RandomNormal(
-        mean=1.0, stddev=-random_sign_init)
-
   x = inputs
-  if dropout_rate > 0:
-    x = tf.keras.layers.Dropout(dropout_rate)(x, training=True)
-  x = ed.layers.BatchEnsembleConv2D(
+  y = inputs
+  y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                         gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
+  y = tf.keras.layers.Activation('relu')(y)
+  y = BatchEnsembleConv2D(
       filters,
-      kernel_size=kernel_size,
-      alpha_initializer=alpha_initializer,
-      gamma_initializer=gamma_initializer,
       strides=strides,
-      padding='same',
-      use_bias=False,
-      kernel_initializer='he_normal',
+      alpha_initializer=make_sign_initializer(random_sign_init),
+      gamma_initializer=make_sign_initializer(random_sign_init),
       kernel_regularizer=tf.keras.regularizers.l2(l2),
-      bias_regularizer=tf.keras.regularizers.l2(l2),
-      num_models=num_models)(x)
-  x = tf.keras.layers.BatchNormalization(epsilon=1e-5,
-                                         momentum=0.9)(x)
-  if activation is not None:
-    x = tf.keras.layers.Activation(activation)(x)
+      num_models=num_models)(y)
+  y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                         gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
+  y = tf.keras.layers.Activation('relu')(y)
+  y = BatchEnsembleConv2D(
+      filters,
+      strides=1,
+      alpha_initializer=make_sign_initializer(random_sign_init),
+      gamma_initializer=make_sign_initializer(random_sign_init),
+      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      num_models=num_models)(y)
+  if not x.shape.is_compatible_with(y.shape):
+    x = BatchEnsembleConv2D(
+        filters,
+        kernel_size=1,
+        strides=strides,
+        alpha_initializer=make_sign_initializer(random_sign_init),
+        gamma_initializer=make_sign_initializer(random_sign_init),
+        kernel_regularizer=tf.keras.regularizers.l2(l2),
+        num_models=num_models)(x)
+  x = tf.keras.layers.add([x, y])
   return x
 
 
-def ensemble_resnet_v1(input_shape,
-                       depth,
-                       num_classes,
-                       width_multiplier,
-                       num_models,
-                       random_sign_init,
-                       dropout_rate,
-                       l2):
-  """Builds BatchEnsemble ResNet v1.
+def group(inputs, filters, strides, num_blocks, **kwargs):
+  """Group of residual blocks."""
+  x = basic_block(inputs, filters=filters, strides=strides, **kwargs)
+  for _ in range(num_blocks - 1):
+    x = basic_block(x, filters=filters, strides=1, **kwargs)
+  return x
+
+
+def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
+                random_sign_init, l2):
+  """Builds Wide ResNet.
+
+  Following Zagoruyko and Komodakis (2016), it accepts a width multiplier on the
+  number of filters. Using three groups of residual blocks, the network maps
+  spatial features of size 32x32 -> 16x16 -> 8x8.
 
   Args:
     input_shape: tf.Tensor.
-    depth: ResNet depth.
+    depth: Total number of convolutional layers. "n" in WRN-n-k. It differs from
+      He et al. (2015)'s notation which uses the maximum depth of the network
+      counting non-conv layers like dense.
+    width_multiplier: Integer to multiply the number of typical filters by. "k"
+      in WRN-n-k.
     num_classes: Number of output classes.
-    width_multiplier: Integer to multiply the number of typical filters by.
     num_models: Number of ensemble members.
-    random_sign_init: probability of RandomSign initializer.
-    dropout_rate: Dropout rate.
+    random_sign_init: Probability of 1 in random sign init.
     l2: L2 regularization coefficient.
 
   Returns:
     tf.keras.Model.
   """
-  if (depth - 2) % 6 != 0:
-    raise ValueError('depth should be 6n+2 (e.g., 20, 32, 44).')
-  filters = 16 * width_multiplier
-  num_res_blocks = int((depth - 2) / 6)
-
-  if random_sign_init > 0:
-    alpha_initializer = ed.initializers.RandomSign(random_sign_init)
-    gamma_initializer = ed.initializers.RandomSign(random_sign_init)
-  else:
-    alpha_initializer = tf.keras.initializers.RandomNormal(
-        mean=1.0, stddev=-random_sign_init)
-    gamma_initializer = tf.keras.initializers.RandomNormal(
-        mean=1.0, stddev=-random_sign_init)
-
+  if (depth - 4) % 6 != 0:
+    raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
+  num_blocks = (depth - 4) // 6
   inputs = tf.keras.layers.Input(shape=input_shape)
-  x = ensemble_resnet_layer(inputs,
-                            filters=filters,
-                            num_models=num_models,
-                            random_sign_init=random_sign_init,
-                            l2=l2)
-  for stack in range(3):
-    for res_block in range(num_res_blocks):
-      strides = 1
-      if stack > 0 and res_block == 0:  # first layer but not first stack
-        strides = 2  # downsample
-      y = ensemble_resnet_layer(x,
-                                filters=filters,
-                                strides=strides,
-                                num_models=num_models,
-                                random_sign_init=random_sign_init,
-                                dropout_rate=dropout_rate,
-                                l2=l2)
-      y = ensemble_resnet_layer(y,
-                                filters=filters,
-                                activation=None,
-                                num_models=num_models,
-                                random_sign_init=random_sign_init,
-                                dropout_rate=dropout_rate,
-                                l2=l2)
-      if stack > 0 and res_block == 0:  # first layer but not first stack
-        # linear projection residual shortcut connection to match
-        # changed dims
-        x = ensemble_resnet_layer(x,
-                                  filters=filters,
-                                  kernel_size=1,
-                                  strides=strides,
-                                  activation=None,
-                                  num_models=num_models,
-                                  random_sign_init=random_sign_init,
-                                  dropout_rate=dropout_rate,
-                                  l2=l2)
-      x = tf.keras.layers.add([x, y])
-      x = tf.keras.layers.Activation('relu')(x)
-    filters *= 2
+  x = BatchEnsembleConv2D(
+      16,
+      strides=1,
+      alpha_initializer=make_sign_initializer(random_sign_init),
+      gamma_initializer=make_sign_initializer(random_sign_init),
+      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      num_models=num_models)(inputs)
+  for strides, filters in zip([1, 2, 2], [16, 32, 64]):
+    x = group(x,
+              filters=filters * width_multiplier,
+              strides=strides,
+              num_blocks=num_blocks,
+              random_sign_init=random_sign_init,
+              num_models=num_models,
+              l2=l2)
 
-  # v1 does not use BN after last shortcut connection-ReLU
+  x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                         gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
+  x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  if dropout_rate > 0.:
-    x = tf.keras.layers.Dropout(dropout_rate)(x, training=True)
   x = ed.layers.BatchEnsembleDense(
       num_classes,
-      alpha_initializer=alpha_initializer,
-      gamma_initializer=gamma_initializer,
+      alpha_initializer=make_sign_initializer(random_sign_init),
+      gamma_initializer=make_sign_initializer(random_sign_init),
       activation=None,
       kernel_initializer='he_normal',
       kernel_regularizer=tf.keras.regularizers.l2(l2),
       bias_regularizer=tf.keras.regularizers.l2(l2),
       num_models=num_models)(x)
-  model = tf.keras.Model(inputs=inputs, outputs=x)
-  return model
+  return tf.keras.Model(inputs=inputs, outputs=x)

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2019 The Edward2 Authors.
+# Copyright 2020 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,11 +25,10 @@ import tensorflow.compat.v2 as tf
 from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
-# TODO(trandustin): Enable test for graph and eager modes.
-class ResnetCifarModelTest(tf.test.TestCase):
+class BatchEnsembleModelTest(tf.test.TestCase):
 
   @test_util.run_v2_only
-  def testEnsembleResNetV1(self):
+  def testWideResnet(self):
     tf.random.set_seed(83922)
     dataset_size = 10
     batch_size = 5
@@ -45,11 +44,13 @@ class ResnetCifarModelTest(tf.test.TestCase):
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
-    model = batchensemble_model.ensemble_resnet_v1(input_shape=input_shape,
-                                                   depth=8,
-                                                   num_classes=num_classes,
-                                                   width_multiplier=1,
-                                                   num_models=2)
+    model = batchensemble_model.wide_resnet(input_shape=input_shape,
+                                            depth=10,
+                                            width_multiplier=1,
+                                            num_classes=num_classes,
+                                            num_models=2,
+                                            random_sign_init=-0.5,
+                                            l2=0.)
     model.compile(
         'adam',
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
@@ -59,7 +60,6 @@ class ResnetCifarModelTest(tf.test.TestCase):
 
     loss_history = history.history['loss']
     self.assertAllGreaterEqual(loss_history, 0.)
-    self.assertGreater(loss_history[0], loss_history[-1])
 
 
 if __name__ == '__main__':

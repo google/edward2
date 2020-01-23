@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2019 The Edward2 Authors.
+# Copyright 2020 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ from absl import logging
 import batchensemble_model  # local file import
 import utils  # local file import
 
-import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -37,7 +36,7 @@ flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core/GPU.')
 flags.DEFINE_float('random_sign_init', -0.5,
                    'Use random sign init for fast weights.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
-flags.DEFINE_float('fast_weight_lr_multiplier', 0.5,
+flags.DEFINE_float('fast_weight_lr_multiplier', 1.0,
                    'fast weights lr multiplier.')
 flags.DEFINE_float('train_proportion', default=1.0,
                    help='only use a proportion of training set.')
@@ -47,16 +46,15 @@ flags.DEFINE_float('base_learning_rate', 0.1,
 flags.DEFINE_integer('lr_warmup_epochs', 1,
                      'Number of epochs for a linear warmup to the initial '
                      'learning rate. Use 0 to do no warmup.')
-flags.DEFINE_float('lr_decay_ratio', 0.1, 'Amount to decay learning rate.')
+flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
 flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
                   'Epochs to decay learning rate by.')
-flags.DEFINE_float('dropout_rate', 0., 'Dropout rate.')
-flags.DEFINE_float('l2', 2e-4, 'L2 coefficient.')
+flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
 flags.DEFINE_string('output_dir', '/tmp/cifar',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
-flags.DEFINE_integer('train_epochs', 300, 'Number of training epochs.')
+flags.DEFINE_integer('train_epochs', 250, 'Number of training epochs.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -93,6 +91,7 @@ def main(argv):
         batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
         drop_remainder=True,
         use_bfloat16=FLAGS.use_bfloat16,
+        normalize=True,
         proportion=FLAGS.train_proportion)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
@@ -107,7 +106,8 @@ def main(argv):
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
         drop_remainder=True,
-        use_bfloat16=FLAGS.use_bfloat16)
+        use_bfloat16=FLAGS.use_bfloat16,
+        normalize=True)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
     return dataset
@@ -133,21 +133,21 @@ def main(argv):
       os.path.join(FLAGS.output_dir, 'summaries'))
 
   with strategy.scope():
-    logging.info('Building Keras ResNet-32 model')
-    model = batchensemble_model.ensemble_resnet_v1(
+    logging.info('Building Keras model')
+    model = batchensemble_model.wide_resnet(
         input_shape=ds_info.features['image'].shape,
-        depth=32,
+        depth=28,
+        width_multiplier=10,
         num_classes=ds_info.features['label'].num_classes,
-        width_multiplier=4,
         num_models=FLAGS.num_models,
         random_sign_init=FLAGS.random_sign_init,
-        dropout_rate=FLAGS.dropout_rate,
         l2=FLAGS.l2)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
+    # Linearly scale learning rate and the decay epochs by vanilla settings.
     base_lr = FLAGS.base_learning_rate * batch_size / 128
-    lr_decay_epochs = [np.floor(FLAGS.train_epochs / 200 * start_epoch)
+    lr_decay_epochs = [(start_epoch * FLAGS.train_epochs) // 200
                        for start_epoch in FLAGS.lr_decay_epochs]
     lr_schedule = utils.LearningRateSchedule(
         steps_per_epoch,
