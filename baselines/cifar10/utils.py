@@ -65,6 +65,43 @@ def load_dataset(split, with_info=False, data_augmentation=True):
   return dataset
 
 
+def load_corrupted_test_dataset(batch_size,
+                                name,
+                                intensity,
+                                drop_remainder,
+                                use_bfloat16,
+                                normalize=False):
+  """Load a CIFAR-10-C dataset for testing."""
+  if use_bfloat16:
+    dtype = tf.bfloat16
+  else:
+    dtype = tf.float32
+  corruption = name + '_' + str(intensity)
+  dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
+                      split=tfds.Split.TEST,
+                      with_info=False,
+                      as_supervised=True)
+
+  options = tf.data.Options()
+  options.experimental_threading.max_intra_op_parallelism = 1
+  dataset = dataset.with_options(options)
+
+  def preprocess(image, label):
+    image = tf.image.convert_image_dtype(image, dtype)
+    if normalize:
+      mean = tf.constant([0.4914, 0.4822, 0.4465])
+      std = tf.constant([0.2023, 0.1994, 0.2010])
+      image = (image - mean) / std
+    label = tf.cast(label, dtype)
+    return image, label
+
+  dataset = dataset.map(
+      preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+  dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+  return dataset
+
+
 # TODO(trandustin): Merge with load_dataset.
 def load_distributed_dataset(split,
                              batch_size,
