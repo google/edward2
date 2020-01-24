@@ -5,8 +5,8 @@
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic | 1e-3 / 0.156 | 99.9% / 96.0% | 1.2 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.3% | 5.4 (8 TPUv2 cores) | 36.6M |
 | Dropout<sup>0</sup> | 0.137 / 0.324 | 95.1% / 90.0% | 0.85 (1 P100 GPU) | 274K |
-| BatchEnsemble (size=4)<sup>0</sup> | 0.08 / 0.143 | 99.9% / 96.3% | 5.4 (8 TPUv2 cores) | 36.6M |
 | Ensemble (size=5)<sup>0</sup> | 0.011 / 0.184 | 99.9% / 94.1% | 0.75 (5 P100 GPU) | 1.37M |
 | Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% | 1.25 (1 P100 GPU) | 420K |
 
@@ -67,8 +67,8 @@ We note results in the literature below. Note there are differences in the setup
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic<sup>0,10</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | 1.1 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4)<sup>5</sup> | 4e-3 / 0.734 | 99.7% / 81.8% | 5.5 (8 TPUv2 cores) | 36.6M |
+| Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | 1.1 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.8% | 5.5 (8 TPUv2 cores) | 36.6M |
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.

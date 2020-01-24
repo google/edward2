@@ -68,7 +68,6 @@ def load_dataset(split, with_info=False, data_augmentation=True):
 def load_corrupted_test_dataset(batch_size,
                                 name,
                                 intensity,
-                                drop_remainder,
                                 use_bfloat16,
                                 normalize=False):
   """Load a CIFAR-10-C dataset for testing."""
@@ -79,12 +78,7 @@ def load_corrupted_test_dataset(batch_size,
   corruption = name + '_' + str(intensity)
   dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
                       split=tfds.Split.TEST,
-                      with_info=False,
                       as_supervised=True)
-
-  options = tf.data.Options()
-  options.experimental_threading.max_intra_op_parallelism = 1
-  dataset = dataset.with_options(options)
 
   def preprocess(image, label):
     image = tf.image.convert_image_dtype(image, dtype)
@@ -97,7 +91,7 @@ def load_corrupted_test_dataset(batch_size,
 
   dataset = dataset.map(
       preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+  dataset = dataset.batch(batch_size, drop_remainder=False)
   dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
   return dataset
 
@@ -106,7 +100,6 @@ def load_corrupted_test_dataset(batch_size,
 def load_distributed_dataset(split,
                              batch_size,
                              name,
-                             drop_remainder,
                              use_bfloat16,
                              normalize=False,
                              with_info=False,
@@ -117,8 +110,6 @@ def load_distributed_dataset(split,
     split: tfds.Split.
     batch_size: The global batch size to use.
     name: A string indicates whether it is cifar10 or cifar100.
-    drop_remainder: A boolean indicates whether to drop the remainder of the
-      batches. If True, the batch dimension will be static.
     use_bfloat16: data type, bfloat16 precision or float32.
     normalize: Whether to apply mean-std normalization on features.
     with_info: bool.
@@ -149,14 +140,6 @@ def load_distributed_dataset(split,
                                  with_info=True,
                                  as_supervised=True)
 
-  # Disable intra-op parallelism to optimize for throughput instead of
-  # latency.
-  options = tf.data.Options()
-  options.experimental_threading.max_intra_op_parallelism = 1
-  dataset = dataset.with_options(options)
-
-  # Prefetches a batch at a time to smooth out the time taken to load input
-  # files for shuffling and processing.
   if split == tfds.Split.TRAIN:
     dataset_size = ds_info.splits['train'].num_examples
     dataset = dataset.shuffle(buffer_size=dataset_size).repeat()
@@ -181,15 +164,8 @@ def load_distributed_dataset(split,
 
   dataset = dataset.map(preprocess,
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
-
-  # Operations between the final prefetch and the get_next call to the
-  # iterator will happen synchronously during run time. We prefetch here again
-  # to background all of the above processing work and keep it out of the
-  # critical training path. Setting buffer_size to tf.contrib.data.AUTOTUNE
-  # allows DistributionStrategies to adjust how many batches to fetch based on
-  # how many devices are present.
-  dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.batch(batch_size, drop_remainder=split == tfds.split.TRAIN)
+  dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
   if with_info:
     return dataset, ds_info
   return dataset

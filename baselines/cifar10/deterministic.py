@@ -214,7 +214,6 @@ def main(argv):
         split=tfds.Split.TRAIN,
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size,
-        drop_remainder=True,
         use_bfloat16=FLAGS.use_bfloat16,
         normalize=True)
     if ctx and ctx.num_input_pipelines > 1:
@@ -227,7 +226,6 @@ def main(argv):
         split=tfds.Split.TEST,
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size,
-        drop_remainder=True,
         use_bfloat16=FLAGS.use_bfloat16,
         normalize=True)
     if ctx and ctx.num_input_pipelines > 1:

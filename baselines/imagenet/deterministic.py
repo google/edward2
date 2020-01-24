@@ -89,14 +89,12 @@ def main(argv):
       is_training=True,
       data_dir=FLAGS.data_dir,
       batch_size=batch_size,
-      use_bfloat16=not FLAGS.use_gpu,
-      drop_remainder=True)
+      use_bfloat16=FLAGS.use_bfloat16)
   imagenet_eval = utils.ImageNetInput(
       is_training=False,
       data_dir=FLAGS.data_dir,
       batch_size=batch_size,
-      use_bfloat16=not FLAGS.use_gpu,
-      drop_remainder=True)
+      use_bfloat16=FLAGS.use_bfloat16)
   train_dataset = strategy.experimental_distribute_dataset(
       imagenet_train.input_fn())
   test_dataset = strategy.experimental_distribute_dataset(

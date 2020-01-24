@@ -237,20 +237,15 @@ class ImageNetInput(object):
     data_dir: `str` for the directory of the training and validation data.
     use_bfloat16: If True, use bfloat16 precision; else use float32.
     batch_size: The global batch size to use.
-    num_models: The ensemble size if applied.
     image_preprocessing_fn: Image preprocessing function.
-    drop_remainder: Whether drop remainder in the preprocessing.
   """
 
-  def __init__(self, is_training, data_dir, batch_size,
-               use_bfloat16=False, num_models=1, drop_remainder=True):
+  def __init__(self, is_training, data_dir, batch_size, use_bfloat16=False):
     self.image_preprocessing_fn = preprocess_image
     self.is_training = is_training
     self.use_bfloat16 = use_bfloat16
     self.data_dir = data_dir
     self.batch_size = batch_size
-    self.num_models = num_models
-    self.drop_remainder = drop_remainder
 
   def dataset_parser(self, value):
     """Parse an ImageNet record from a serialized string Tensor."""
@@ -330,17 +325,13 @@ class ImageNetInput(object):
             self.dataset_parser,
             batch_size=self.batch_size,
             num_parallel_batches=2,
-            drop_remainder=(self.is_training or self.drop_remainder)))
+            drop_remainder=self.is_training))
 
     # Prefetch overlaps in-feed with training
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     if self.is_training:
-      # Use a private thread pool and limit intra-op parallelism. Enable
-      # non-determinism only for training.
       options = tf.data.Options()
-      options.experimental_threading.max_intra_op_parallelism = 1
-      options.experimental_threading.private_threadpool_size = 16
       options.experimental_deterministic = False
       dataset = dataset.with_options(options)
 
