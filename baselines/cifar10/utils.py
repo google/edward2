@@ -164,7 +164,7 @@ def load_distributed_dataset(split,
 
   dataset = dataset.map(preprocess,
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=split == tfds.split.TRAIN)
+  dataset = dataset.batch(batch_size, drop_remainder=split == tfds.Split.TRAIN)
   dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
   if with_info:
     return dataset, ds_info
