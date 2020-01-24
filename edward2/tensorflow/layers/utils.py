@@ -49,16 +49,11 @@ def add_weight(cls):
     self.tracked_add_weight_dependencies.append((regularizer, initializer))
 
     if isinstance(regularizer, tf.keras.layers.Layer):
-      # If regularizer is trainable, build and add its parameters to the layer.
       if not regularizer.built:
         regularizer.build(shape)
     if isinstance(initializer, tf.keras.layers.Layer):
-      # If initializer is trainable, build and add its parameters to the layer.
       weight = initializer(shape, dtype)
       if regularizer is not None:
-        # TODO(trandustin): Replace need for this with
-        # Layer._handle_weight_regularization. For Eager compatibility, random
-        # variable __init__s cannot apply TF ops (cl/220898007).
         def loss_fn():
           """Creates a regularization loss `Tensor`."""
           with tf.name_scope(name + '/Regularizer'):
