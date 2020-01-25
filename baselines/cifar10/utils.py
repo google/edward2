@@ -75,6 +75,7 @@ def load_corrupted_test_dataset(batch_size,
                                 name,
                                 intensity,
                                 use_bfloat16,
+                                drop_remainder=True,
                                 normalize=False):
   """Load a CIFAR-10-C dataset for testing."""
   if use_bfloat16:
@@ -97,7 +98,7 @@ def load_corrupted_test_dataset(batch_size,
 
   dataset = dataset.map(
       preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=False)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
   dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
   return dataset
 
@@ -109,6 +110,7 @@ def load_distributed_dataset(split,
                              use_bfloat16,
                              normalize=False,
                              with_info=False,
+                             drop_remainder=True,
                              proportion=1.0):
   """Loads CIFAR dataset for training or testing.
 
@@ -119,6 +121,7 @@ def load_distributed_dataset(split,
     use_bfloat16: data type, bfloat16 precision or float32.
     normalize: Whether to apply mean-std normalization on features.
     with_info: bool.
+    drop_remainder: bool.
     proportion: float, the proportion of dataset to be used.
 
   Returns:
@@ -170,7 +173,7 @@ def load_distributed_dataset(split,
 
   dataset = dataset.map(preprocess,
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=split == tfds.Split.TRAIN)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
   dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
   if with_info:
     return dataset, ds_info
