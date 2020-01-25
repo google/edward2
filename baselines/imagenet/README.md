@@ -19,9 +19,9 @@ We note results in the literature below. Note there are differences in the setup
 | | Adaptive Thermostat Monte Carlo (multi-sample) | - / 0.883 | - / 77.5% | - | 1000 epochs (8 TPUv3 cores) | - |
 | | Sampler-based Nose-Hoover Thermostat (single sample) | - / 1.15 | - / 73.1% | - | 1000 epochs (8 TPUv3 cores) | - |
 | | Sampler-based Nose-Hoover Thermostat (multi-sample) | - / 0.941 | - / 76.4% | - | 1000 epochs (8 TPUv3 cores) | - |
-| [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476)<sup>4</sup> | Deterministic (ResNet-152) | - / 0.8716 | - / 78.39% | - | pretrained+10 epochs | - |
-| | SWA | - / 0.8682 | - / 78.92% | - | pretrained+10 epochs | - |
-| | SWAG | - / 0.8205 | - / 79.08% | - | pretrained+10 epochs | - |
+| [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476)<sup>4</sup> | Deterministic (ResNet-152) | - / 0.8716 | - / 78.39% | - | pretrained+10 epochs | 60.3M |
+| | SWA | - / 0.8682 | - / 78.92% | - | pretrained+10 epochs | 60.3M |
+| | SWAG | - / 0.8205 | - / 79.08% | - | pretrained+10 epochs | 1.33B |
 | [Osawa et al. (2019)](https://arxiv.org/abs/1906.02506)<sup>5</sup>  | Variational Online Gauss-Newton | - / 1.37 | 73.87% / 67.38% | | 1.90 (128 P100 GPUs) | - |
 | [Ovadia et al. (2019)](https://arxiv.org/abs/1906.02530) | Deterministic | - | - | - | - | - |
 | | Dropout | - | - | - | - | - |

@@ -37,13 +37,13 @@ We note results in the literature below. Note there are differences in the setup
 | [Izmailov et al. (2019)](https://arxiv.org/abs/1907.07504)<sup>6</sup> | Deterministic | - / 0.1294 | - / 96.41% | 300 epochs | 36.5M |
 | | SWA | - / 0.1075 | - / 96.46% | 300 epochs | 36.5M |
 | | SWAG | - / 0.1122 | - / 96.41% | 300 epochs | 803M |
-| | Subspace Inference (PCA+VI) | - / 0.1081 | - / 96.32% | >300 epochs | 36.5M |
+| | Subspace Inference (PCA+VI) | - / 0.1081 | - / 96.32% | >300 epochs | 219M |
 | [Osawa et al. (2019)](https://arxiv.org/abs/1906.02506)<sup>7</sup>  | Variational Online Gauss-Newton | - / 0.48 | 91.6% / 84.3% | 2.38 (128 P100 GPUs) | - |
 | [Ovadia et al. (2019)](https://arxiv.org/abs/1906.02530)<sup>8</sup> | Deterministic (ResNet-20) | - / 1.120 | - / 91% | - | 274K |
 | | Dropout | - / 0.771 | - / 91% | - | 274K |
 | | Ensemble | - / 0.653 | - | - / 93.5% | - |
 | | Variational inference | - / 0.823 | 88% | - | 630K |
-| [Wen et al. (2019)](https://openreview.net/forum?id=Sklf1yrYDr)<sup>4</sup> | Deterministic (ResNet-20) | - | - / 95.31% | 250 epochs | 7.43M |
+| [Wen et al. (2019)](https://openreview.net/forum?id=Sklf1yrYDr)<sup>4</sup> | Deterministic (ResNet-32x4) | - | - / 95.31% | 250 epochs | 7.43M |
 | | BatchEnsemble | - | - / 95.94% | 375 epochs | 7.47M |
 | | Ensemble | - | - / 96.30% | 250 epochs each | 29.7M |
 | | Monte Carlo Dropout | - | - / 95.72% | 375 epochs | 7.43M |
@@ -57,7 +57,7 @@ We note results in the literature below. Note there are differences in the setup
 3. Uses ResNet-20. Does not use data augmentation.
 4. Uses ResNet-32 with 4x number of typical filters. Ensembles uses 4 members.
 5. Uses ResNet-56 and modifies architecture. Cyclical learning rate.
-6. SWAG uses rank 20 which requires 20 + 2 copies of the model parameters, and 30 samples at test time. Deterministic baseline is reported in [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476). Subspace inference methods use a fixed temperature; training involves full deterministic training; then subspace construction; then Bayesian inference in the subspace.
+6. SWAG with rank 20 requires 20 + 2 copies of the model parameters and uses 30 samples at test time. Deterministic baseline is reported in [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476). Subspace inference with a rank 5 projection requires a total of 5 + 1 copies of the model parameters at test time (the posterior inference parameters are negligible). Subspace inference also uses a fixed temperature.
 7. ResNet-20. Scales KL by an additional factor of 10.
 8. ResNet-20. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
 9. Uses ResNet-18. cSGHMC uses a total of 12 copies of the full size of weights for prediction. Ensembles use 4 times cSGHMC's number. The authors use a T=1/200 temperature scaling on the log-posterior (see the newly added appendix I at https://openreview.net/forum?id=rkeS1RVtPS).
