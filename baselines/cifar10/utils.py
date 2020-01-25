@@ -26,11 +26,13 @@ import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
 
-def load_dataset(split, with_info=False, data_augmentation=True):
+def load_dataset(split, name='cifar10', with_info=False,
+                 data_augmentation=True):
   """Returns a tf.data.Dataset with <image, label> pairs.
 
   Args:
     split: tfds.Split.
+    name: cifar10 or cifar100.
     with_info: bool.
     data_augmentation: bool, if True perform simple data augmentation on the
       TRAIN split with random left/right flips and random cropping.  If False,
@@ -40,7 +42,7 @@ def load_dataset(split, with_info=False, data_augmentation=True):
     Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
     the dataset.
   """
-  dataset, ds_info = tfds.load('cifar10',
+  dataset, ds_info = tfds.load(name,
                                split=split,
                                with_info=True,
                                batch_size=-1)
@@ -57,6 +59,10 @@ def load_dataset(split, with_info=False, data_augmentation=True):
       image = tf.image.random_crop(image, image_shape)
 
     image = tf.image.convert_image_dtype(image, tf.float32)
+    mean = tf.constant([0.4914, 0.4822, 0.4465])
+    std = tf.constant([0.2023, 0.1994, 0.2010])
+    image = (image - mean) / std
+    label = tf.cast(label, tf.float32)
     return image, label
 
   dataset = dataset.map(preprocess)

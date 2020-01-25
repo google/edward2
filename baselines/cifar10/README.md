@@ -7,7 +7,7 @@
 | Deterministic | 1e-3 / 0.156 | 99.9% / 96.0% | 1.2 (8 TPUv2 cores) | 36.5M |
 | BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.3% | 5.4 (8 TPUv2 cores) | 36.6M |
 | Dropout<sup>0</sup> | 0.137 / 0.324 | 95.1% / 90.0% | 0.85 (1 P100 GPU) | 274K |
-| Ensemble (size=5)<sup>0</sup> | 0.011 / 0.184 | 99.9% / 94.1% | 0.75 (5 P100 GPU) | 1.37M |
+| Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% | 1.2 (32 TPUv2 cores) | 146M |
 | Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% | 1.25 (1 P100 GPU) | 420K |
 
 We note results in the literature below. Note there are differences in the setup
@@ -69,6 +69,7 @@ We note results in the literature below. Note there are differences in the setup
 | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | 1.1 (8 TPUv2 cores) | 36.5M |
 | BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.8% | 5.5 (8 TPUv2 cores) | 36.6M |
+| Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | 1.1 (32 TPUv2 cores) | 146M |
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.
