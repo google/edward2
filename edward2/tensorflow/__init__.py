@@ -32,6 +32,7 @@ else:
   from edward2.tensorflow import constraints
   from edward2.tensorflow import initializers
   from edward2.tensorflow import layers
+  from edward2.tensorflow import metrics
   from edward2.tensorflow import regularizers
   from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
   from edward2.tensorflow.generated_random_variables import make_random_variable
@@ -58,6 +59,7 @@ else:
       "layers",
       "make_log_joint_fn",
       "make_random_variable",
+      "metrics",
       "regularizers",
       "tape",
       "trace",
