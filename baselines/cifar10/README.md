@@ -2,13 +2,30 @@
 
 ## CIFAR-10
 
-| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
-| ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic | 1e-3 / 0.156 | 99.9% / 96.0% | 1.2 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.3% | 5.4 (8 TPUv2 cores) | 36.6M |
-| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 1.2 (8 TPUv2 cores) | 36.5M |
-| Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% | 1.2 (32 TPUv2 cores) | 146M |
-| Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% | 1.25 (1 P100 GPU) | 420K |
+| Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | cNLL/cE/cCE | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Deterministic | 1e-3 / 0.156 | 99.9% / 96.0% | - | - | 1.2 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.3% |  - | - | 5.4 (8 TPUv2 cores) | 36.6M |
+| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | - | - | 1.2 (8 TPUv2 cores) | 36.5M |
+| Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% |  - | - | 1.2 (32 TPUv2 cores) | 146M |
+| Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% |  - | - | 1.25 (1 P100 GPU) | 420K |
+
+## CIFAR-100
+
+| Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | - | 1.1 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.8% | - |  5.5 (8 TPUv2 cores) | 36.6M |
+| Dropout | 1e-2 / 0.823 | 99.9% / 79.6% | - | - | 1.1 (8 TPUv2 cores) | 36.5M |
+| Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - |  1.1 (32 TPUv2 cores) | 146M |
+
+## Metrics
+
+We define metrics specific to CIFAR below. For general metrics, see [`baselines/`](https://github.com/google/edward2/tree/master/baselines).
+
+1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on CIFAR-10-C. `c` stands for corrupted. Results take the mean across corruption intensities and the median across corruption types. The median is used to avoid penalizing by outlier performance on a particular corruption type.
+
+## CIFAR-10 Related Results
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.
@@ -51,26 +68,7 @@ We note results in the literature below. Note there are differences in the setup
 | | cSGHMC | - | - / 95.73% | 200 epochs | 140.4M |
 | | Ensemble of cSGHMC (size=4) | - | - / 96.05% | 800 epochs | 561.6M |
 
-0. Uses ResNet-20. These models are in the process of converting to WRN 28-10.
-1. Trains on 45k examples.
-2. Not a ResNet (VGG). Parameter count is guestimated from counting number of parameters in [original model](http://torch.ch/blog/2015/07/30/cifar.html) to be 14.9M multiplied by the compression rate.
-3. Uses ResNet-20. Does not use data augmentation.
-4. Uses ResNet-32 with 4x number of typical filters. Ensembles uses 4 members.
-5. Uses ResNet-56 and modifies architecture. Cyclical learning rate.
-6. SWAG with rank 20 requires 20 + 2 copies of the model parameters and uses 30 samples at test time. Deterministic baseline is reported in [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476). Subspace inference with a rank 5 projection requires a total of 5 + 1 copies of the model parameters at test time (the posterior inference parameters are negligible). Subspace inference also uses a fixed temperature.
-7. ResNet-20. Scales KL by an additional factor of 10.
-8. ResNet-20. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
-9. Uses ResNet-18. cSGHMC uses a total of 12 copies of the full size of weights for prediction. Ensembles use 4 times cSGHMC's number. The authors use a T=1/200 temperature scaling on the log-posterior (see the newly added appendix I at https://openreview.net/forum?id=rkeS1RVtPS).
-10. Results are slightly worse than open-source implementations such as the [original paper](https://github.com/szagoruyko/wide-residual-networks)'s 80.75%. Our experiments only tuned over l2, so there may be more work to be done.
-
-## CIFAR-100
-
-| Method | Train/Test NLL | Train/Test Accuracy | Train Runtime (hours) | # Parameters |
-| ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 80.0% | 1.1 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.8% | 5.5 (8 TPUv2 cores) | 36.6M |
-| Dropout | 1e-2 / 0.823 | 99.9% / 79.6% | 1.1 (8 TPUv2 cores) | 36.5M |
-| Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | 1.1 (32 TPUv2 cores) | 146M |
+## CIFAR-100 Related Results
 
 We note results in the literature below. Note there are differences in the setup
 (sometimes major), so take any comparisons with a grain of salt.
@@ -89,10 +87,20 @@ We note results in the literature below. Note there are differences in the setup
 | | cSGHMC | - | - / 79.50% | 200 epochs | 140.4M |
 | | Ensemble of cSGHMC (size=4) | - | - / 80.81% | 800 epochs | 561.6M |
 
+0. Uses ResNet-20. These models are in the process of converting to WRN 28-10.
+1. Trains on 45k examples.
+2. Not a ResNet (VGG). Parameter count is guestimated from counting number of parameters in [original model](http://torch.ch/blog/2015/07/30/cifar.html) to be 14.9M multiplied by the compression rate.
+3. Uses ResNet-20. Does not use data augmentation.
+4. Uses ResNet-32 with 4x number of typical filters. Ensembles uses 4 members.
+5. Uses ResNet-56 and modifies architecture. Cyclical learning rate.
+6. SWAG with rank 20 requires 20 + 2 copies of the model parameters and uses 30 samples at test time. Deterministic baseline is reported in [Maddox et al. (2019)](https://arxiv.org/abs/1902.02476). Subspace inference with a rank 5 projection requires a total of 5 + 1 copies of the model parameters at test time (the posterior inference parameters are negligible). Subspace inference also uses a fixed temperature.
+7. ResNet-20. Scales KL by an additional factor of 10.
+8. ResNet-20. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
+9. Uses ResNet-18. cSGHMC uses a total of 12 copies of the full size of weights for prediction. Ensembles use 4 times cSGHMC's number. The authors use a T=1/200 temperature scaling on the log-posterior (see the newly added appendix I at https://openreview.net/forum?id=rkeS1RVtPS).
+10. Results are slightly worse than open-source implementations such as the [original paper](https://github.com/szagoruyko/wide-residual-networks)'s 80.75%. Our experiments only tuned over l2, so there may be more work to be done.
+
 TODO(trandustin): Add column for Test runtime.
 
 TODO(trandustin): Add column for Checkpoints.
 
-TODO(trandustin): Should CIFAR-100 baselines be in this directory? If so, rename
-to cifar and have all baselines support it; otherwise duplicate code into a
-separate directory.
+TODO(trandustin): Rename directory to `cifar/`.
