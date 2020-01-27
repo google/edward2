@@ -22,6 +22,7 @@ from __future__ import print_function
 import itertools
 from absl import logging
 
+import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -101,6 +102,30 @@ def load_corrupted_test_dataset(batch_size,
   dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
   dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
   return dataset
+
+
+# TODO(ghassen,trandustin): Push this metadata upstream to TFDS.
+def load_corrupted_test_info():
+  """Loads information for CIFAR-10-C."""
+  corruption_types = [
+      'gaussian_noise',
+      'shot_noise',
+      'impulse_noise',
+      'defocus_blur',
+      'frosted_glass_blur',
+      'motion_blur',
+      'zoom_blur',
+      'snow',
+      'frost',
+      'fog',
+      'brightness',
+      'contrast',
+      'elastic',
+      'pixelate',
+      'jpeg_compression',
+  ]
+  max_intensity = 5
+  return corruption_types, max_intensity
 
 
 # TODO(trandustin): Merge with load_dataset.
@@ -241,6 +266,42 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         'steps_per_epoch': self.steps_per_epoch,
         'initial_learning_rate': self.initial_learning_rate,
     }
+
+
+def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
+  """Aggregates metrics across intensities and corruption types."""
+  results = {'test/nll_mean_corrupted': 0.,
+             'test/error_mean_corrupted': 0.,
+             'test/ece_mean_corrupted': 0.}
+  for intensity in range(1, max_intensity + 1):
+    ece = np.zeros(len(corruption_types))
+    nll = np.zeros(len(corruption_types))
+    acc = np.zeros(len(corruption_types))
+    for i in range(len(corruption_types)):
+      dataset_name = '{0}_{1}'.format(corruption_types[i], intensity)
+      nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
+      acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
+      ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+    avg_nll = np.mean(nll)
+    avg_error = 100 * (1 - 1. * np.mean(acc))
+    avg_ece = np.mean(ece)
+    median_nll = np.median(nll)
+    median_error = 100 * (1. - 1. * np.median(acc))
+    median_ece = np.median(ece)
+    results['test/nll_mean_{}'.format(intensity)] = avg_nll
+    results['test/error_mean_{}'.format(intensity)] = avg_error
+    results['test/ece_mean_{}'.format(intensity)] = avg_ece
+    results['test/nll_median_{}'.format(intensity)] = median_nll
+    results['test/error_median_{}'.format(intensity)] = median_error
+    results['test/ece_median_{}'.format(intensity)] = median_ece
+    results['test/nll_mean_corrupted'] += avg_nll
+    results['test/ece_mean_corrupted'] += avg_ece
+    results['test/error_mean_corrupted'] += avg_error
+
+  results['test/nll_mean_corrupted'] /= max_intensity
+  results['test/error_mean_corrupted'] /= max_intensity
+  results['test/ece_mean_corrupted'] /= max_intensity
+  return results
 
 
 # TODO(ghassen): disagreement and double_fault could be extended beyond pairs.
