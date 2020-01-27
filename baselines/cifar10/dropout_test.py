@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ResNet-20 with Monte Carlo dropout."""
+"""Tests for WRN 28-10 with Monte Carlo dropout."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -28,7 +28,7 @@ from tensorflow.python.framework import test_util  # pylint: disable=g-direct-te
 @test_util.run_all_in_graph_and_eager_modes
 class DropoutTest(tf.test.TestCase):
 
-  def testResNetV1(self):
+  def testWideResnet(self):
     tf.random.set_seed(83922)
     dataset_size = 15
     batch_size = 5
@@ -44,11 +44,12 @@ class DropoutTest(tf.test.TestCase):
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
-    model = dropout.resnet_v1(input_shape=input_shape,
-                              depth=8,
-                              num_classes=num_classes,
-                              l2=0.,
-                              dropout_rate=0.01)
+    model = dropout.wide_resnet(input_shape=input_shape,
+                                depth=10,
+                                width_multiplier=1,
+                                num_classes=num_classes,
+                                l2=0.,
+                                dropout_rate=0.01)
     model.compile(
         'adam',
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
@@ -58,9 +59,6 @@ class DropoutTest(tf.test.TestCase):
 
     loss_history = history.history['loss']
     self.assertAllGreaterEqual(loss_history, 0.)
-    # TODO(trandustin): Reactivate. Whether the loss goes down after this many
-    # steps is noisy, so test fails semi-regularly.
-    # self.assertGreater(loss_history[0], loss_history[-1])
 
 
 if __name__ == '__main__':
