@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import os
 import tensorflow.compat.v1 as tf
+import tensorflow_datasets as tfds
 
 IMAGE_SIZE = 224
 CROP_PADDING = 32
@@ -236,14 +237,21 @@ class ImageNetInput(object):
     is_training: `bool` for whether the input is for training.
     data_dir: `str` for the directory of the training and validation data.
     use_bfloat16: If True, use bfloat16 precision; else use float32.
+    drop_remainder: `bool` for dropping the remainder when batching.
     batch_size: The global batch size to use.
     image_preprocessing_fn: Image preprocessing function.
   """
 
-  def __init__(self, is_training, data_dir, batch_size, use_bfloat16=False):
+  def __init__(self,
+               is_training,
+               data_dir,
+               batch_size,
+               drop_remainder=True,
+               use_bfloat16=False):
     self.image_preprocessing_fn = preprocess_image
     self.is_training = is_training
     self.use_bfloat16 = use_bfloat16
+    self.drop_remainder = drop_remainder
     self.data_dir = data_dir
     self.batch_size = batch_size
 
@@ -325,7 +333,7 @@ class ImageNetInput(object):
             self.dataset_parser,
             batch_size=self.batch_size,
             num_parallel_batches=2,
-            drop_remainder=self.is_training))
+            drop_remainder=self.drop_remainder))
 
     # Prefetch overlaps in-feed with training
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
@@ -336,3 +344,60 @@ class ImageNetInput(object):
       dataset = dataset.with_options(options)
 
     return dataset
+
+
+def load_corrupted_test_dataset(batch_size,
+                                name,
+                                intensity,
+                                drop_remainder=True,
+                                use_bfloat16=False):
+  """Loads an ImageNet-C dataset."""
+  if use_bfloat16:
+    dtype = tf.bfloat16
+  else:
+    dtype = tf.float32
+  corruption = name + '_' + str(intensity)
+
+  dataset = tfds.load(
+      name='imagenet2012_corrupted/{}'.format(corruption),
+      split=tfds.Split.VALIDATION,
+      decoders={
+          'image': tfds.decode.SkipDecoding(),
+      },
+      with_info=False,
+      as_supervised=True)
+
+  def preprocess(image, label):
+    image = tf.reshape(image, shape=[])
+    image = preprocess_for_eval(image, use_bfloat16)
+    label = tf.cast(tf.cast(
+        tf.reshape(label, shape=[1]), dtype=tf.int32) - 1,
+                    dtype=dtype)
+    return image, label
+
+  dataset = dataset.map(
+      preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+  dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+  return dataset
+
+
+def corrupt_test_input_fn(corruption_name,
+                          corruption_intensity,
+                          batch_size,
+                          drop_remainder=True,
+                          use_bfloat16=False):
+  """Generates a distributed input_fn for ImageNet-C datasets."""
+  def test_input_fn(ctx):
+    """Sets up local (per-core) corrupted dataset batching."""
+    dataset = load_corrupted_test_dataset(
+        batch_size=batch_size,
+        name=corruption_name,
+        intensity=corruption_intensity,
+        drop_remainder=drop_remainder,
+        use_bfloat16=use_bfloat16)
+    if ctx and ctx.num_input_pipelines > 1:
+      dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
+    return dataset
+
+  return test_input_fn
