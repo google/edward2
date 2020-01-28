@@ -305,6 +305,33 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     percent_mismatches = num_mismatches / float(batch_size * units * units)
     self.assertLessEqual(percent_mismatches, 0.05)
 
+  def testBatchEnsembleDense(self):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    num_models = 3
+    examples_per_model = 4
+    input_dim = 5
+    output_dim = 5
+    inputs = tf.random.normal([examples_per_model, input_dim])
+    batched_inputs = tf.tile(inputs, [num_models, 1])
+    layer = ed.layers.BatchEnsembleDense(
+        output_dim,
+        alpha_initializer="he_normal",
+        gamma_initializer="he_normal",
+        activation=None,
+        num_models=num_models)
+
+    output = layer(batched_inputs)
+    manual_output = [
+        layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
+        for i in range(num_models)]
+    manual_output = tf.concat(manual_output, axis=0)
+
+    self.evaluate(tf1.global_variables_initializer())
+    res1, res2 = self.evaluate([output, manual_output])
+    expected_shape = (num_models*examples_per_model, output_dim)
+    self.assertEqual(res1.shape, expected_shape)
+    self.assertAllClose(res1, res2)
+
 
 if __name__ == "__main__":
   tf.test.main()
