@@ -4,9 +4,9 @@
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | cNLL/cE/cCE | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic | 1e-3 / 0.159 | 99.9% / 96.0% | 1e-3 / 0.0231 | 3.37 / 72.7% / 0.414 | 1.2 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.3% |  - | - | 5.4 (8 TPUv2 cores) | 36.6M |
-| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | - | - | 1.2 (8 TPUv2 cores) | 36.5M |
+| Deterministic | 1e-3 / 0.159 | 99.9% / 96.0% | 1e-3 / 0.0231 | 1.29 / 30.2% / 0.173 | 1.2 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.24 / 30.6% / 0.143 | 5.4 (8 TPUv2 cores) | 36.6M |
+| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.35 / 32.2% / 0.178 | 1.2 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% |  - | - | 1.2 (32 TPUv2 cores) | 146M |
 | Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% |  - | - | 1.25 (1 P100 GPU) | 420K |
 
@@ -15,8 +15,8 @@
 | Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 79.8% | 2e-3 / 0.0857 | 1.1 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.8% | - |  5.5 (8 TPUv2 cores) | 36.6M |
-| Dropout | 1e-2 / 0.823 | 99.9% / 79.6% | - | - | 1.1 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.5% | 3e-3 / 0.0338 |  5.5 (8 TPUv2 cores) | 36.6M |
+| Dropout | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | 1.1 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - |  1.1 (32 TPUv2 cores) | 146M |
 
 ## Metrics

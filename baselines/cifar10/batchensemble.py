@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BatchEnsemble ResNet-32x4 on CIFAR-10 and CIFAR-100."""
+"""BatchEnsemble Wide ResNet 28-10 on CIFAR-10 and CIFAR-100."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -25,14 +25,17 @@ from absl import app
 from absl import flags
 from absl import logging
 
+import edward2 as ed
 import batchensemble_model  # local file import
 import utils  # local file import
-
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('num_models', 4, 'Size of ensemble.')
-flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core/GPU.')
+flags.DEFINE_integer('per_core_batch_size', 64,
+                     'Batch size per TPU core/GPU. The number of new '
+                     'datapoints gathered per batch is this number divided by '
+                     'num_models (we tile the batch by num_models # of times).')
 flags.DEFINE_float('random_sign_init', -0.5,
                    'Use random sign init for fast weights.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
@@ -40,7 +43,6 @@ flags.DEFINE_float('fast_weight_lr_multiplier', 1.0,
                    'fast weights lr multiplier.')
 flags.DEFINE_float('train_proportion', default=1.0,
                    help='only use a proportion of training set.')
-flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when total training batch size is 128.')
 flags.DEFINE_integer('lr_warmup_epochs', 1,
@@ -51,6 +53,13 @@ flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
+flags.DEFINE_bool('corruptions', True,
+                  'Whether to test on cifar10-c. Only valid if dataset is '
+                  'cifar10.')
+flags.DEFINE_integer('corruptions_interval', 250,
+                     'Number of epochs between evaluating on the corrupted '
+                     'test data. Only valid if corruptions is True.')
+flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE.')
 flags.DEFINE_string('output_dir', '/tmp/cifar',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
@@ -96,10 +105,8 @@ def main(argv):
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
     return dataset
 
-  # No matter what percentage of training proportion, we still evaluate the
-  # model on the full test dataset.
-  def test_input_fn(ctx):
-    """Sets up local (per-core) dataset batching."""
+  def clean_test_input_fn(ctx):
+    """Sets up local (per-core) dataset batching for testing."""
     dataset = utils.load_distributed_dataset(
         split=tfds.Split.TEST,
         name=FLAGS.dataset,
@@ -110,18 +117,45 @@ def main(argv):
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
     return dataset
 
+  def corrupt_input_fn(corruption_name, corruption_intensity):
+    """Returns an input_fn for the given corruption name and intensity."""
+    def test_input_fn(ctx):
+      """Sets up local (per-core) corrupted dataset batching."""
+      dataset = utils.load_corrupted_test_dataset(
+          batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
+          name=corruption_name,
+          intensity=corruption_intensity,
+          drop_remainder=True,
+          use_bfloat16=FLAGS.use_bfloat16,
+          normalize=True)
+      if ctx and ctx.num_input_pipelines > 1:
+        dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
+      return dataset
+
+    return test_input_fn
+
+  test_datasets = {
+      'clean': strategy.experimental_distribute_datasets_from_function(
+          clean_test_input_fn),
+  }
+  if FLAGS.dataset == 'cifar10' and FLAGS.corruptions:
+    corruption_types, max_intensity = utils.load_corrupted_test_info()
+    for corruption in corruption_types:
+      for intensity in range(1, max_intensity + 1):
+        input_fn = corrupt_input_fn(corruption, intensity)
+        test_datasets['{0}_{1}'.format(corruption, intensity)] = (
+            strategy.experimental_distribute_datasets_from_function(input_fn))
+
   train_dataset = strategy.experimental_distribute_datasets_from_function(
       train_input_fn)
-  test_dataset = strategy.experimental_distribute_datasets_from_function(
-      test_input_fn)
   ds_info = tfds.builder(FLAGS.dataset).info
-
   batch_size = ((FLAGS.per_core_batch_size // FLAGS.num_models) *
                 FLAGS.num_cores)
   # Train_proportion is a float so need to convert steps_per_epoch to int.
   steps_per_epoch = int((ds_info.splits['train'].num_examples *
                          FLAGS.train_proportion) // batch_size)
   steps_per_eval = ds_info.splits['test'].num_examples // batch_size
+  num_classes = ds_info.features['label'].num_classes
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
@@ -136,7 +170,7 @@ def main(argv):
         input_shape=ds_info.features['image'].shape,
         depth=28,
         width_multiplier=10,
-        num_classes=ds_info.features['label'].num_classes,
+        num_classes=num_classes,
         num_models=FLAGS.num_models,
         random_sign_init=FLAGS.random_sign_init,
         l2=FLAGS.l2)
@@ -160,13 +194,29 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
+        'train/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=num_classes, num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=num_classes, num_bins=FLAGS.num_bins),
     }
     for i in range(FLAGS.num_models):
       metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
       metrics['test/accuracy_member_{}'.format(i)] = (
           tf.keras.metrics.SparseCategoricalAccuracy())
+    if FLAGS.dataset == 'cifar10' and FLAGS.corruptions:
+      corrupt_metrics = {}
+      for intensity in range(1, max_intensity + 1):
+        for corruption in corruption_types:
+          dataset_name = '{0}_{1}'.format(corruption, intensity)
+          corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
+              tf.keras.metrics.SparseCategoricalAccuracy())
+          corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
+              ed.metrics.ExpectedCalibrationError(
+                  num_classes=num_classes, num_bins=FLAGS.num_bins))
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
@@ -184,9 +234,8 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      if FLAGS.version2:
-        images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
-        labels = tf.tile(labels, [FLAGS.num_models])
+      images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
+      labels = tf.tile(labels, [FLAGS.num_models])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
@@ -218,6 +267,8 @@ def main(argv):
       else:
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
+      probs = tf.nn.softmax(logits)
+      metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
@@ -226,7 +277,7 @@ def main(argv):
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
   @tf.function
-  def test_step(iterator):
+  def test_step(iterator, dataset_name):
     """Evaluation StepFn."""
     def step_fn(inputs):
       """Per-Replica StepFn."""
@@ -249,11 +300,19 @@ def main(argv):
 
       probs = tf.reduce_mean(per_probs, axis=0)
       negative_log_likelihood = tf.reduce_mean(
-          tf.keras.losses.sparse_categorical_crossentropy(
-              labels, probs))
-      metrics['test/negative_log_likelihood'].update_state(
-          negative_log_likelihood)
-      metrics['test/accuracy'].update_state(labels, probs)
+          tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+      if dataset_name == 'clean':
+        metrics['test/negative_log_likelihood'].update_state(
+            negative_log_likelihood)
+        metrics['test/accuracy'].update_state(labels, probs)
+        metrics['test/ece'].update_state(labels, probs)
+      else:
+        corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
+            negative_log_likelihood)
+        corrupt_metrics['test/accuracy_{}'.format(dataset_name)].update_state(
+            labels, probs)
+        corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
+            labels, probs)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -280,11 +339,28 @@ def main(argv):
       if step % 20 == 0:
         logging.info(message)
 
-    test_iterator = iter(test_dataset)
-    for step in range(steps_per_eval):
-      if step % 20 == 0:
-        logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
-      test_step(test_iterator)
+    datasets_to_evaluate = {'clean': test_datasets['clean']}
+    if (FLAGS.dataset == 'cifar10' and
+        FLAGS.corruptions and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
+      datasets_to_evaluate = test_datasets
+    for dataset_name, test_dataset in datasets_to_evaluate.items():
+      test_iterator = iter(test_dataset)
+      logging.info('Testing on dataset %s', dataset_name)
+      for step in range(steps_per_eval):
+        if step % 20 == 0:
+          logging.info('Starting to run eval step %s of epoch: %s', step,
+                       epoch)
+        test_step(test_iterator, dataset_name)
+      logging.info('Done with testing on %s', dataset_name)
+
+    corrupt_results = {}
+    if (FLAGS.dataset == 'cifar10' and
+        FLAGS.corruptions and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
+      corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
+                                                        corruption_types,
+                                                        max_intensity)
 
     logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
                  metrics['train/loss'].result(),
@@ -296,9 +372,11 @@ def main(argv):
       logging.info('Member %d Test Loss: %.4f, Accuracy: %.2f%%',
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)
+    total_results = {name: metric.result() for name, metric in metrics.items()}
+    total_results.update(corrupt_results)
     with summary_writer.as_default():
-      for name, metric in metrics.items():
-        tf.summary.scalar(name, metric.result(), step=epoch + 1)
+      for name, result in total_results.items():
+        tf.summary.scalar(name, result, step=epoch + 1)
 
     for metric in metrics.values():
       metric.reset_states()

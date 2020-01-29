@@ -248,7 +248,8 @@ def main(argv):
           name=corruption_name,
           intensity=corruption_intensity,
           drop_remainder=True,
-          use_bfloat16=FLAGS.use_bfloat16)
+          use_bfloat16=FLAGS.use_bfloat16,
+          normalize=True)
       if ctx and ctx.num_input_pipelines > 1:
         dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
       return dataset

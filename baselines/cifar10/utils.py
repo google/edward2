@@ -270,9 +270,14 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
   """Aggregates metrics across intensities and corruption types."""
+  # TODO(trandustin): Decide whether to stick with mean or median; showing both
+  # for now.
   results = {'test/nll_mean_corrupted': 0.,
              'test/error_mean_corrupted': 0.,
-             'test/ece_mean_corrupted': 0.}
+             'test/ece_mean_corrupted': 0.,
+             'test/nll_median_corrupted': 0.,
+             'test/error_median_corrupted': 0.,
+             'test/ece_median_corrupted': 0.}
   for intensity in range(1, max_intensity + 1):
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
@@ -297,10 +302,16 @@ def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
     results['test/nll_mean_corrupted'] += avg_nll
     results['test/ece_mean_corrupted'] += avg_ece
     results['test/error_mean_corrupted'] += avg_error
+    results['test/nll_median_corrupted'] += median_nll
+    results['test/ece_median_corrupted'] += median_ece
+    results['test/error_median_corrupted'] += median_error
 
   results['test/nll_mean_corrupted'] /= max_intensity
   results['test/error_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
+  results['test/nll_median_corrupted'] /= max_intensity
+  results['test/error_median_corrupted'] /= max_intensity
+  results['test/ece_median_corrupted'] /= max_intensity
   return results
 
 
