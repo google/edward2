@@ -8,7 +8,7 @@
 | BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.24 / 30.6% / 0.143 | 5.4 (8 TPUv2 cores) | 36.6M |
 | Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.35 / 32.2% / 0.178 | 1.2 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% |  - | - | 1.2 (32 TPUv2 cores) | 146M |
-| Variational inference<sup>0</sup> | 0.136 / 0.382 | 95.5% / 89.1% |  - | - | 1.25 (1 P100 GPU) | 420K |
+| Variational inference | 1e-3 / 0.214 | 99.9% / 94.7% | 1e-3 / 0.029 | 1.53 / 29.4% / 0.190 | 5.5 (8 TPUv2 cores) | 73M |
 
 ## CIFAR-100
 
@@ -18,6 +18,7 @@
 | BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.5% | 3e-3 / 0.0338 |  5.5 (8 TPUv2 cores) | 36.6M |
 | Dropout | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | 1.1 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - |  1.1 (32 TPUv2 cores) | 146M |
+| Variational inference | 2e-3 / 1.03 | 99.9% / 77.3% | 2e-3 / 0.111 | 5.5 (8 TPUv2 cores) | 73M |
 
 ## Metrics
 
@@ -87,7 +88,6 @@ We note results in the literature below. Note there are differences in the setup
 | | cSGHMC | - | - / 79.50% | 200 epochs | 140.4M |
 | | Ensemble of cSGHMC (size=4) | - | - / 80.81% | 800 epochs | 561.6M |
 
-0. Uses ResNet-20. These models are in the process of converting to WRN 28-10.
 1. Trains on 45k examples.
 2. Not a ResNet (VGG). Parameter count is guestimated from counting number of parameters in [original model](http://torch.ch/blog/2015/07/30/cifar.html) to be 14.9M multiplied by the compression rate.
 3. Uses ResNet-20. Does not use data augmentation.

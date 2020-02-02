@@ -44,13 +44,13 @@ class VariationalInferenceTest(tf.test.TestCase):
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
-    model = variational_inference.resnet_v1(
-        input_shape=input_shape,
-        depth=8,
-        num_classes=num_classes,
-        batch_norm=False,
-        prior_stddev=1.,
-        dataset_size=dataset_size)
+    model = variational_inference.wide_resnet(input_shape=input_shape,
+                                              depth=10,
+                                              width_multiplier=1,
+                                              num_classes=num_classes,
+                                              prior_stddev=0.1,
+                                              dataset_size=dataset_size,
+                                              stddev_init=1e-3)
     model.compile(
         'adam',
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))

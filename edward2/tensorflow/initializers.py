@@ -361,10 +361,11 @@ class TrainableHeNormal(TrainableNormal):
     https://arxiv.org/abs/1502.01852
   """
 
-  def __init__(self, seed=None):
+  def __init__(self, seed=None, **kwargs):
     super(TrainableHeNormal, self).__init__(
         mean_initializer=tf.keras.initializers.he_normal(seed),
-        seed=seed)
+        seed=seed,
+        **kwargs)
 
   def get_config(self):
     return {
@@ -386,10 +387,11 @@ class TrainableGlorotNormal(TrainableNormal):
     249-256). http://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf
   """
 
-  def __init__(self, seed=None):
+  def __init__(self, seed=None, **kwargs):
     super(TrainableGlorotNormal, self).__init__(
         mean_initializer=tf.keras.initializers.GlorotNormal(seed),
-        seed=seed)
+        seed=seed,
+        **kwargs)
 
   def get_config(self):
     return {
