@@ -21,9 +21,8 @@ This script performs variational inference with a few notable techniques:
    the KL penalty only penalize the weight posterior's standard deviation and
    not its mean. The prior's standard deviation is a fixed hyperparameter.
 2. Fully factorized normal variational distribution (Blundell et al., 2015).
-3. Flipout for lower-variance gradients in convolutional layers (Wen et al.,
-   2018) but only applied to the second convolution in each residual block
-   (Ovadia et al., 2019). We also apply it for the final dense layer.
+3. Flipout for lower-variance gradients in convolutional layers and the final
+   dense layer (Wen et al., 2018).
 4. KL annealing (Bowman et al., 2015).
 """
 
