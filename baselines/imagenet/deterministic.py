@@ -27,6 +27,7 @@ from absl import app
 from absl import flags
 from absl import logging
 
+import edward2 as ed
 import deterministic_model  # local file import
 import utils  # local file import
 
@@ -43,6 +44,11 @@ flags.DEFINE_string('output_dir', '/tmp/imagenet',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
 flags.DEFINE_integer('train_epochs', 90, 'Number of training epochs.')
+flags.DEFINE_bool('corruptions', True, 'Whether to test on ImageNet-C.')
+flags.DEFINE_integer('corruptions_interval', 90,
+                     'Number of epochs between evaluating on the corrupted '
+                     'test data. Only valid if corruptions is True.')
+flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -95,10 +101,26 @@ def main(argv):
       data_dir=FLAGS.data_dir,
       batch_size=batch_size,
       use_bfloat16=FLAGS.use_bfloat16)
+  test_datasets = {
+      'clean':
+          strategy.experimental_distribute_dataset(imagenet_eval.input_fn()),
+  }
+  if FLAGS.corruptions:
+    corruption_types, max_intensity = utils.load_corrupted_test_info()
+    for name in corruption_types:
+      for intensity in range(1, max_intensity + 1):
+        dataset_name = '{0}_{1}'.format(name, intensity)
+        corrupt_input_fn = utils.corrupt_test_input_fn(
+            batch_size=FLAGS.per_core_batch_size,
+            corruption_name=name,
+            corruption_intensity=intensity,
+            use_bfloat16=FLAGS.use_bfloat16)
+        test_datasets[dataset_name] = (
+            strategy.experimental_distribute_datasets_from_function(
+                corrupt_input_fn))
+
   train_dataset = strategy.experimental_distribute_dataset(
       imagenet_train.input_fn())
-  test_dataset = strategy.experimental_distribute_dataset(
-      imagenet_eval.input_fn())
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
@@ -124,9 +146,26 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
+        'train/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins)
     }
+    if FLAGS.corruptions:
+      corrupt_metrics = {}
+      for intensity in range(1, max_intensity + 1):
+        for corruption in corruption_types:
+          dataset_name = '{0}_{1}'.format(corruption, intensity)
+          corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
+              tf.keras.metrics.SparseCategoricalAccuracy())
+          corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
+              ed.metrics.ExpectedCalibrationError(
+                  num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins))
+
     logging.info('Finished building Keras ResNet-50 model')
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
@@ -174,6 +213,8 @@ def main(argv):
       grads = tape.gradient(scaled_loss, model.trainable_variables)
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
+      probs = tf.nn.softmax(logits)
+      metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
@@ -182,7 +223,7 @@ def main(argv):
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
   @tf.function
-  def test_step(iterator):
+  def test_step(iterator, dataset_name):
     """Evaluation StepFn."""
     def step_fn(inputs):
       """Per-Replica StepFn."""
@@ -195,9 +236,19 @@ def main(argv):
           tf.keras.losses.sparse_categorical_crossentropy(labels,
                                                           logits,
                                                           from_logits=True))
-      metrics['test/negative_log_likelihood'].update_state(
-          negative_log_likelihood)
-      metrics['test/accuracy'].update_state(labels, logits)
+      probs = tf.nn.softmax(logits)
+      if dataset_name == 'clean':
+        metrics['test/negative_log_likelihood'].update_state(
+            negative_log_likelihood)
+        metrics['test/accuracy'].update_state(labels, probs)
+        metrics['test/ece'].update_state(labels, probs)
+      else:
+        corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
+            negative_log_likelihood)
+        corrupt_metrics['test/accuracy_{}'.format(dataset_name)].update_state(
+            labels, probs)
+        corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
+            labels, probs)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -224,11 +275,24 @@ def main(argv):
       if step % 20 == 0:
         logging.info(message)
 
-    test_iterator = iter(test_dataset)
-    for step in range(steps_per_eval):
-      if step % 20 == 0:
-        logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
-      test_step(test_iterator)
+    datasets_to_evaluate = {'clean': test_datasets['clean']}
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+      datasets_to_evaluate = test_datasets
+    for dataset_name, test_dataset in datasets_to_evaluate.items():
+      test_iterator = iter(test_dataset)
+      logging.info('Testing on dataset %s', dataset_name)
+      for step in range(steps_per_eval):
+        if step % 20 == 0:
+          logging.info('Starting to run eval step %s of epoch: %s', step,
+                       epoch)
+        test_step(test_iterator, dataset_name)
+      logging.info('Done with testing on %s', dataset_name)
+
+    corrupt_results = {}
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+      corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
+                                                        corruption_types,
+                                                        max_intensity)
 
     logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
                  metrics['train/loss'].result(),
@@ -236,9 +300,11 @@ def main(argv):
     logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
                  metrics['test/negative_log_likelihood'].result(),
                  metrics['test/accuracy'].result() * 100)
+    total_results = {name: metric.result() for name, metric in metrics.items()}
+    total_results.update(corrupt_results)
     with summary_writer.as_default():
-      for name, metric in metrics.items():
-        tf.summary.scalar(name, metric.result(), step=epoch + 1)
+      for name, result in total_results.items():
+        tf.summary.scalar(name, result, step=epoch + 1)
 
     for metric in metrics.values():
       metric.reset_states()

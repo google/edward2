@@ -406,6 +406,30 @@ def corrupt_test_input_fn(corruption_name,
   return test_input_fn
 
 
+# TODO(ghassen,trandustin): Push this metadata upstream to TFDS.
+def load_corrupted_test_info():
+  """Loads information for ImageNet-C."""
+  corruption_types = [
+      'gaussian_noise',
+      'shot_noise',
+      'impulse_noise',
+      'defocus_blur',
+      'glass_blur',
+      'motion_blur',
+      'zoom_blur',
+      'snow',
+      'frost',
+      'fog',
+      'brightness',
+      'contrast',
+      'elastic_transform',
+      'pixelate',
+      'jpeg_compression',
+  ]
+  max_intensity = 5
+  return corruption_types, max_intensity
+
+
 def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
   """Aggregates metrics across intensities and corruption types."""
   # TODO(trandustin): Decide whether to stick with mean or median; showing both

@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import itertools
 import os
 import time
 
@@ -26,6 +27,7 @@ from absl import app
 from absl import flags
 from absl import logging
 
+import edward2 as ed
 import batchensemble_model  # local file import
 import utils  # local file import
 
@@ -48,6 +50,11 @@ flags.DEFINE_string('output_dir', '/tmp/imagenet',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
 flags.DEFINE_integer('train_epochs', 135, 'Number of training epochs.')
+flags.DEFINE_bool('corruptions', True, 'Whether to test on ImageNet-C.')
+flags.DEFINE_integer('corruptions_interval', 135,
+                     'Number of epochs between evaluating on the corrupted '
+                     'test data. Only valid if corruptions is True.')
+flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -73,17 +80,11 @@ def main(argv):
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
-  # In BatchEnsemble version 2, the
-  # input images are not only tiled in the inference mode but also tiled in the
-  # training. BatchEnsemble version 2 means each ensemble member is trained with
-  # the same batch size as single model.
+  per_core_batch_size = FLAGS.per_core_batch_size
   if FLAGS.version2:
-    logging.info('Training BatchEnsemble version 2')
-    batch_size = ((FLAGS.per_core_batch_size // FLAGS.num_models) *
-                  FLAGS.num_cores)
-  else:
-    batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
+    per_core_batch_size = per_core_batch_size // FLAGS.num_models
 
+  batch_size = per_core_batch_size * FLAGS.num_cores
   steps_per_epoch = APPROX_IMAGENET_TRAIN_IMAGES // batch_size
   steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
 
@@ -110,10 +111,26 @@ def main(argv):
       data_dir=FLAGS.data_dir,
       batch_size=batch_size,
       use_bfloat16=FLAGS.use_bfloat16)
+  test_datasets = {
+      'clean':
+          strategy.experimental_distribute_dataset(imagenet_eval.input_fn()),
+  }
+  if FLAGS.corruptions:
+    corruption_types, max_intensity = utils.load_corrupted_test_info()
+    for name in corruption_types:
+      for intensity in range(1, max_intensity + 1):
+        dataset_name = '{0}_{1}'.format(name, intensity)
+        corrupt_input_fn = utils.corrupt_test_input_fn(
+            batch_size=per_core_batch_size,
+            corruption_name=name,
+            corruption_intensity=intensity,
+            use_bfloat16=FLAGS.use_bfloat16)
+        test_datasets[dataset_name] = (
+            strategy.experimental_distribute_datasets_from_function(
+                corrupt_input_fn))
+
   train_dataset = strategy.experimental_distribute_dataset(
       imagenet_train.input_fn())
-  test_dataset = strategy.experimental_distribute_dataset(
-      imagenet_eval.input_fn())
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
@@ -146,13 +163,44 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
+        'train/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins)
     }
-    for i in range(FLAGS.num_models):
-      metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
-      metrics['test/accuracy_member_{}'.format(i)] = (
-          tf.keras.metrics.SparseCategoricalAccuracy())
+    if FLAGS.corruptions:
+      corrupt_metrics = {}
+      for intensity in range(1, max_intensity + 1):
+        for corruption in corruption_types:
+          dataset_name = '{0}_{1}'.format(corruption, intensity)
+          corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
+              tf.keras.metrics.SparseCategoricalAccuracy())
+          corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
+              ed.metrics.ExpectedCalibrationError(
+                  num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins))
+
+    test_diversity = {}
+    training_diversity = {}
+    if FLAGS.num_models > 1:
+      for i in range(FLAGS.num_models):
+        metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
+        metrics['test/accuracy_member_{}'.format(i)] = (
+            tf.keras.metrics.SparseCategoricalAccuracy())
+      test_diversity = {
+          'test/disagreement': tf.keras.metrics.Mean(),
+          'test/average_kl': tf.keras.metrics.Mean(),
+          'test/cosine_similarity': tf.keras.metrics.Mean(),
+      }
+      training_diversity = {
+          'train/disagreement': tf.keras.metrics.Mean(),
+          'train/average_kl': tf.keras.metrics.Mean(),
+          'train/cosine_similarity': tf.keras.metrics.Mean(),
+      }
+
     logging.info('Finished building Keras ResNet-50 model')
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
@@ -180,6 +228,13 @@ def main(argv):
         logits = model(images, training=True)
         if FLAGS.use_bfloat16:
           logits = tf.cast(logits, tf.float32)
+
+        probs = tf.nn.softmax(logits)
+        if FLAGS.version2 and FLAGS.num_models > 1:
+          per_probs = tf.reshape(
+              probs, tf.concat([[FLAGS.num_models, -1], probs.shape[1:]], 0))
+          diversity_results = utils.average_pairwise_diversity(
+              per_probs, FLAGS.num_models)
 
         negative_log_likelihood = tf.reduce_mean(
             tf.keras.losses.sparse_categorical_crossentropy(labels,
@@ -216,15 +271,19 @@ def main(argv):
       else:
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
+      metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, logits)
+      if FLAGS.version2 and FLAGS.num_models > 1:
+        for k, v in diversity_results.items():
+          training_diversity['train/' + k].update_state(v)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
   @tf.function
-  def test_step(iterator):
+  def test_step(iterator, dataset_name):
     """Evaluation StepFn."""
     def step_fn(inputs):
       """Per-Replica StepFn."""
@@ -234,24 +293,43 @@ def main(argv):
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
+      if FLAGS.num_models > 1:
+        per_probs = tf.split(
+            probs, num_or_size_splits=FLAGS.num_models, axis=0)
+        probs = tf.reduce_mean(per_probs, axis=0)
 
-      per_probs = tf.split(
-          probs, num_or_size_splits=FLAGS.num_models, axis=0)
-      for i in range(FLAGS.num_models):
-        member_probs = per_probs[i]
-        member_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            labels, member_probs)
-        metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
-        metrics['test/accuracy_member_{}'.format(i)].update_state(
-            labels, member_probs)
+      if dataset_name == 'clean' and FLAGS.num_models > 1:
+        per_probs_tensor = tf.reshape(
+            probs, tf.concat([[FLAGS.num_models, -1], probs.shape[1:]], 0))
+        diversity_results = utils.average_pairwise_diversity(
+            per_probs_tensor, FLAGS.num_models)
+        for k, v in diversity_results.items():
+          test_diversity['test/' + k].update_state(v)
 
-      probs = tf.reduce_mean(per_probs, axis=0)
       negative_log_likelihood = tf.reduce_mean(
-          tf.keras.losses.sparse_categorical_crossentropy(
-              labels, probs))
-      metrics['test/negative_log_likelihood'].update_state(
-          negative_log_likelihood)
-      metrics['test/accuracy'].update_state(labels, probs)
+          tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+
+      if dataset_name == 'clean':
+        if FLAGS.num_models > 1:
+          for i in range(FLAGS.num_models):
+            member_probs = per_probs[i]
+            member_loss = tf.keras.losses.sparse_categorical_crossentropy(
+                labels, member_probs)
+            metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
+            metrics['test/accuracy_member_{}'.format(i)].update_state(
+                labels, member_probs)
+
+        metrics['test/negative_log_likelihood'].update_state(
+            negative_log_likelihood)
+        metrics['test/accuracy'].update_state(labels, probs)
+        metrics['test/ece'].update_state(labels, probs)
+      else:
+        corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
+            negative_log_likelihood)
+        corrupt_metrics['test/accuracy_{}'.format(dataset_name)].update_state(
+            labels, probs)
+        corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
+            labels, probs)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -278,11 +356,24 @@ def main(argv):
       if step % 20 == 0:
         logging.info(message)
 
-    test_iterator = iter(test_dataset)
-    for step in range(steps_per_eval):
-      if step % 20 == 0:
-        logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
-      test_step(test_iterator)
+    datasets_to_evaluate = {'clean': test_datasets['clean']}
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+      datasets_to_evaluate = test_datasets
+    for dataset_name, test_dataset in datasets_to_evaluate.items():
+      test_iterator = iter(test_dataset)
+      logging.info('Testing on dataset %s', dataset_name)
+      for step in range(steps_per_eval):
+        if step % 20 == 0:
+          logging.info('Starting to run eval step %s of epoch: %s', step,
+                       epoch)
+        test_step(test_iterator, dataset_name)
+      logging.info('Done with testing on %s', dataset_name)
+
+    corrupt_results = {}
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+      corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
+                                                        corruption_types,
+                                                        max_intensity)
 
     logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
                  metrics['train/loss'].result(),
@@ -294,11 +385,18 @@ def main(argv):
       logging.info('Member %d Test Loss: %.4f, Accuracy: %.2f%%',
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)
-    with summary_writer.as_default():
-      for name, metric in metrics.items():
-        tf.summary.scalar(name, metric.result(), step=epoch + 1)
 
-    for metric in metrics.values():
+    total_metrics = itertools.chain(metrics.items(),
+                                    training_diversity.items(),
+                                    test_diversity.items())
+    total_results = {name: metric.result() for name, metric in total_metrics}
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+      total_results.update(corrupt_results)
+    with summary_writer.as_default():
+      for name, result in total_results.items():
+        tf.summary.scalar(name, result, step=epoch + 1)
+
+    for _, metric in total_metrics:
       metric.reset_states()
 
     if (epoch + 1) % 20 == 0:
