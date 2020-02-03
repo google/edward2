@@ -461,7 +461,7 @@ def main(argv):
     for metric in metrics.values():
       metric.reset_states()
 
-    if (epoch + 1) % 20 == 0:
+    if (epoch + 1) % 20 == 0 or epoch + 1 == FLAGS.train_epochs:
       checkpoint_name = checkpoint.save(
           os.path.join(FLAGS.output_dir, 'checkpoint'))
       logging.info('Saved checkpoint to %s', checkpoint_name)
