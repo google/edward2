@@ -12,19 +12,19 @@
 
 ## CIFAR-100
 
-| Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | Train Runtime (hours) | # Parameters |
-| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 79.8% | 2e-3 / 0.0857 | 1.1 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.5% | 3e-3 / 0.0338 |  5.5 (8 TPUv2 cores) | 36.6M |
-| Dropout | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | 1.1 (8 TPUv2 cores) | 36.5M |
-| Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - |  1.1 (32 TPUv2 cores) | 146M |
-| Variational inference | 2e-3 / 1.03 | 99.9% / 77.3% | 2e-3 / 0.111 | 5.5 (8 TPUv2 cores) | 73M |
+| Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | cNLL/cE/cCE | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Deterministic<sup>10</sup> | 1e-3 / 0.875 | 99.9% / 79.8% | 2e-3 / 0.0857 | - | 1.1 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.5% | 3e-3 / 0.0338 | - | 5.5 (8 TPUv2 cores) | 36.6M |
+| Dropout | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | - | 1.1 (8 TPUv2 cores) | 36.5M |
+| Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - | - | 1.1 (32 TPUv2 cores) | 146M |
+| Variational inference | 2e-3 / 1.03 | 99.9% / 77.3% | 2e-3 / 0.111 | - | 5.5 (8 TPUv2 cores) | 73M |
 
 ## Metrics
 
 We define metrics specific to CIFAR below. For general metrics, see [`baselines/`](https://github.com/google/edward2/tree/master/baselines).
 
-1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on [CIFAR-10-C](https://arxiv.org/abs/1903.12261). `c` stands for corrupted. Results take the mean across corruption intensities and the median across corruption types. The median is used to avoid penalizing by outlier performance on a particular corruption type.
+1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on [CIFAR-10-C](https://arxiv.org/abs/1903.12261); we apply the same corruptions to produce a CIFAR-100-C. `c` stands for corrupted. Results take the mean across corruption intensities and corruption types.
 
 ## CIFAR-10 Related Results
 

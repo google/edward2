@@ -9,7 +9,7 @@
 
 We define metrics specific to CIFAR below. For general metrics, see [`baselines/`](https://github.com/google/edward2/tree/master/baselines).
 
-1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on [ImageNet-C](https://arxiv.org/abs/1903.12261). `c` stands for corrupted. Results take the mean across corruption intensities and the median across corruption types. The median is used to avoid penalizing by outlier performance on a particular corruption type. Note the metrics do not normalize by another neural network's predictions like "mean corrupted error".
+1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on [ImageNet-C](https://arxiv.org/abs/1903.12261). `c` stands for corrupted. Results take the mean across corruption intensities and corruption types. Note the metrics do not normalize by another neural network's predictions like "mean corrupted error".
 
 ## Related Results
 

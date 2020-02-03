@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
 import os
 import time
 from absl import app
@@ -53,9 +54,11 @@ flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
-flags.DEFINE_bool('corruptions', True,
-                  'Whether to test on cifar10-c. Only valid if dataset is '
-                  'cifar10.')
+flags.DEFINE_bool('corruptions', True, 'Whether to test on CIFAR-C.')
+# TODO(ghassen): consider adding CIFAR-100-C to TFDS.
+flags.DEFINE_string('cifar100_c_path', None,
+                    'Path to the TFRecords files for CIFAR-100-C. Only valid '
+                    '(and required) if dataset is cifar100 and corruptions.')
 flags.DEFINE_integer('corruptions_interval', 250,
                      'Number of epochs between evaluating on the corrupted '
                      'test data. Only valid if corruptions is True.')
@@ -99,7 +102,6 @@ def main(argv):
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
         use_bfloat16=FLAGS.use_bfloat16,
-        normalize=True,
         proportion=FLAGS.train_proportion)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
@@ -111,8 +113,7 @@ def main(argv):
         split=tfds.Split.TEST,
         name=FLAGS.dataset,
         batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
-        use_bfloat16=FLAGS.use_bfloat16,
-        normalize=True)
+        use_bfloat16=FLAGS.use_bfloat16)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
     return dataset
@@ -121,13 +122,16 @@ def main(argv):
     """Returns an input_fn for the given corruption name and intensity."""
     def test_input_fn(ctx):
       """Sets up local (per-core) corrupted dataset batching."""
-      dataset = utils.load_corrupted_test_dataset(
+      if FLAGS.dataset == 'cifar10':
+        load_c_dataset = utils.load_cifar10_c_dataset
+      else:
+        load_c_dataset = functools.partial(utils.load_cifar100_c_dataset,
+                                           path=FLAGS.cifar100_c_path)
+      dataset = load_c_dataset(
+          corruption_name=corruption_name,
+          corruption_intensity=corruption_intensity,
           batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
-          name=corruption_name,
-          intensity=corruption_intensity,
-          drop_remainder=True,
-          use_bfloat16=FLAGS.use_bfloat16,
-          normalize=True)
+          use_bfloat16=FLAGS.use_bfloat16)
       if ctx and ctx.num_input_pipelines > 1:
         dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
       return dataset
@@ -138,8 +142,9 @@ def main(argv):
       'clean': strategy.experimental_distribute_datasets_from_function(
           clean_test_input_fn),
   }
-  if FLAGS.dataset == 'cifar10' and FLAGS.corruptions:
-    corruption_types, max_intensity = utils.load_corrupted_test_info()
+  if FLAGS.corruptions:
+    corruption_types, max_intensity = utils.load_corrupted_test_info(
+        FLAGS.dataset)
     for corruption in corruption_types:
       for intensity in range(1, max_intensity + 1):
         input_fn = corrupt_input_fn(corruption, intensity)
@@ -205,7 +210,7 @@ def main(argv):
       metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
       metrics['test/accuracy_member_{}'.format(i)] = (
           tf.keras.metrics.SparseCategoricalAccuracy())
-    if FLAGS.dataset == 'cifar10' and FLAGS.corruptions:
+    if FLAGS.corruptions:
       corrupt_metrics = {}
       for intensity in range(1, max_intensity + 1):
         for corruption in corruption_types:
@@ -340,9 +345,7 @@ def main(argv):
         logging.info(message)
 
     datasets_to_evaluate = {'clean': test_datasets['clean']}
-    if (FLAGS.dataset == 'cifar10' and
-        FLAGS.corruptions and
-        (epoch + 1) % FLAGS.corruptions_interval == 0):
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
       datasets_to_evaluate = test_datasets
     for dataset_name, test_dataset in datasets_to_evaluate.items():
       test_iterator = iter(test_dataset)
@@ -355,9 +358,7 @@ def main(argv):
       logging.info('Done with testing on %s', dataset_name)
 
     corrupt_results = {}
-    if (FLAGS.dataset == 'cifar10' and
-        FLAGS.corruptions and
-        (epoch + 1) % FLAGS.corruptions_interval == 0):
+    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
       corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
                                                         corruption_types,
                                                         max_intensity)

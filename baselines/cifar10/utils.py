@@ -76,8 +76,9 @@ def load_cifar100_c_dataset(corruption_name,
                             corruption_intensity,
                             batch_size,
                             use_bfloat16,
-                            path):
-  """Loads CIFAR dataset for training or testing."""
+                            path,
+                            normalize=True):
+  """Loads CIFAR-100-C dataset."""
   if use_bfloat16:
     dtype = tf.bfloat16
   else:
@@ -97,10 +98,15 @@ def load_cifar100_c_dataset(corruption_name,
         })
     image = tf.io.decode_raw(features['image'], tf.uint8)
     image = tf.cast(tf.reshape(image, [32, 32, 3]), dtype)
-    # Normalize the values of the image to have zero mean and unit variance.
-    image = tf.image.per_image_standardization(image)
+    image = tf.image.convert_image_dtype(image, dtype)
+    if normalize:
+      mean = tf.constant([0.4914, 0.4822, 0.4465])
+      std = tf.constant([0.2023, 0.1994, 0.2010])
+      image = (image - mean) / std
+    else:
+      # Normalize per-image using mean/stddev computed across pixels.
+      image = tf.image.per_image_standardization(image)
     label = tf.cast(features['label'], dtype)
-
     return image, label
 
   dataset = dataset.map(
@@ -110,18 +116,17 @@ def load_cifar100_c_dataset(corruption_name,
   return dataset
 
 
-def load_cifar10_c_dataset(batch_size,
-                           name,
-                           intensity,
+def load_cifar10_c_dataset(corruption_name,
+                           corruption_intensity,
+                           batch_size,
                            use_bfloat16,
-                           drop_remainder=True,
-                           normalize=False):
-  """Load a CIFAR-10-C dataset for testing."""
+                           normalize=True):
+  """Loads CIFAR-10-C dataset."""
   if use_bfloat16:
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
-  corruption = name + '_' + str(intensity)
+  corruption = corruption_name + '_' + str(corruption_intensity)
   dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
                       split=tfds.Split.TEST,
                       as_supervised=True)
@@ -137,7 +142,7 @@ def load_cifar10_c_dataset(batch_size,
 
   dataset = dataset.map(
       preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+  dataset = dataset.batch(batch_size, drop_remainder=True)
   dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
   return dataset
 
@@ -192,7 +197,7 @@ def load_distributed_dataset(split,
                              batch_size,
                              name,
                              use_bfloat16,
-                             normalize=False,
+                             normalize=True,
                              with_info=False,
                              drop_remainder=True,
                              proportion=1.0):
