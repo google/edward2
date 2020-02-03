@@ -72,12 +72,50 @@ def load_dataset(split, name='cifar10', with_info=False,
   return dataset
 
 
-def load_corrupted_test_dataset(batch_size,
-                                name,
-                                intensity,
-                                use_bfloat16,
-                                drop_remainder=True,
-                                normalize=False):
+def load_cifar100_c_dataset(corruption_name,
+                            corruption_intensity,
+                            batch_size,
+                            use_bfloat16,
+                            path):
+  """Loads CIFAR dataset for training or testing."""
+  if use_bfloat16:
+    dtype = tf.bfloat16
+  else:
+    dtype = tf.float32
+
+  filename = path + '{0}-{1}.tfrecords'.format(
+      corruption_name, corruption_intensity)
+  dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
+
+  def preprocess(serialized_example):
+    """Preprocess a serialized example for CIFAR100-C."""
+    features = tf.io.parse_single_example(
+        serialized_example,
+        features={
+            'image': tf.io.FixedLenFeature([], tf.string),
+            'label': tf.io.FixedLenFeature([], tf.int64),
+        })
+    image = tf.io.decode_raw(features['image'], tf.uint8)
+    image = tf.cast(tf.reshape(image, [32, 32, 3]), dtype)
+    # Normalize the values of the image to have zero mean and unit variance.
+    image = tf.image.per_image_standardization(image)
+    label = tf.cast(features['label'], dtype)
+
+    return image, label
+
+  dataset = dataset.map(
+      preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  dataset = dataset.batch(batch_size, drop_remainder=True)
+  dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+  return dataset
+
+
+def load_cifar10_c_dataset(batch_size,
+                           name,
+                           intensity,
+                           use_bfloat16,
+                           drop_remainder=True,
+                           normalize=False):
   """Load a CIFAR-10-C dataset for testing."""
   if use_bfloat16:
     dtype = tf.bfloat16
@@ -105,25 +143,46 @@ def load_corrupted_test_dataset(batch_size,
 
 
 # TODO(ghassen,trandustin): Push this metadata upstream to TFDS.
-def load_corrupted_test_info():
+def load_corrupted_test_info(dataset):
   """Loads information for CIFAR-10-C."""
-  corruption_types = [
-      'gaussian_noise',
-      'shot_noise',
-      'impulse_noise',
-      'defocus_blur',
-      'frosted_glass_blur',
-      'motion_blur',
-      'zoom_blur',
-      'snow',
-      'frost',
-      'fog',
-      'brightness',
-      'contrast',
-      'elastic',
-      'pixelate',
-      'jpeg_compression',
-  ]
+  if dataset == 'cifar10':
+    corruption_types = [
+        'gaussian_noise',
+        'shot_noise',
+        'impulse_noise',
+        'defocus_blur',
+        'frosted_glass_blur',
+        'motion_blur',
+        'zoom_blur',
+        'snow',
+        'frost',
+        'fog',
+        'brightness',
+        'contrast',
+        'elastic',
+        'pixelate',
+        'jpeg_compression',
+    ]
+  else:
+    corruption_types = [
+        'brightness',
+        'contrast',
+        'defocus_blur',
+        'elastic_transform',
+        'fog',
+        'frost',
+        'glass_blur',  # Called frosted_glass_blur in CIFAR-10.
+        'gaussian_blur',
+        'gaussian_noise',
+        'impulse_noise',
+        'jpeg_compression',
+        'pixelate',
+        'saturate',
+        'shot_noise',
+        'spatter',
+        'speckle_noise',  # Does not exist for CIFAR-10.
+        'zoom_blur',
+    ]
   max_intensity = 5
   return corruption_types, max_intensity
 
@@ -400,34 +459,30 @@ def cosine_distance(x, y):
 
 
 # TODO(ghassen): we could extend this to take an arbitrary list of metric fns.
-def average_pairwise_diversity(probs, labels, num_models):
+def average_pairwise_diversity(probs, num_models):
   """Average pairwise distance computation across models."""
   if probs.shape[0] != num_models:
     raise ValueError('The number of models {0} does not match '
                      'the probs length {1}'.format(num_models, probs.shape[0]))
 
   pairwise_disagreement = []
-  pairwise_double_fault = []
   pairwise_kl_divergence = []
   pairwise_cosine_distance = []
   for pair in list(itertools.combinations(range(num_models), 2)):
     probs_1 = probs[pair[0]]
     probs_2 = probs[pair[1]]
     pairwise_disagreement.append(disagreement(probs_1, probs_2))
-    pairwise_double_fault.append(double_fault(probs_1, probs_2, labels))
     pairwise_kl_divergence.append(
         tf.reduce_mean(kl_divergence(probs_1, probs_2)))
     pairwise_cosine_distance.append(cosine_distance(probs_1, probs_2))
 
   # TODO(ghassen): we could also return max and min pairwise metrics.
   average_disagreement = tf.reduce_mean(tf.stack(pairwise_disagreement))
-  average_double_fault = tf.reduce_mean(tf.stack(pairwise_double_fault))
   average_kl_divergence = tf.reduce_mean(tf.stack(pairwise_kl_divergence))
   average_cosine_distance = tf.reduce_mean(tf.stack(pairwise_cosine_distance))
 
   return {
       'disagreement': average_disagreement,
-      'double_fault': average_double_fault,
       'average_kl': average_kl_divergence,
       'cosine_similarity': average_cosine_distance
   }
