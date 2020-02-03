@@ -266,7 +266,6 @@ def main(argv):
   if FLAGS.corruptions:
     corruption_types, max_intensity = utils.load_corrupted_test_info(
         FLAGS.dataset)
-    corruption_types, max_intensity = utils.load_corrupted_test_info()
     for corruption in corruption_types:
       for intensity in range(1, max_intensity + 1):
         input_fn = corrupt_input_fn(corruption, intensity)
