@@ -54,6 +54,8 @@ flags.DEFINE_bool('corruptions', True, 'Whether to test on ImageNet-C.')
 flags.DEFINE_integer('corruptions_interval', 135,
                      'Number of epochs between evaluating on the corrupted '
                      'test data. Only valid if corruptions is True.')
+flags.DEFINE_string('alexnet_errors_path', None,
+                    'Path to AlexNet corruption errors file.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 
 # Accelerator flags.
@@ -371,9 +373,9 @@ def main(argv):
 
     corrupt_results = {}
     if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
-      corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
-                                                        corruption_types,
-                                                        max_intensity)
+      corrupt_results = utils.aggregate_corrupt_metrics(
+          corrupt_metrics, corruption_types, max_intensity,
+          FLAGS.alexnet_errors_path)
 
     logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
                  metrics['train/loss'].result(),

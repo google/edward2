@@ -23,6 +23,7 @@ import itertools
 import os
 
 import numpy as np
+import pandas as pd
 import tensorflow.compat.v1 as tf
 import tensorflow_datasets as tfds
 
@@ -355,10 +356,6 @@ def load_corrupted_test_dataset(batch_size,
                                 drop_remainder=True,
                                 use_bfloat16=False):
   """Loads an ImageNet-C dataset."""
-  if use_bfloat16:
-    dtype = tf.bfloat16
-  else:
-    dtype = tf.float32
   corruption = name + '_' + str(intensity)
 
   dataset = tfds.load(
@@ -373,9 +370,7 @@ def load_corrupted_test_dataset(batch_size,
   def preprocess(image, label):
     image = tf.reshape(image, shape=[])
     image = preprocess_for_eval(image, use_bfloat16)
-    label = tf.cast(tf.cast(
-        tf.reshape(label, shape=[1]), dtype=tf.int32) - 1,
-                    dtype=dtype)
+    label = tf.cast(tf.reshape(label, shape=[1]), dtype=tf.float32)
     return image, label
 
   dataset = dataset.map(
@@ -430,7 +425,10 @@ def load_corrupted_test_info():
   return corruption_types, max_intensity
 
 
-def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
+def aggregate_corrupt_metrics(metrics,
+                              corruption_types,
+                              max_intensity,
+                              alexnet_errors_path=None):
   """Aggregates metrics across intensities and corruption types."""
   # TODO(trandustin): Decide whether to stick with mean or median; showing both
   # for now.
@@ -474,6 +472,24 @@ def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
   results['test/nll_median_corrupted'] /= max_intensity
   results['test/error_median_corrupted'] /= max_intensity
   results['test/ece_median_corrupted'] /= max_intensity
+
+  if alexnet_errors_path:
+    with tf.io.gfile.GFile(alexnet_errors_path, 'r') as f:
+      df = pd.read_csv(f, index_col='intensity').transpose()
+    alexnet_errors = df.to_dict()
+    corrupt_error = {}
+    for corruption in corruption_types:
+      alexnet_normalization = alexnet_errors[corruption]['average']
+      errors = np.zeros(max_intensity)
+      for index in range(max_intensity):
+        dataset_name = '{0}_{1}'.format(corruption, index + 1)
+        errors[index] = 1. - metrics['test/accuracy_{}'.format(
+            dataset_name)].result()
+      average_error = np.mean(errors)
+      corrupt_error[corruption] = average_error / alexnet_normalization
+      results['test/corruption_error_{}'.format(
+          corruption)] = 100 * corrupt_error[corruption]
+    results['test/mCE'] = 100 * np.mean(list(corrupt_error.values()))
   return results
 
 
