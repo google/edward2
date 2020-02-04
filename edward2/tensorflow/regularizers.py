@@ -138,6 +138,36 @@ class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
+class LogNormalKLDivergence(tf.keras.regularizers.Regularizer):
+  """KL divergence regularizer from an input to the log normal distribution."""
+
+  def __init__(self, loc=0., scale=1., scale_factor=1.):
+    """Constructs regularizer where default is a KL towards a std log normal."""
+    self.loc = loc
+    self.scale = scale
+    self.scale_factor = scale_factor
+
+  def __call__(self, x):
+    """Computes regularization given an input ed.RandomVariable."""
+    if not isinstance(x, random_variable.RandomVariable):
+      raise ValueError('Input must be an ed.RandomVariable.')
+    prior = generated_random_variables.Independent(
+        generated_random_variables.LogNormal(
+            loc=tf.broadcast_to(self.loc, x.distribution.event_shape),
+            scale=tf.broadcast_to(self.scale, x.distribution.event_shape)
+        ).distribution,
+        reinterpreted_batch_ndims=len(x.distribution.event_shape))
+    regularization = x.distribution.kl_divergence(prior.distribution)
+    return self.scale_factor * regularization
+
+  def get_config(self):
+    return {
+        'loc': self.loc,
+        'scale': self.scale,
+        'scale_factor': self.scale_factor,
+    }
+
+
 class NormalKLDivergence(tf.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the normal distribution."""
 
@@ -325,6 +355,7 @@ class UniformKLDivergence(tf.keras.regularizers.Regularizer):
 # pylint: disable=invalid-name
 cauchy_kl_divergence = CauchyKLDivergence
 half_cauchy_kl_divergence = HalfCauchyKLDivergence
+log_normal_kl_divergence = LogNormalKLDivergence
 log_uniform_kl_divergence = LogUniformKLDivergence
 normal_kl_divergence = NormalKLDivergence
 normal_empirical_bayes_kl_divergence = NormalEmpiricalBayesKLDivergence
