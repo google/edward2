@@ -270,6 +270,83 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
     }
 
 
+class TrainableLogNormal(tf.keras.layers.Layer):
+  """Random log normal op as an initializer with trainable loc and scale."""
+
+  def __init__(self,
+               loc_initializer=tf.keras.initializers.TruncatedNormal(
+                   stddev=1e-5),
+               scale_initializer=tf.keras.initializers.TruncatedNormal(
+                   mean=-3., stddev=0.1),
+               loc_regularizer=None,
+               scale_regularizer=None,
+               loc_constraint=None,
+               scale_constraint='softplus',
+               seed=None,
+               **kwargs):
+    """Constructs the initializer."""
+    super(TrainableLogNormal, self).__init__(**kwargs)
+    self.loc_initializer = get(loc_initializer)
+    self.scale_initializer = get(scale_initializer)
+    self.loc_regularizer = regularizers.get(loc_regularizer)
+    self.scale_regularizer = regularizers.get(scale_regularizer)
+    self.loc_constraint = constraints.get(loc_constraint)
+    self.scale_constraint = constraints.get(scale_constraint)
+    self.seed = seed
+
+  def build(self, shape, dtype=None):
+    if dtype is None:
+      dtype = self.dtype
+
+    self.loc = self.add_weight(
+        'loc',
+        shape=shape,
+        initializer=self.loc_initializer,
+        regularizer=self.loc_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.scale = self.add_weight(
+        'scale',
+        shape=shape,
+        initializer=self.scale_initializer,
+        regularizer=self.scale_regularizer,
+        constraint=None,
+        dtype=dtype,
+        trainable=True)
+    self.built = True
+
+  def __call__(self, shape, dtype=None):
+    if not self.built:
+      self.build(shape, dtype)
+    loc = self.loc
+    if self.loc_constraint:
+      loc = self.loc_constraint(loc)
+    scale = self.scale
+    if self.scale_constraint:
+      scale = self.scale_constraint(scale)
+    return generated_random_variables.Independent(
+        generated_random_variables.LogNormal(loc=loc, scale=scale).distribution,
+        reinterpreted_batch_ndims=len(shape))
+
+  def get_config(self):
+    return {
+        'loc_initializer':
+            serialize(self.loc_initializer),
+        'scale_initializer':
+            serialize(self.scale_initializer),
+        'loc_regularizer':
+            regularizers.serialize(self.loc_regularizer),
+        'scale_regularizer':
+            regularizers.serialize(self.scale_regularizer),
+        'loc_constraint':
+            constraints.serialize(self.loc_constraint),
+        'scale_constraint':
+            constraints.serialize(self.scale_constraint),
+        'seed': self.seed,
+    }
+
+
 class TrainableNormal(tf.keras.layers.Layer):
   """Random normal op as an initializer with trainable mean and stddev."""
 
@@ -584,6 +661,7 @@ trainable_half_cauchy = TrainableHalfCauchy
 trainable_normal = TrainableNormal
 trainable_he_normal = TrainableHeNormal
 trainable_glorot_normal = TrainableGlorotNormal
+trainable_log_normal = TrainableLogNormal
 trainable_normal_shared_stddev = TrainableNormalSharedStddev
 trainable_normal_fixed_stddev = TrainableNormalFixedStddev
 trainable_mixture_of_deltas = TrainableMixtureOfDeltas

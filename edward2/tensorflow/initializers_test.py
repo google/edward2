@@ -62,6 +62,24 @@ class InitializersTest(tf.test.TestCase):
     self.assertAllEqual(half_cauchy_value.shape, shape)
     self.assertAllGreaterEqual(half_cauchy_value, 0.)
 
+  def testTrainableLogNormal(self):
+    tf.random.set_seed(345689)
+    shape = (100,)
+    initializer = ed.initializers.get('trainable_log_normal')
+    log_normal = initializer(shape)
+    self.evaluate(tf1.global_variables_initializer())
+    loc_value, scale_value = self.evaluate([
+        # Get distribution of rv -> get distribution of Independent.
+        log_normal.distribution.distribution.loc,
+        log_normal.distribution.distribution.scale])
+    self.assertAllClose(loc_value, np.zeros(shape), atol=1e-4)
+    target_scale = np.log(1. + np.exp(-3.))
+    self.assertAllClose(scale_value, target_scale * np.ones(shape), atol=5e-2)
+
+    log_normal_value = self.evaluate(log_normal)
+    self.assertAllGreater(log_normal_value, 0.)
+    self.assertEqual(log_normal_value.shape, shape)
+
   def testTrainableNormal(self):
     tf.random.set_seed(345689)
     shape = (100,)
