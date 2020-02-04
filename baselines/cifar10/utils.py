@@ -83,7 +83,6 @@ def load_cifar100_c_dataset(corruption_name,
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
-
   filename = path + '{0}-{1}.tfrecords'.format(
       corruption_name, corruption_intensity)
   dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
@@ -99,6 +98,7 @@ def load_cifar100_c_dataset(corruption_name,
     image = tf.io.decode_raw(features['image'], tf.uint8)
     image = tf.cast(tf.reshape(image, [32, 32, 3]), dtype)
     image = tf.image.convert_image_dtype(image, dtype)
+    image = image / 255  # to convert into the [0, 1) range
     if normalize:
       mean = tf.constant([0.4914, 0.4822, 0.4465])
       std = tf.constant([0.2023, 0.1994, 0.2010])
