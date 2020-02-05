@@ -3,7 +3,7 @@
 | Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cE/cCE | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | BatchEnsemble<sup>1</sup> | 0.847 / 0.951 | 79.2% / 76.5% | - | - | 17.5 (32 TPUv2 cores) | 25.8M |
-| Deterministic | 0.907 / 0.935 | 77.9% / 76.1% | - | - | 5 (32 TPUv3 cores) | 25.6M |
+| Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | 5 (32 TPUv3 cores) | 25.6M |
 
 ## Metrics
 
