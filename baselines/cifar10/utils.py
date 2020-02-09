@@ -72,21 +72,19 @@ def load_dataset(split, name='cifar10', with_info=False,
   return dataset
 
 
-def load_cifar100_c_dataset(corruption_name,
-                            corruption_intensity,
-                            batch_size,
-                            use_bfloat16,
-                            path,
-                            normalize=True):
+def load_cifar100_c_input_fn(corruption_name,
+                             corruption_intensity,
+                             batch_size,
+                             use_bfloat16,
+                             path,
+                             normalize=True):
   """Loads CIFAR-100-C dataset."""
   if use_bfloat16:
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
-  filename = path + '{0}-{1}.tfrecords'.format(
-      corruption_name, corruption_intensity)
-  dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
-
+  filename = path + '{0}-{1}.tfrecords'.format(corruption_name,
+                                               corruption_intensity)
   def preprocess(serialized_example):
     """Preprocess a serialized example for CIFAR100-C."""
     features = tf.io.parse_single_example(
@@ -109,28 +107,30 @@ def load_cifar100_c_dataset(corruption_name,
     label = tf.cast(features['label'], dtype)
     return image, label
 
-  dataset = dataset.map(
-      preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=True)
-  dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
-  return dataset
+  def input_fn(ctx):
+    """Returns a locally sharded (i.e., per-core) dataset batch."""
+    dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
+    dataset = dataset.map(
+        preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    if ctx and ctx.num_input_pipelines > 1:
+      dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
+    return dataset
+  return input_fn
 
 
-def load_cifar10_c_dataset(corruption_name,
-                           corruption_intensity,
-                           batch_size,
-                           use_bfloat16,
-                           normalize=True):
+def load_cifar10_c_input_fn(corruption_name,
+                            corruption_intensity,
+                            batch_size,
+                            use_bfloat16,
+                            normalize=True):
   """Loads CIFAR-10-C dataset."""
   if use_bfloat16:
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
   corruption = corruption_name + '_' + str(corruption_intensity)
-  dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
-                      split=tfds.Split.TEST,
-                      as_supervised=True)
-
   def preprocess(image, label):
     image = tf.image.convert_image_dtype(image, dtype)
     if normalize:
@@ -140,11 +140,19 @@ def load_cifar10_c_dataset(corruption_name,
     label = tf.cast(label, dtype)
     return image, label
 
-  dataset = dataset.map(
-      preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=True)
-  dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-  return dataset
+  def input_fn(ctx):
+    """Returns a locally sharded (i.e., per-core) dataset batch."""
+    dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
+                        split=tfds.Split.TEST,
+                        as_supervised=True)
+    dataset = dataset.map(
+        preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    if ctx and ctx.num_input_pipelines > 1:
+      dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
+    return dataset
+  return input_fn
 
 
 # TODO(ghassen,trandustin): Push this metadata upstream to TFDS.
@@ -193,14 +201,13 @@ def load_corrupted_test_info(dataset):
 
 
 # TODO(trandustin): Merge with load_dataset.
-def load_distributed_dataset(split,
-                             batch_size,
-                             name,
-                             use_bfloat16,
-                             normalize=True,
-                             with_info=False,
-                             drop_remainder=True,
-                             proportion=1.0):
+def load_input_fn(split,
+                  batch_size,
+                  name,
+                  use_bfloat16,
+                  normalize=True,
+                  drop_remainder=True,
+                  proportion=1.0):
   """Loads CIFAR dataset for training or testing.
 
   Args:
@@ -209,40 +216,19 @@ def load_distributed_dataset(split,
     name: A string indicates whether it is cifar10 or cifar100.
     use_bfloat16: data type, bfloat16 precision or float32.
     normalize: Whether to apply mean-std normalization on features.
-    with_info: bool.
     drop_remainder: bool.
     proportion: float, the proportion of dataset to be used.
 
   Returns:
-    Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
-    the dataset.
+    Input function which returns a locally-sharded dataset batch.
   """
   if use_bfloat16:
     dtype = tf.bfloat16
   else:
     dtype = tf.float32
-  if proportion == 1.0:
-    dataset, ds_info = tfds.load(name,
-                                 split=split,
-                                 with_info=True,
-                                 as_supervised=True)
-  else:
-    name = '{}:3.*.*'.format(name)
-    # TODO(ywenxu): consider the case where we have splits of train, val, test.
-    if split == tfds.Split.TRAIN:
-      split_str = 'train[:{}%]'.format(int(100 * proportion))
-    else:
-      split_str = 'test[:{}%]'.format(int(100 * proportion))
-    dataset, ds_info = tfds.load(name,
-                                 split=split_str,
-                                 with_info=True,
-                                 as_supervised=True)
-
-  if split == tfds.Split.TRAIN:
-    dataset_size = ds_info.splits['train'].num_examples
-    dataset = dataset.shuffle(buffer_size=dataset_size).repeat()
-
+  ds_info = tfds.builder(name).info
   image_shape = ds_info.features['image'].shape
+  dataset_size = ds_info.splits['train'].num_examples
 
   def preprocess(image, label):
     """Image preprocessing function."""
@@ -260,13 +246,28 @@ def load_distributed_dataset(split,
     label = tf.cast(label, dtype)
     return image, label
 
-  dataset = dataset.map(preprocess,
-                        num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
-  dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
-  if with_info:
-    return dataset, ds_info
-  return dataset
+  def input_fn(ctx):
+    """Returns a locally sharded (i.e., per-core) dataset batch."""
+    if proportion == 1.0:
+      dataset = tfds.load(name, split=split, as_supervised=True)
+    else:
+      new_name = '{}:3.*.*'.format(name)
+      if split == tfds.Split.TRAIN:
+        new_split = 'train[:{}%]'.format(int(100 * proportion))
+      else:
+        new_split = 'test[:{}%]'.format(int(100 * proportion))
+      dataset = tfds.load(new_name, split=new_split, as_supervised=True)
+    if split == tfds.Split.TRAIN:
+      dataset = dataset.shuffle(buffer_size=dataset_size).repeat()
+
+    dataset = dataset.map(preprocess,
+                          num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    if ctx and ctx.num_input_pipelines > 1:
+      dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
+    return dataset
+  return input_fn
 
 
 def make_lr_scheduler(init_lr):
