@@ -33,7 +33,6 @@ from absl import logging
 
 import deterministic  # local file import
 import utils  # local file import
-import six
 
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds

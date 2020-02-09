@@ -17,7 +17,6 @@ jobs:
         - pylint --jobs=2 --rcfile=pylintrc *.py
         - pylint --jobs=2 --rcfile=pylintrc */
 python:
-  - "2.7"
   - "3.6"
 env:
   matrix:
@@ -40,4 +39,4 @@ install:
 script:
   - set -v  # print commands as they're executed
   - set -e  # fail and exit on any command erroring
-  - pytest
+  - python -m unittest discover -s . -p '*_test.py'

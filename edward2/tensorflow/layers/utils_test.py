@@ -39,7 +39,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertTrue(initializer.built, True)
     self.assertNotEmpty(initializer.weights)
     for weight in initializer.weights:
-      self.assertIn(weight, layer.weights)
+      self.assertTrue(np.any([weight is lweight for lweight in layer.weights]))
 
   def testAddWeightWithTrainableRegularizer(self):
     dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
@@ -50,7 +50,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertTrue(regularizer.built, True)
     self.assertNotEmpty(regularizer.weights)
     for weight in regularizer.weights:
-      self.assertIn(weight, layer.weights)
+      self.assertTrue(np.any([weight is lweight for lweight in layer.weights]))
 
   def testOneHotAddExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
