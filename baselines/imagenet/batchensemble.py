@@ -235,7 +235,7 @@ def main(argv):
         if FLAGS.version2 and FLAGS.num_models > 1:
           per_probs = tf.reshape(
               probs, tf.concat([[FLAGS.num_models, -1], probs.shape[1:]], 0))
-          diversity_results = utils.average_pairwise_diversity(
+          diversity_results = ed.metrics.average_pairwise_diversity(
               per_probs, FLAGS.num_models)
 
         negative_log_likelihood = tf.reduce_mean(
