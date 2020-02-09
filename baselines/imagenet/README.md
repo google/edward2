@@ -1,15 +1,16 @@
 # ResNet-50 on ImageNet
 
-| Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cE/cCE | Train Runtime (hours) | # Parameters |
-| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| BatchEnsemble<sup>1</sup> | 0.847 / 0.951 | 79.2% / 76.5% | - | - | 17.5 (32 TPUv2 cores) | 25.8M |
-| Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | 5 (32 TPUv3 cores) | 25.6M |
+| Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | mCE | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| BatchEnsemble<sup>1</sup> | 0.847 / 0.951 | 79.2% / 76.5% | - | - | - | 17.5 (32 TPUv2 cores) | 25.8M |
+| Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | - | 5 (32 TPUv3 cores) | 25.6M |
 
 ## Metrics
 
 We define metrics specific to CIFAR below. For general metrics, see [`baselines/`](https://github.com/google/edward2/tree/master/baselines).
 
-1. __cNLL/cE/cCE__. Negative-log-likelihood, misclassification error, and calibration error on [ImageNet-C](https://arxiv.org/abs/1903.12261). `c` stands for corrupted. Results take the mean across corruption intensities and corruption types. Note the metrics do not normalize by another neural network's predictions like "mean corrupted error".
+1. __cNLL/cA/cCE__. Negative-log-likelihood, accuracy, and calibration error on [ImageNet-C](https://arxiv.org/abs/1903.12261). `c` stands for corrupted. Results take the mean across corruption intensities and corruption types.
+2. __mCE__. Mean corruption error, which measures misclassification error across corruption intensities and corruption types on ImageNet-C. However, instead of taking the mean, it computes a weighted mean where weights are given by AlexNet's performance.
 
 ## Related Results
 

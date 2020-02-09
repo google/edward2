@@ -430,14 +430,9 @@ def aggregate_corrupt_metrics(metrics,
                               max_intensity,
                               alexnet_errors_path=None):
   """Aggregates metrics across intensities and corruption types."""
-  # TODO(trandustin): Decide whether to stick with mean or median; showing both
-  # for now.
   results = {'test/nll_mean_corrupted': 0.,
-             'test/error_mean_corrupted': 0.,
-             'test/ece_mean_corrupted': 0.,
-             'test/nll_median_corrupted': 0.,
-             'test/error_median_corrupted': 0.,
-             'test/ece_median_corrupted': 0.}
+             'test/accuracy_mean_corrupted': 0.,
+             'test/ece_mean_corrupted': 0.}
   for intensity in range(1, max_intensity + 1):
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
@@ -448,30 +443,21 @@ def aggregate_corrupt_metrics(metrics,
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
     avg_nll = np.mean(nll)
-    avg_error = 100 * (1 - 1. * np.mean(acc))
+    avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)
-    median_nll = np.median(nll)
-    median_error = 100 * (1. - 1. * np.median(acc))
-    median_ece = np.median(ece)
     results['test/nll_mean_{}'.format(intensity)] = avg_nll
-    results['test/error_mean_{}'.format(intensity)] = avg_error
+    results['test/accuracy_mean_{}'.format(intensity)] = avg_accuracy
     results['test/ece_mean_{}'.format(intensity)] = avg_ece
-    results['test/nll_median_{}'.format(intensity)] = median_nll
-    results['test/error_median_{}'.format(intensity)] = median_error
-    results['test/ece_median_{}'.format(intensity)] = median_ece
+    results['test/nll_median_{}'.format(intensity)] = np.median(nll)
+    results['test/accuracy_median_{}'.format(intensity)] = np.median(acc)
+    results['test/ece_median_{}'.format(intensity)] = np.median(ece)
     results['test/nll_mean_corrupted'] += avg_nll
+    results['test/accuracy_mean_corrupted'] += avg_accuracy
     results['test/ece_mean_corrupted'] += avg_ece
-    results['test/error_mean_corrupted'] += avg_error
-    results['test/nll_median_corrupted'] += median_nll
-    results['test/ece_median_corrupted'] += median_ece
-    results['test/error_median_corrupted'] += median_error
 
   results['test/nll_mean_corrupted'] /= max_intensity
-  results['test/error_mean_corrupted'] /= max_intensity
+  results['test/accuracy_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
-  results['test/nll_median_corrupted'] /= max_intensity
-  results['test/error_median_corrupted'] /= max_intensity
-  results['test/ece_median_corrupted'] /= max_intensity
 
   if alexnet_errors_path:
     with tf.io.gfile.GFile(alexnet_errors_path, 'r') as f:
