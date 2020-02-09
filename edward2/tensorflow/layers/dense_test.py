@@ -306,7 +306,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertLessEqual(percent_mismatches, 0.05)
 
     # TODO(trandustin): Reapply test using proper reshape.
-#   def testBatchEnsembleDense(self):
+#   def testDenseBatchEnsemble(self):
 #     tf.keras.backend.set_learning_phase(1)  # training time
 #     num_models = 3
 #     examples_per_model = 4
@@ -314,7 +314,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 #     output_dim = 5
 #     inputs = tf.random.normal([examples_per_model, input_dim])
 #     batched_inputs = tf.tile(inputs, [num_models, 1])
-#     layer = ed.layers.BatchEnsembleDense(
+#     layer = ed.layers.DenseBatchEnsemble(
 #         output_dim,
 #         alpha_initializer="he_normal",
 #         gamma_initializer="he_normal",

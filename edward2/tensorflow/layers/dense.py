@@ -470,7 +470,7 @@ class DenseHierarchical(DenseVariationalDropout):
     return super(DenseHierarchical, self).call(inputs, training=training)
 
 
-class BatchEnsembleDense(tf.keras.layers.Layer):
+class DenseBatchEnsemble(tf.keras.layers.Layer):
   """A batch ensemble dense layer."""
 
   def __init__(self,
@@ -488,7 +488,7 @@ class BatchEnsembleDense(tf.keras.layers.Layer):
                kernel_constraint=None,
                bias_constraint=None,
                **kwargs):
-    super(BatchEnsembleDense, self).__init__(**kwargs)
+    super(DenseBatchEnsemble, self).__init__(**kwargs)
     self.units = units
     self.use_bias = use_bias
     self.num_models = num_models
@@ -564,7 +564,7 @@ class BatchEnsembleDense(tf.keras.layers.Layer):
         'activation': tf.activations.serialize(self.activation),
         'use_bias': self.use_bias,
     }
-    base_config = super(BatchEnsembleDense, self).get_config()
+    base_config = super(DenseBatchEnsemble, self).get_config()
     dense_config = self.dense.get_config()
     return dict(
         list(base_config.items()) +

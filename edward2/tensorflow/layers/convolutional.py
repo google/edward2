@@ -402,7 +402,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         false_fn=lambda: super(Conv2DVariationalDropout, self).call(inputs))
 
 
-class BatchEnsembleConv2D(tf.keras.layers.Layer):
+class Conv2DBatchEnsemble(tf.keras.layers.Layer):
   """A batch ensemble convolutional layer."""
 
   def __init__(self,
@@ -424,7 +424,7 @@ class BatchEnsembleConv2D(tf.keras.layers.Layer):
                kernel_constraint=None,
                bias_constraint=None,
                **kwargs):
-    super(BatchEnsembleConv2D, self).__init__(**kwargs)
+    super(Conv2DBatchEnsemble, self).__init__(**kwargs)
     self.filters = filters
     self.kernel_size = kernel_size
     self.data_format = data_format
@@ -517,7 +517,7 @@ class BatchEnsembleConv2D(tf.keras.layers.Layer):
         'activation': tf.activations.serialize(self.activation),
         'use_bias': self.use_bias,
     }
-    base_config = super(BatchEnsembleConv2D, self).get_config()
+    base_config = super(Conv2DBatchEnsemble, self).get_config()
     conv_config = self.conv2d.get_config()
     return dict(
         list(base_config.items()) +

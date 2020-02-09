@@ -27,8 +27,8 @@ BatchNormalization = functools.partial(  # pylint: disable=invalid-name
     tf.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
-BatchEnsembleConv2D = functools.partial(  # pylint: disable=invalid-name
-    ed.layers.BatchEnsembleConv2D,
+Conv2DBatchEnsemble = functools.partial(  # pylint: disable=invalid-name
+    ed.layers.Conv2DBatchEnsemble,
     kernel_size=3,
     padding='same',
     use_bias=False,
@@ -62,7 +62,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
   y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
-  y = BatchEnsembleConv2D(
+  y = Conv2DBatchEnsemble(
       filters,
       strides=strides,
       alpha_initializer=make_sign_initializer(random_sign_init),
@@ -72,7 +72,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
   y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
-  y = BatchEnsembleConv2D(
+  y = Conv2DBatchEnsemble(
       filters,
       strides=1,
       alpha_initializer=make_sign_initializer(random_sign_init),
@@ -80,7 +80,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
       kernel_regularizer=tf.keras.regularizers.l2(l2),
       num_models=num_models)(y)
   if not x.shape.is_compatible_with(y.shape):
-    x = BatchEnsembleConv2D(
+    x = Conv2DBatchEnsemble(
         filters,
         kernel_size=1,
         strides=strides,
@@ -127,7 +127,7 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
   inputs = tf.keras.layers.Input(shape=input_shape)
-  x = BatchEnsembleConv2D(
+  x = Conv2DBatchEnsemble(
       16,
       strides=1,
       alpha_initializer=make_sign_initializer(random_sign_init),
@@ -148,7 +148,7 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
   x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = ed.layers.BatchEnsembleDense(
+  x = ed.layers.DenseBatchEnsemble(
       num_classes,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
