@@ -44,10 +44,12 @@ flags.DEFINE_string('output_dir', '/tmp/imagenet',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
 flags.DEFINE_integer('train_epochs', 90, 'Number of training epochs.')
-flags.DEFINE_bool('corruptions', True, 'Whether to test on ImageNet-C.')
 flags.DEFINE_integer('corruptions_interval', 90,
                      'Number of epochs between evaluating on the corrupted '
-                     'test data. Only valid if corruptions is True.')
+                     'test data. Use -1 to never evaluate.')
+flags.DEFINE_integer('checkpoint_interval', 25,
+                     'Number of epochs between saving checkpoints. Use -1 to '
+                     'never save checkpoints.')
 flags.DEFINE_string('alexnet_errors_path', None,
                     'Path to AlexNet corruption errors file.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
@@ -107,7 +109,7 @@ def main(argv):
       'clean':
           strategy.experimental_distribute_dataset(imagenet_eval.input_fn()),
   }
-  if FLAGS.corruptions:
+  if FLAGS.corruptions_interval > 0:
     corruption_types, max_intensity = utils.load_corrupted_test_info()
     for name in corruption_types:
       for intensity in range(1, max_intensity + 1):
@@ -155,7 +157,7 @@ def main(argv):
         'test/ece': ed.metrics.ExpectedCalibrationError(
             num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins)
     }
-    if FLAGS.corruptions:
+    if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
       for intensity in range(1, max_intensity + 1):
         for corruption in corruption_types:
@@ -277,7 +279,8 @@ def main(argv):
         logging.info(message)
 
     datasets_to_evaluate = {'clean': test_datasets['clean']}
-    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+    if (FLAGS.corruptions_interval > 0 and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
       datasets_to_evaluate = test_datasets
     for dataset_name, test_dataset in datasets_to_evaluate.items():
       test_iterator = iter(test_dataset)
@@ -290,7 +293,8 @@ def main(argv):
       logging.info('Done with testing on %s', dataset_name)
 
     corrupt_results = {}
-    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+    if (FLAGS.corruptions_interval > 0 and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
       corrupt_results = utils.aggregate_corrupt_metrics(
           corrupt_metrics, corruption_types, max_intensity,
           FLAGS.alexnet_errors_path)
@@ -310,7 +314,8 @@ def main(argv):
     for metric in metrics.values():
       metric.reset_states()
 
-    if (epoch + 1) % 20 == 0 or epoch + 1 == FLAGS.train_epochs:
+    if (FLAGS.checkpoint_interval > 0 and
+        (epoch + 1) % FLAGS.checkpoint_interval == 0):
       checkpoint_name = checkpoint.save(os.path.join(
           FLAGS.output_dir, 'checkpoint'))
       logging.info('Saved checkpoint to %s', checkpoint_name)

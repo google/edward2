@@ -54,14 +54,16 @@ flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
 flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
-flags.DEFINE_bool('corruptions', True, 'Whether to test on CIFAR-C.')
 # TODO(ghassen): consider adding CIFAR-100-C to TFDS.
 flags.DEFINE_string('cifar100_c_path', None,
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '
                     '(and required) if dataset is cifar100 and corruptions.')
 flags.DEFINE_integer('corruptions_interval', 250,
                      'Number of epochs between evaluating on the corrupted '
-                     'test data. Only valid if corruptions is True.')
+                     'test data. Use -1 to never evaluate.')
+flags.DEFINE_integer('checkpoint_interval', 25,
+                     'Number of epochs between saving checkpoints. Use -1 to '
+                     'never save checkpoints.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE.')
 flags.DEFINE_string('output_dir', '/tmp/cifar',
                     'The directory where the model weights and '
@@ -112,7 +114,7 @@ def main(argv):
       'clean': strategy.experimental_distribute_datasets_from_function(
           clean_test_input_fn),
   }
-  if FLAGS.corruptions:
+  if FLAGS.corruptions_interval > 0:
     if FLAGS.dataset == 'cifar10':
       load_c_input_fn = utils.load_cifar10_c_input_fn
     else:
@@ -187,7 +189,7 @@ def main(argv):
       metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
       metrics['test/accuracy_member_{}'.format(i)] = (
           tf.keras.metrics.SparseCategoricalAccuracy())
-    if FLAGS.corruptions:
+    if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
       for intensity in range(1, max_intensity + 1):
         for corruption in corruption_types:
@@ -322,7 +324,8 @@ def main(argv):
         logging.info(message)
 
     datasets_to_evaluate = {'clean': test_datasets['clean']}
-    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+    if (FLAGS.corruptions_interval > 0 and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
       datasets_to_evaluate = test_datasets
     for dataset_name, test_dataset in datasets_to_evaluate.items():
       test_iterator = iter(test_dataset)
@@ -335,7 +338,8 @@ def main(argv):
       logging.info('Done with testing on %s', dataset_name)
 
     corrupt_results = {}
-    if FLAGS.corruptions and (epoch + 1) % FLAGS.corruptions_interval == 0:
+    if (FLAGS.corruptions_interval > 0 and
+        (epoch + 1) % FLAGS.corruptions_interval == 0):
       corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
                                                         corruption_types,
                                                         max_intensity)
@@ -359,7 +363,8 @@ def main(argv):
     for metric in metrics.values():
       metric.reset_states()
 
-    if (epoch + 1) % 20 == 0 or epoch + 1 == FLAGS.train_epochs:
+    if (FLAGS.checkpoint_interval > 0 and
+        (epoch + 1) % FLAGS.checkpoint_interval == 0):
       checkpoint_name = checkpoint.save(
           os.path.join(FLAGS.output_dir, 'checkpoint'))
       logging.info('Saved checkpoint to %s', checkpoint_name)
