@@ -34,8 +34,8 @@ setup(
     extras_require={
         'numpy': ['numpy>=1.7',
                   'scipy>=1.0.0'],
-        'tensorflow': ['tensorflow>=1.14.0',
-                       'tensorflow-probability>=0.7.0'],
+        'tensorflow': ['tensorflow>=2.0.0a0',
+                       'tensorflow-probability>=0.8.0'],
         'tf-nightly': ['tf-nightly',
                        'tfp-nightly'],
         'tests': [

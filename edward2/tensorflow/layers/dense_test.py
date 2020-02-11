@@ -22,24 +22,18 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
   def testTrainableNormalStddevConstraint(self):
     layer = ed.layers.DenseReparameterization(
         100, kernel_initializer="trainable_normal")
     inputs = tf.random.normal([1, 1])
-    out = layer(inputs)
+    _ = layer(inputs)
     stddev = layer.kernel.distribution.stddev()
-    self.evaluate(tf1.global_variables_initializer())
-    res, _ = self.evaluate([stddev, out])
-    self.assertAllGreater(res, 0.)
+    self.assertAllGreater(stddev, 0.)
 
   @parameterized.parameters(
       {"layer": ed.layers.DenseDVI,
@@ -102,17 +96,15 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
                   kernel_initializer=kernel_initializer,
                   bias_initializer=bias_initializer,
                   activation=tf.nn.relu)
-    outputs1 = model(inputs)
-    outputs2 = model(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    res1, res2 = self.evaluate([outputs1, outputs2])
-    self.assertEqual(res1.shape, (5, 3, 4))
+    outputs1 = tf.convert_to_tensor(model(inputs))
+    outputs2 = tf.convert_to_tensor(model(inputs))
+    self.assertEqual(outputs1.shape, (5, 3, 4))
     if layer != ed.layers.DenseDVI:
-      self.assertAllGreaterEqual(res1, 0.)
+      self.assertAllGreaterEqual(outputs1, 0.)
     if all_close:
-      self.assertAllClose(res1, res2)
+      self.assertAllClose(outputs1, outputs2)
     else:
-      self.assertNotAllClose(res1, res2)
+      self.assertNotAllClose(outputs1, outputs2)
     model.get_config()
 
   @parameterized.parameters(
@@ -131,15 +123,13 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       return rv
     inputs = np.random.rand(5, 3, 7).astype(np.float32)
     model = layer(4, activation=tf.nn.relu, use_bias=False)
-    outputs1 = model(inputs)
+    outputs1 = tf.convert_to_tensor(model(inputs))
     with ed.trace(take_mean):
-      outputs2 = model(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    res1, res2 = self.evaluate([outputs1, outputs2])
-    self.assertEqual(res1.shape, (5, 3, 4))
-    self.assertNotAllClose(res1, res2)
+      outputs2 = tf.convert_to_tensor(model(inputs))
+    self.assertEqual(outputs1.shape, (5, 3, 4))
+    self.assertNotAllClose(outputs1, outputs2)
     if layer != ed.layers.DenseDVI:
-      self.assertAllClose(res2, np.zeros((5, 3, 4)), atol=1e-4)
+      self.assertAllClose(outputs2, np.zeros((5, 3, 4)), atol=1e-4)
 
   @parameterized.parameters(
       {"layer": ed.layers.DenseDVI},
@@ -216,9 +206,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
         layer(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf1.global_variables_initializer())
-    res = self.evaluate(outputs)
-    self.assertEqual(res.shape, (3, 2))
+    self.assertEqual(outputs.shape, (3, 2))
     if layer == ed.layers.DenseHierarchical:
       self.assertLen(model.losses, 3)
     else:
@@ -245,9 +233,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
         DenseSubclass(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf1.global_variables_initializer())
-    res = self.evaluate(outputs)
-    self.assertEqual(res.shape, (3, 2))
+    self.assertEqual(outputs.shape, (3, 2))
     if layer == ed.layers.DenseHierarchical:
       self.assertLen(model.losses, 3)
     else:
@@ -261,14 +247,12 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
         ed.layers.DenseDVI(5, activation=tf.nn.relu),
         ed.layers.DenseDVI(1, activation=None),
     ])
-    outputs = model(features, training=True)
-    nll = -tf.reduce_sum(outputs.distribution.log_prob(labels))
-    kl = sum(model.losses)
-    loss = nll + kl
-    self.evaluate(tf1.global_variables_initializer())
-    res1 = self.evaluate(loss)
-    res2 = self.evaluate(loss)
-    self.assertEqual(res1, res2)
+    def loss_fn(features, labels):
+      outputs = model(features, training=True)
+      nll = -tf.reduce_sum(outputs.distribution.log_prob(labels))
+      kl = sum(model.losses)
+      return nll + kl
+    self.assertEqual(loss_fn(features, labels), loss_fn(features, labels))
 
   def testDenseDVIMoments(self):
     """Verifies DenseDVI's moments empirically with samples."""
@@ -294,14 +278,11 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
                             centered_outputs2,
                             transpose_b=True) / float(num_samples)
 
-    self.evaluate(tf1.global_variables_initializer())
-    mean1_val, covariance1_val, mean2_val, covariance2_val = self.evaluate(
-        [mean1, covariance1, mean2, covariance2])
     # Check % of mismatches is not too high according to heuristic thresholds.
-    num_mismatches = np.sum(np.abs(mean1_val - mean2_val) > 5e-3)
+    num_mismatches = np.sum(np.abs(mean1 - mean2) > 5e-3)
     percent_mismatches = num_mismatches / float(batch_size * units)
     self.assertLessEqual(percent_mismatches, 0.05)
-    num_mismatches = np.sum(np.abs(covariance1_val - covariance2_val) > 5e-3)
+    num_mismatches = np.sum(np.abs(covariance1 - covariance2) > 5e-3)
     percent_mismatches = num_mismatches / float(batch_size * units * units)
     self.assertLessEqual(percent_mismatches, 0.05)
 
@@ -327,12 +308,11 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 #         for i in range(num_models)]
 #     manual_output = tf.concat(manual_output, axis=0)
 #
-#     self.evaluate(tf1.global_variables_initializer())
-#     res1, res2 = self.evaluate([output, manual_output])
 #     expected_shape = (num_models*examples_per_model, output_dim)
-#     self.assertEqual(res1.shape, expected_shape)
-#     self.assertAllClose(res1, res2)
+#     self.assertEqual(output.shape, expected_shape)
+#     self.assertAllClose(output, manual_output)
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

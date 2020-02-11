@@ -23,10 +23,7 @@ from absl.testing import parameterized
 import edward2 as ed
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class ConstraintsTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -38,8 +35,7 @@ class ConstraintsTest(parameterized.TestCase, tf.test.TestCase):
     weight = tf.random.normal((3,))
     constraint = ed.constraints.get(name)
     constrained_weight = constraint(weight)
-    constrained_weight_value = self.evaluate(constrained_weight)
-    self.assertAllGreater(constrained_weight_value, 0.)
+    self.assertAllGreater(constrained_weight, 0.)
 
   def testConstraintsGet(self):
     self.assertIsInstance(ed.constraints.get('positive'),
@@ -49,4 +45,5 @@ class ConstraintsTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

@@ -22,9 +22,6 @@ from __future__ import print_function
 import functools
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.client import session as tf_session
-from tensorflow.python.framework import ops
-
 
 class RandomVariable(object):
   """Class for random variables.
@@ -88,8 +85,7 @@ class RandomVariable(object):
     """
     self._distribution = distribution
     self._sample_shape = sample_shape
-    if value is not None:
-      value = tf.cast(value, self.distribution.dtype)
+    if isinstance(value, tf.Tensor):
       value_shape = value.shape
       expected_value_shape = self.sample_shape.concatenate(
           self.distribution.batch_shape).concatenate(
@@ -147,13 +143,12 @@ class RandomVariable(object):
             "sample is not implemented for {0}. You must either pass in the "
             "value argument or implement sample for {0}."
             .format(self.distribution.__class__.__name__))
+    else:
+      self._value = tf.cast(self._value, self.distribution.dtype)
     return self._value
 
   def __str__(self):
-    if not isinstance(self.value, ops.EagerTensor):
-      name = self.distribution.name
-    else:
-      name = _numpy_text(self.value)
+    name = _numpy_text(self.value)
     return "RandomVariable(\"%s\"%s%s%s)" % (
         name,
         ", shape=%s" % self.shape if self.shape.ndims is not None else "",
@@ -189,45 +184,8 @@ class RandomVariable(object):
   def __ne__(self, other):
     return not self == other
 
-  def eval(self, session=None, feed_dict=None):
-    """In a session, computes and returns the value of this random variable.
-
-    This is not a graph construction method, it does not add ops to the graph.
-
-    This convenience method requires a session where the graph
-    containing this variable has been launched. If no session is
-    passed, the default session is used.
-
-    Args:
-      session: tf.BaseSession.
-        The `tf.Session` to use to evaluate this random variable. If
-        none, the default session is used.
-      feed_dict: dict.
-        A dictionary that maps `tf.Tensor` objects to feed values. See
-        `tf.Session.run()` for a description of the valid feed values.
-
-    Returns:
-      Value of the random variable.
-
-    #### Examples
-
-    ```python
-    x = Normal(0.0, 1.0)
-    with tf.Session() as sess:
-      # Usage passing the session explicitly.
-      print(x.eval(sess))
-      # Usage with the default session.  The 'with' block
-      # above makes 'sess' the default session.
-      print(x.eval())
-    ```
-    """
-    return self.value.eval(session=session, feed_dict=feed_dict)
-
   def numpy(self):
-    """Value as NumPy array, only available for TF Eager."""
-    if not isinstance(self.value, ops.EagerTensor):
-      raise NotImplementedError("value argument must be a EagerTensor.")
-
+    """Value as NumPy array."""
     return self.value.numpy()
 
   def get_shape(self):
@@ -267,18 +225,6 @@ def _overload_operator(cls, op):
   setattr(cls, op, _run_op)
 
 
-def _session_run_conversion_fetch_function(tensor):
-  return ([tensor.value], lambda val: val[0])
-
-
-def _session_run_conversion_feed_function(feed, feed_val):
-  return [(feed.value, feed_val)]
-
-
-def _session_run_conversion_feed_function_for_partial_run(feed):
-  return [feed.value]
-
-
 def _tensor_conversion_function(v, dtype=None, name=None, as_ref=False):
   del name, as_ref  # unused
   if dtype and not dtype.is_compatible_with(v.dtype):
@@ -291,12 +237,6 @@ def _tensor_conversion_function(v, dtype=None, name=None, as_ref=False):
 for operator in tf.Tensor.OVERLOADABLE_OPERATORS.difference(
     {"__getitem__"}).union({"__iter__", "__bool__", "__nonzero__"}):
   _overload_operator(RandomVariable, operator)
-
-tf_session.register_session_run_conversion_functions(  # enable sess.run, eval
-    RandomVariable,
-    _session_run_conversion_fetch_function,
-    _session_run_conversion_feed_function,
-    _session_run_conversion_feed_function_for_partial_run)
 
 tf.register_tensor_conversion_function(  # enable tf.convert_to_tensor
     RandomVariable, _tensor_conversion_function)

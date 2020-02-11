@@ -27,7 +27,6 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -455,8 +454,6 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
       input_channel = input_shape[1]
     elif self.data_format == 'channels_last':
       input_channel = input_shape[-1]
-    if isinstance(input_channel, tf1.Dimension):
-      input_channel = input_channel.value
 
     self.alpha = self.add_weight(
         'alpha',
@@ -484,11 +481,12 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
   def call(self, inputs):
     axis_change = -1 if self.data_format == 'channels_first' else 1
     batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha.shape[-1]
     examples_per_model = batch_size // self.num_models
-    alpha = tf.reshape(
-        tf.tile(self.alpha, [1, examples_per_model]), [batch_size, -1])
-    gamma = tf.reshape(
-        tf.tile(self.gamma, [1, examples_per_model]), [batch_size, -1])
+    alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
+                       [batch_size, input_dim])
+    gamma = tf.reshape(tf.tile(self.gamma, [1, examples_per_model]),
+                       [batch_size, self.filters])
     alpha = tf.expand_dims(alpha, axis=axis_change)
     alpha = tf.expand_dims(alpha, axis=axis_change)
     gamma = tf.expand_dims(gamma, axis=axis_change)
@@ -496,8 +494,8 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     outputs = self.conv2d(inputs*alpha) * gamma
 
     if self.use_bias:
-      bias = tf.reshape(
-          tf.tile(self.bias, [1, examples_per_model]), [batch_size, -1])
+      bias = tf.reshape(tf.tile(self.bias, [1, examples_per_model]),
+                        [batch_size, self.filters])
       bias = tf.expand_dims(bias, axis=axis_change)
       bias = tf.expand_dims(bias, axis=axis_change)
       outputs += bias

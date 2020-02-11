@@ -22,10 +22,7 @@ from __future__ import print_function
 import variational_inference  # local file import
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class VariationalInferenceTest(tf.test.TestCase):
 
   def testResNetV1(self):
@@ -40,7 +37,6 @@ class VariationalInferenceTest(tf.test.TestCase):
     net = tf.reshape(features, [dataset_size, -1])
     logits = tf.matmul(net, coeffs)
     labels = tf.random.categorical(logits, 1)
-    features, labels = self.evaluate([features, labels])
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
@@ -64,4 +60,5 @@ class VariationalInferenceTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

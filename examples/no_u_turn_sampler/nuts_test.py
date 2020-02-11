@@ -34,8 +34,6 @@ import scipy.stats
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
-
 tfb = tfp.bijectors
 tfd = tfp.distributions
 
@@ -68,7 +66,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     self.model_dir = os.path.join(os.getenv("TEST_TMPDIR", "/tmp"), "test/")
     tf.io.gfile.makedirs(self.model_dir)
 
-  @test_util.run_v2_only
   def testOneStepFromOrigin(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -87,7 +84,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     savefig(self.model_dir, "one_step_from_origin.png")
     plt.close()
 
-  @test_util.run_v2_only
   def testReproducibility(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -107,7 +103,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
     for x, y in zip(xs, ys):
       self.assertAllEqual(x, y)
 
-  @test_util.run_v2_only
   def testNormal(self):
     def target_log_prob_fn(event):
       return tfd.Normal(loc=0., scale=1.).log_prob(event)
@@ -130,7 +125,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
                           model_dir=self.model_dir,
                           suffix="one_step_posterior_conservation_normal.png")
 
-  @test_util.run_v2_only
   def testLogitBeta(self):
     def target_log_prob_fn(event):
       return tfd.TransformedDistribution(
@@ -160,7 +154,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
     _ = scipy.stats.ks_2samp(samples.flatten(), states.numpy().flatten())
 
-  @test_util.run_v2_only
   def testMultivariateNormal2d(self):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -190,7 +183,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
                           model_dir=self.model_dir,
                           suffix="one_step_posterior_conservation_2d_dim_1.png")
 
-  @test_util.run_v2_only
   def testSkewedMultivariateNormal2d(self):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -231,7 +223,6 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
       (3, 10,),
       (5, 10,),
   )
-  @test_util.run_v2_only
   def testMultivariateNormalNd(self, event_size, num_samples):
     def target_log_prob_fn(event):
       return tfd.MultivariateNormalFullCovariance(
@@ -268,4 +259,5 @@ class NutsTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

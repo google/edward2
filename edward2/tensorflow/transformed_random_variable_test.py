@@ -23,10 +23,7 @@ import edward2 as ed
 import numpy as np
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class TransformedRandomVariableTest(tf.test.TestCase):
 
   def testTransformedRandomVariable(self):
@@ -49,11 +46,12 @@ class TransformedRandomVariableTest(tf.test.TestCase):
 
     x = ed.Normal(0., 1.)
     y = Exp()(x)
-    y_sample = self.evaluate(y.distribution.sample())
-    y_log_prob = self.evaluate(y.distribution.log_prob(y_sample))
+    y_sample = y.distribution.sample()
+    y_log_prob = y.distribution.log_prob(y_sample)
     self.assertGreater(y_sample, 0.)
     self.assertTrue(np.isfinite(y_log_prob))
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

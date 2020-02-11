@@ -20,18 +20,14 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
-
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 tfd = tfp.distributions
 
 
 class ProgramTransformationsTest(tf.test.TestCase):
 
-  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnUnconditional(self):
     """Test `make_log_joint_fn` on unconditional Edward program."""
     def normal_with_unknown_mean():
@@ -49,18 +45,13 @@ class ProgramTransformationsTest(tf.test.TestCase):
 
     log_joint = ed.make_log_joint_fn(normal_with_unknown_mean)
     actual_log_prob = true_log_joint(loc_value, x_value)
-    expected_log_prob = log_joint(
-        loc=loc_value, x=x_value,
-        f="https://github.com/tensorflow/probability/issues/160")
+    expected_log_prob = log_joint(loc=loc_value, x=x_value)
 
     with self.assertRaises(LookupError):
       _ = log_joint(loc=loc_value)
 
-    actual_log_prob_, expected_log_prob_ = self.evaluate(
-        [actual_log_prob, expected_log_prob])
-    self.assertEqual(actual_log_prob_, expected_log_prob_)
+    self.assertEqual(actual_log_prob, expected_log_prob)
 
-  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnConditional(self):
     """Test `make_log_joint_fn` on conditional Edward program."""
     def linear_regression(features, prior_precision):
@@ -96,11 +87,8 @@ class ProgramTransformationsTest(tf.test.TestCase):
     with self.assertRaises(LookupError):
       _ = log_joint(features, prior_precision, w=w_value)
 
-    actual_log_prob_, expected_log_prob_ = self.evaluate(
-        [actual_log_prob, expected_log_prob])
-    self.assertEqual(actual_log_prob_, expected_log_prob_)
+    self.assertEqual(actual_log_prob, expected_log_prob)
 
-  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnDynamic(self):
     """Test `make_log_joint_fn` on Edward program with stochastic control flow.
 
@@ -109,10 +97,6 @@ class ProgramTransformationsTest(tf.test.TestCase):
     the execution is controlled by random variable outcomes, which in turn is
     controlled by the log-joint's inputs.
     """
-    if not tf.executing_eagerly():
-      # Don't run test in graph mode.
-      return
-
     def mixture_of_real_and_int():
       loc = ed.Normal(loc=0., scale=1., name="loc")
       flip = ed.Bernoulli(probs=0.5, name="flip")
@@ -139,10 +123,7 @@ class ProgramTransformationsTest(tf.test.TestCase):
     log_joint = ed.make_log_joint_fn(mixture_of_real_and_int)
     actual_log_prob = true_log_joint(loc_value, flip_value, x_value)
     expected_log_prob = log_joint(loc=loc_value, flip=flip_value, x=x_value)
-
-    actual_log_prob_, expected_log_prob_ = self.evaluate(
-        [actual_log_prob, expected_log_prob])
-    self.assertEqual(actual_log_prob_, expected_log_prob_)
+    self.assertEqual(actual_log_prob, expected_log_prob)
 
     loc_value = 1.2
     flip_value = tf.constant(0)
@@ -150,37 +131,8 @@ class ProgramTransformationsTest(tf.test.TestCase):
 
     actual_log_prob = true_log_joint(loc_value, flip_value, x_value)
     expected_log_prob = log_joint(loc=loc_value, flip=flip_value, x=x_value)
+    self.assertEqual(actual_log_prob, expected_log_prob)
 
-    actual_log_prob_, expected_log_prob_ = self.evaluate(
-        [actual_log_prob, expected_log_prob])
-    self.assertEqual(actual_log_prob_, expected_log_prob_)
-
-  def testMakeLogJointFnTemplate(self):
-    """Test `make_log_joint_fn` on program returned by tf1.make_template."""
-    def variational():
-      loc = tf1.get_variable("loc", [])
-      qz = ed.Normal(loc=loc, scale=0.5, name="qz")
-      return qz
-
-    def true_log_joint(loc, qz):
-      log_prob = tf.reduce_sum(tfd.Normal(loc=loc, scale=0.5).log_prob(qz))
-      return log_prob
-
-    qz_value = 1.23
-    variational_template = tf1.make_template("variational", variational)
-
-    log_joint = ed.make_log_joint_fn(variational_template)
-    expected_log_prob = log_joint(qz=qz_value)
-    loc = tf1.trainable_variables("variational")[0]
-    actual_log_prob = true_log_joint(loc, qz_value)
-
-    with self.cached_session() as sess:
-      sess.run(tf1.initialize_all_variables())
-      actual_log_prob_, expected_log_prob_ = sess.run(
-          [actual_log_prob, expected_log_prob])
-      self.assertEqual(actual_log_prob_, expected_log_prob_)
-
-  @test_util.run_in_graph_and_eager_modes
   def testMakeLogJointFnError(self):
     """Test `make_log_joint_fn` raises errors when `name`(s) not supplied."""
     def normal_with_unknown_mean():
@@ -198,4 +150,5 @@ class ProgramTransformationsTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

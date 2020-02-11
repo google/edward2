@@ -22,7 +22,6 @@ from __future__ import print_function
 from edward2.tensorflow import random_variable
 from edward2.tensorflow import transformed_random_variable
 from edward2.tensorflow.layers import utils
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -105,8 +104,6 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf1.Dimension):
-      self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
                        '`DiscreteAutoregressiveFlow` should be defined. Found '
@@ -123,8 +120,6 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
     """Forward pass for left-to-right autoregressive generation."""
     inputs = tf.convert_to_tensor(inputs)
     length = inputs.shape[-2]
-    if isinstance(length, tf1.Dimension):
-      length = length.value
     if length is None:
       raise NotImplementedError('length dimension must be known.')
     # Form initial sequence tensor of shape [..., 1, vocab_size]. In a loop, we
@@ -311,8 +306,6 @@ class DiscreteBipartiteFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf1.Dimension):
-      self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
                        '`DiscreteBipartiteFlow` should be defined. Found '
@@ -407,8 +400,6 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     self.vocab_size = input_shape[-1]
-    if isinstance(self.vocab_size, tf1.Dimension):
-      self.vocab_size = self.vocab_size.value
     if self.vocab_size is None:
       raise ValueError('The last dimension of the inputs to '
                        '`DiscreteAutoregressiveFlow` should be defined. Found '
@@ -425,8 +416,6 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
     """Forward pass for left-to-right autoregressive generation."""
     inputs = tf.convert_to_tensor(inputs)
     length = inputs.shape[-2]
-    if isinstance(length, tf1.Dimension):
-      length = length.value
     if length is None:
       raise NotImplementedError('length dimension must be known.')
     # Form initial sequence tensor of shape [..., 1, vocab_size]. In a loop, we

@@ -22,13 +22,9 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -52,11 +48,9 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
     inputs = tf.one_hot(inputs, depth=vocab_size, dtype=tf.float32)
     layer = ed.layers.DiscreteAutoregressiveFlow(network, 1.)
     outputs = layer(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
-    self.assertAllGreaterEqual(outputs_val, 0)
-    self.assertAllLessEqual(outputs_val, vocab_size - 1)
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
+    self.assertAllGreaterEqual(outputs, 0)
+    self.assertAllLessEqual(outputs, vocab_size - 1)
 
   @parameterized.parameters(
       (False,),
@@ -80,12 +74,9 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
                      [batch_size, 1, 1])
     base = ed.OneHotCategorical(logits=logits, dtype=tf.float32)
     outputs = layer(base)
-    _ = outputs.value  # need to do this to instantiate tf.variables
-    self.evaluate(tf1.global_variables_initializer())
-    res = self.evaluate(outputs)
-    self.assertEqual(res.shape, (batch_size, length, vocab_size))
-    self.assertAllGreaterEqual(res, 0)
-    self.assertAllLessEqual(res, vocab_size - 1)
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
+    self.assertAllGreaterEqual(tf.convert_to_tensor(outputs), 0)
+    self.assertAllLessEqual(tf.convert_to_tensor(outputs), vocab_size - 1)
 
   @parameterized.parameters(
       (False,),
@@ -109,11 +100,8 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
     layer = ed.layers.DiscreteAutoregressiveFlow(network, 1.)
     rev_fwd_inputs = layer.reverse(layer(inputs))
     fwd_rev_inputs = layer(layer.reverse(inputs))
-    self.evaluate(tf1.global_variables_initializer())
-    inputs_val, rev_fwd_inputs_val, fwd_rev_inputs_val = self.evaluate(
-        [inputs, rev_fwd_inputs, fwd_rev_inputs])
-    self.assertAllClose(inputs_val, rev_fwd_inputs_val, rtol=1e-4, atol=1e-4)
-    self.assertAllClose(inputs_val, fwd_rev_inputs_val, rtol=1e-4, atol=1e-4)
+    self.assertAllClose(inputs, rev_fwd_inputs, rtol=1e-4, atol=1e-4)
+    self.assertAllClose(inputs, fwd_rev_inputs, rtol=1e-4, atol=1e-4)
 
   @parameterized.parameters(
       (False,),
@@ -140,24 +128,20 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
     flow_rv = flow(base)
     self.assertEqual(flow_rv.dtype, tf.float32)
 
-    self.evaluate(tf1.global_variables_initializer())
-    res = self.evaluate(flow_rv)
-    self.assertEqual(res.shape, (batch_size, length, vocab_size))
-    self.assertAllGreaterEqual(res, 0)
-    self.assertAllLessEqual(res, vocab_size - 1)
+    self.assertEqual(flow_rv.shape, (batch_size, length, vocab_size))
+    self.assertAllGreaterEqual(tf.convert_to_tensor(flow_rv), 0)
+    self.assertAllLessEqual(tf.convert_to_tensor(flow_rv), vocab_size - 1)
 
     inputs = np.random.randint(0, vocab_size - 1, size=(batch_size, length))
     inputs = tf.one_hot(inputs, depth=vocab_size, dtype=tf.float32)
     outputs = flow(inputs)
     rev_outputs = flow.reverse(outputs)
-    inputs_val, rev_outputs_val = self.evaluate([inputs, rev_outputs])
-    self.assertAllClose(inputs_val, rev_outputs_val)
+    self.assertAllClose(inputs, rev_outputs)
 
     inputs_log_prob = base.distribution.log_prob(inputs)
     outputs_log_prob = flow_rv.distribution.log_prob(outputs)
-    res1, res2 = self.evaluate([inputs_log_prob, outputs_log_prob])
-    self.assertEqual(res1.shape, (batch_size, length))
-    self.assertAllClose(res1, res2)
+    self.assertEqual(inputs_log_prob.shape, (batch_size, length))
+    self.assertAllClose(inputs_log_prob, outputs_log_prob)
 
   @parameterized.parameters(
       (False,),
@@ -188,8 +172,6 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
           labels=flow.reverse(features),
           logits=flow_rv.distribution.base.logits))
     grads = tape.gradient(loss, network_.weights)
-    self.evaluate(tf1.global_variables_initializer())
-    _ = self.evaluate(grads)
     for grad in grads:
       self.assertIsNotNone(grad)
 
@@ -204,11 +186,9 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
         mask=tf.random.uniform([length], minval=0, maxval=2, dtype=tf.int32),
         temperature=1.)
     outputs = layer(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
-    self.assertAllGreaterEqual(outputs_val, 0)
-    self.assertAllLessEqual(outputs_val, vocab_size - 1)
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
+    self.assertAllGreaterEqual(outputs, 0)
+    self.assertAllLessEqual(outputs, vocab_size - 1)
 
   def testDiscreteBipartiteFlowInverse(self):
     batch_size = 2
@@ -222,11 +202,8 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
         temperature=1.)
     rev_fwd_inputs = layer.reverse(layer(inputs))
     fwd_rev_inputs = layer(layer.reverse(inputs))
-    self.evaluate(tf1.global_variables_initializer())
-    inputs_val, rev_fwd_inputs_val, fwd_rev_inputs_val = self.evaluate(
-        [inputs, rev_fwd_inputs, fwd_rev_inputs])
-    self.assertAllClose(inputs_val, rev_fwd_inputs_val)
-    self.assertAllClose(inputs_val, fwd_rev_inputs_val)
+    self.assertAllClose(inputs, rev_fwd_inputs)
+    self.assertAllClose(inputs, fwd_rev_inputs)
 
   def testSinkhornAutoregressiveFlowCall(self):
     batch_size = 3
@@ -238,11 +215,9 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
     layer = ed.layers.SinkhornAutoregressiveFlow(
         ed.layers.MADE(units, []), 1.)
     outputs = layer(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
-    self.assertAllGreaterEqual(outputs_val, 0)
-    self.assertAllLessEqual(outputs_val, vocab_size - 1)
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
+    self.assertAllGreaterEqual(outputs, 0)
+    self.assertAllLessEqual(outputs, vocab_size - 1)
 
   def testDiscreteSinkhornFlowInverse(self):
     batch_size = 2
@@ -255,12 +230,10 @@ class DiscreteFlowsTest(parameterized.TestCase, tf.test.TestCase):
         ed.layers.MADE(units, []), 1.)
     rev_fwd_inputs = layer.reverse(layer(inputs))
     fwd_rev_inputs = layer(layer.reverse(inputs))
-    self.evaluate(tf1.global_variables_initializer())
-    inputs_val, rev_fwd_inputs_val, fwd_rev_inputs_val = self.evaluate(
-        [inputs, rev_fwd_inputs, fwd_rev_inputs])
-    self.assertAllEqual(inputs_val, rev_fwd_inputs_val)
-    self.assertAllEqual(inputs_val, fwd_rev_inputs_val)
+    self.assertAllEqual(inputs, rev_fwd_inputs)
+    self.assertAllEqual(inputs, fwd_rev_inputs)
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

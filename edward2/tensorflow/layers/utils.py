@@ -21,7 +21,6 @@ from __future__ import print_function
 
 import functools
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 # SciPy is not a mandatory dependency when using the TF backend.
@@ -123,8 +122,6 @@ def one_hot_minus(inputs, shift):
   inputs = tf.convert_to_tensor(inputs)
   shift = tf.cast(shift, inputs.dtype)
   vocab_size = inputs.shape[-1]
-  if isinstance(vocab_size, tf1.Dimension):
-    vocab_size = vocab_size.value
   # Form a [..., vocab_size, vocab_size] matrix. Each batch element of
   # inputs will vector-matrix multiply the vocab_size x vocab_size matrix. This
   # "shifts" the inputs batch element by the corresponding shift batch element.
@@ -154,8 +151,6 @@ def one_hot_multiply(inputs, scale):
   scale = tf.cast(scale, inputs.dtype)
   batch_shape = inputs.shape[:-1].as_list()
   vocab_size = inputs.shape[-1]
-  if isinstance(vocab_size, tf1.Dimension):
-    vocab_size = vocab_size.value
   # Form a [..., vocab_size, vocab_size] tensor. The ith row of the
   # batched vocab_size x vocab_size matrix represents scaling inputs by i.
   permutation_matrix = tf.math.floormod(
@@ -178,13 +173,13 @@ def py_multiplicative_inverse(a, n):
   Implements extended Euclidean algorithm.
 
   Args:
-    a: int-like np.ndarray.
+    a: int-like Tensor.
     n: int.
 
   Returns:
-    Multiplicative inverse as an int32 np.ndarray with same shape as a.
+    Multiplicative inverse as an int32 tf.Tensor with same shape as a.
   """
-  batched_a = np.asarray(a, dtype=np.int32)
+  batched_a = np.asarray(a.numpy(), dtype=np.int32)
   batched_inverse = []
   for a in np.nditer(batched_a):
     inverse = 0
@@ -202,7 +197,8 @@ def py_multiplicative_inverse(a, n):
     if inverse < 0:
       inverse += n
     batched_inverse.append(inverse)
-  return np.asarray(batched_inverse, dtype=np.int32).reshape(batched_a.shape)
+  outputs = np.asarray(batched_inverse, dtype=np.int32).reshape(batched_a.shape)
+  return tf.convert_to_tensor(outputs)
 
 
 def multiplicative_inverse(a, n):
@@ -219,12 +215,9 @@ def multiplicative_inverse(a, n):
   a = tf.convert_to_tensor(a)
   n = tf.convert_to_tensor(n)
   vocab_size = a.shape[-1]
-  if isinstance(vocab_size, tf1.Dimension):
-    vocab_size = vocab_size.value
   a_dtype = a.dtype
   sparse_a = tf.argmax(a, axis=-1)
-  # TODO(trandustin): Switch to tf.function.
-  sparse_outputs = tf1.py_func(
+  sparse_outputs = tf.py_function(
       py_multiplicative_inverse, [sparse_a, n], tf.int32)
   sparse_outputs.set_shape(sparse_a.shape)
   outputs = tf.one_hot(sparse_outputs, depth=vocab_size, dtype=a_dtype)
@@ -257,6 +250,8 @@ def soft_to_hard_permutation(inputs):
   """
 
   def hungarian(x):
+    """Hungarian algorithm."""
+    x = x.numpy()
     if x.ndim == 2:
       x = np.reshape(x, [1, x.shape[0], x.shape[1]])
     sol = np.zeros((x.shape[0], x.shape[1]), dtype=np.int32)
@@ -265,13 +260,12 @@ def soft_to_hard_permutation(inputs):
         sol[i, :] = linear_sum_assignment(-x[i, :])[1].astype(np.int32)
       except NameError:
         raise NameError('linear_sum_assignment requires SciPy to be installed.')
-    return sol
+    return tf.convert_to_tensor(sol)
 
   vocab_size = inputs.shape[-1]
-  # Note: tf.py_func isn't currently supported on headless GPUs.
-  # TODO(vafa): Fix tf.py_func headless GPU bug.
-  # TODO(trandustin): Switch to tf.py_function.
-  permutation_lists = tf1.py_func(hungarian, [inputs], tf.int32)
+  # Note: tf.py_function isn't currently supported on headless GPUs.
+  # TODO(vafa): Fix tf.py_function headless GPU bug.
+  permutation_lists = tf.py_function(hungarian, [inputs], tf.int32)
   hard = tf.one_hot(permutation_lists, depth=vocab_size)
   outputs = tf.stop_gradient(hard - inputs) + inputs
   return outputs

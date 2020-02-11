@@ -25,7 +25,6 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -94,8 +93,6 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf1.Dimension):
-      input_dim = input_dim.value
     self.kernel = self.add_weight(
         shape=(input_dim, self.units * 4),
         name='kernel',

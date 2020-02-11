@@ -24,10 +24,7 @@ import edward2 as ed
 import numpy as np
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class NoiseTest(parameterized.TestCase, tf.test.TestCase):
 
   def testNCPNormalPerturb(self):
@@ -35,9 +32,8 @@ class NoiseTest(parameterized.TestCase, tf.test.TestCase):
     inputs = tf.cast(np.random.rand(batch_size, 4), dtype=tf.float32)
     model = ed.layers.NCPNormalPerturb()
     outputs = model(inputs)
-    inputs_val, outputs_val = self.evaluate([inputs, outputs])
-    self.assertEqual(outputs_val.shape, (2 * batch_size, 4))
-    self.assertAllEqual(inputs_val, outputs_val[:batch_size])
+    self.assertEqual(outputs.shape, (2 * batch_size, 4))
+    self.assertAllEqual(inputs, outputs[:batch_size])
 
   def testNCPCategoricalPerturb(self):
     input_dim = 5
@@ -46,9 +42,8 @@ class NoiseTest(parameterized.TestCase, tf.test.TestCase):
                      dtype=tf.float32)
     model = ed.layers.NCPCategoricalPerturb(input_dim)
     outputs = model(inputs)
-    inputs_val, outputs_val = self.evaluate([inputs, outputs])
-    self.assertEqual(outputs_val.shape, (2 * batch_size, 4))
-    self.assertAllEqual(inputs_val, outputs_val[:batch_size])
+    self.assertEqual(outputs.shape, (2 * batch_size, 4))
+    self.assertAllEqual(inputs, outputs[:batch_size])
 
   def testNCPNormalOutput(self):
     batch_size = 3
@@ -56,9 +51,10 @@ class NoiseTest(parameterized.TestCase, tf.test.TestCase):
     labels = np.random.rand(batch_size).astype(np.float32)
     model = ed.layers.NCPNormalOutput(mean=labels)
     predictions = model(features)
-    features_val, predictions_val = self.evaluate([features, predictions])
     self.assertLen(model.losses, 1)
-    self.assertAllEqual(features_val[:batch_size], predictions_val)
+    self.assertAllEqual(tf.convert_to_tensor(features[:batch_size]),
+                        tf.convert_to_tensor(predictions))
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

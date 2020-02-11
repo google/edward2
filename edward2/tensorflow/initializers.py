@@ -40,7 +40,6 @@ from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import regularizers
 import six
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
@@ -70,10 +69,6 @@ def _compute_fans(shape):
       receptive_field_size *= dim
     fan_in = shape[-2] * receptive_field_size
     fan_out = shape[-1] * receptive_field_size
-  if isinstance(fan_in, tf1.Dimension):
-    fan_in = fan_in.value
-  if isinstance(fan_out, tf1.Dimension):
-    fan_out = fan_out.value
   return fan_in, fan_out
 
 

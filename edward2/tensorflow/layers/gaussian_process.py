@@ -25,7 +25,6 @@ from edward2.tensorflow import initializers
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
@@ -246,8 +245,6 @@ class GaussianProcess(tf.keras.layers.Layer):
     input_shape = tf.TensorShape(input_shape)
     input_shape = input_shape.with_rank_at_least(2)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf1.Dimension):
-      input_dim = input_dim.value
     if input_dim is None:
       raise ValueError(
           'The innermost dimension of input_shape must be defined, but saw: %s'
@@ -395,8 +392,6 @@ class SparseGaussianProcess(GaussianProcess):
   def build(self, input_shape=None):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf1.Dimension):
-      input_dim = input_dim.value
     self.conditional_inputs = self.add_weight(
         shape=(self.num_inducing, input_dim),
         name='inducing_inputs',

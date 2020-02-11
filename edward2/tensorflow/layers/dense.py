@@ -27,7 +27,6 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
@@ -436,8 +435,6 @@ class DenseHierarchical(DenseVariationalDropout):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf1.Dimension):
-      input_dim = input_dim.value
     self.local_scale = self.add_weight(
         shape=(input_dim,),
         name='local_scale',
@@ -510,8 +507,6 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
-    if isinstance(input_dim, tf1.Dimension):
-      input_dim = input_dim.value
     self.alpha = self.add_weight(
         name='alpha',
         shape=[self.num_models, input_dim],
@@ -537,9 +532,11 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
+    input_dim = tf.shape(inputs)[-1]
     examples_per_model = batch_size // self.num_models
     # TODO(trandustin): Reapply fix using proper reshape.
-    inputs = tf.reshape(inputs, [examples_per_model, self.num_models, -1])
+    inputs = tf.reshape(inputs,
+                        [examples_per_model, self.num_models, input_dim])
     alpha = tf.expand_dims(self.alpha, 0)
     gamma = tf.expand_dims(self.gamma, 0)
     outputs = self.dense(inputs * alpha) * gamma

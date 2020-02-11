@@ -22,15 +22,11 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
-
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
 
 class StochasticOutputTest(parameterized.TestCase, tf.test.TestCase):
 
-  @test_util.run_in_graph_and_eager_modes
   def testMixtureLogistic(self):
     batch_size = 3
     features = np.random.rand(batch_size, 4).astype(np.float32)
@@ -41,12 +37,11 @@ class StochasticOutputTest(parameterized.TestCase, tf.test.TestCase):
     ])
     outputs = model(features)
     log_likelihood = tf.reduce_sum(outputs.distribution.log_prob(labels))
-    self.evaluate(tf1.global_variables_initializer())
-    log_likelihood_val, outputs_val = self.evaluate([log_likelihood, outputs])
-    self.assertEqual(log_likelihood_val.shape, ())
-    self.assertLessEqual(log_likelihood_val, 0.)
-    self.assertEqual(outputs_val.shape, (batch_size,))
+    self.assertEqual(log_likelihood.shape, ())
+    self.assertLessEqual(log_likelihood, 0.)
+    self.assertEqual(outputs.shape, (batch_size,))
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

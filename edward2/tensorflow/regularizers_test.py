@@ -23,13 +23,9 @@ import itertools
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
 
   def testCauchyKLDivergence(self):
@@ -39,10 +35,9 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    kl_value = self.evaluate(kl)
     # KL uses a single-sample estimate, which is not necessarily >0. We only
     # check shape.
-    self.assertEqual(kl_value.shape, ())
+    self.assertEqual(kl.shape, ())
 
   def testHalfCauchyKLDivergence(self):
     shape = (3,)
@@ -51,10 +46,9 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.LogNormal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    kl_value = self.evaluate(kl)
     # KL uses a single-sample estimate, which is not necessarily >0. We only
     # check shape.
-    self.assertEqual(kl_value.shape, ())
+    self.assertEqual(kl.shape, ())
 
   def testLogNormalKLDivergence(self):
     shape = (3,)
@@ -63,16 +57,14 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.LogNormal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    kl_value = self.evaluate(kl)
-    self.assertGreaterEqual(kl_value, 0.)
+    self.assertGreaterEqual(kl, 0.)
 
     dataset_size = 100
     scale_factor = 1. / dataset_size
     regularizer = ed.regularizers.LogNormalKLDivergence(
         scale_factor=scale_factor)
-    kl = regularizer(variational_posterior)
-    scaled_kl_value = self.evaluate(kl)
-    self.assertEqual(scale_factor * kl_value, scaled_kl_value)
+    scaled_kl = regularizer(variational_posterior)
+    self.assertEqual(scale_factor * kl, scaled_kl)
 
   def testNormalKLDivergence(self):
     shape = (3,)
@@ -81,15 +73,13 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    kl_value = self.evaluate(kl)
-    self.assertGreaterEqual(kl_value, 0.)
+    self.assertGreaterEqual(kl, 0.)
 
     dataset_size = 100
     scale_factor = 1. / dataset_size
     regularizer = ed.regularizers.NormalKLDivergence(scale_factor=scale_factor)
-    kl = regularizer(variational_posterior)
-    scaled_kl_value = self.evaluate(kl)
-    self.assertEqual(scale_factor * kl_value, scaled_kl_value)
+    scaled_kl = regularizer(variational_posterior)
+    self.assertEqual(scale_factor * kl, scaled_kl)
 
   @parameterized.parameters(
       itertools.product(
@@ -134,12 +124,11 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
     # the IG log prob.)
     kl /= float(np.prod(shape))
     eb_kl /= float(np.prod(shape))
-    kl_value, eb_kl_value = self.evaluate([kl, eb_kl])
-    self.assertGreaterEqual(kl_value, eb_kl_value)
-    self.assertAlmostEqual(kl_value, eb_kl_value, delta=0.05,
+    self.assertGreaterEqual(kl, eb_kl)
+    self.assertAlmostEqual(kl.numpy(), eb_kl.numpy(), delta=0.05,
                            msg='Parameters score KL=%.6f on generating '
                            'Normal-IG KL and KL=%.6f on EB-fitted KL, '
-                           'too much difference.' % (kl_value, eb_kl_value))
+                           'too much difference.' % (kl, eb_kl))
 
   def testNormalEmpiricalBayesKLDivergenceTFFunction(self):
     """Checks that KL evaluates properly multiple times when compiled."""
@@ -149,20 +138,18 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
     weights_one = ed.Independent(
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=len(shape))
-    kl_one = regularizer(weights_one)
-    kl_one_c = regularizer_compiled(weights_one)
+    kl_one = regularizer(weights_one).numpy()
+    kl_one_c = regularizer_compiled(weights_one).numpy()
 
     weights_two = ed.Independent(
         ed.Normal(loc=5. + tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=len(shape))
-    kl_two = regularizer(weights_two)
-    kl_two_c = regularizer_compiled(weights_two)
+    kl_two = regularizer(weights_two).numpy()
+    kl_two_c = regularizer_compiled(weights_two).numpy()
 
-    kl_one_value, kl_one_c_value, kl_two_value, kl_two_c_value = self.evaluate(
-        [kl_one, kl_one_c, kl_two, kl_two_c])
-    self.assertAllClose(kl_one_value, kl_one_c_value)
-    self.assertAllClose(kl_two_value, kl_two_c_value)
-    self.assertNotAlmostEqual(kl_one_c_value, kl_two_c_value)
+    self.assertAllClose(kl_one, kl_one_c)
+    self.assertAllClose(kl_two, kl_two_c)
+    self.assertNotAlmostEqual(kl_one_c, kl_two_c)
 
   def testTrainableNormalKLDivergenceStddev(self):
     tf.random.set_seed(83271)
@@ -172,12 +159,9 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    self.evaluate(tf1.global_variables_initializer())
-    kl_value = self.evaluate(kl)
-    self.assertGreaterEqual(kl_value, 0.)
+    self.assertGreaterEqual(kl, 0.)
 
-    prior_stddev = self.evaluate(
-        regularizer.stddev_constraint(regularizer.stddev))
+    prior_stddev = regularizer.stddev_constraint(regularizer.stddev)
     self.assertAllClose(prior_stddev, np.ones(prior_stddev.shape),
                         atol=0.1)
 
@@ -188,15 +172,13 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
     kl = regularizer(variational_posterior)
-    kl_value = self.evaluate(kl)
-    self.assertNotEqual(kl_value, 0.)
+    self.assertNotEqual(kl, 0.)
 
     dataset_size = 100
     scale_factor = 1. / dataset_size
     regularizer = ed.regularizers.UniformKLDivergence(scale_factor=scale_factor)
-    kl = regularizer(variational_posterior)
-    scaled_kl_value = self.evaluate(kl)
-    self.assertAlmostEqual(scale_factor * kl_value, scaled_kl_value)
+    scaled_kl = regularizer(variational_posterior)
+    self.assertAlmostEqual(scale_factor * kl, scaled_kl)
 
   def testRegularizersGet(self):
     self.assertIsInstance(ed.regularizers.get('normal_kl_divergence'),
@@ -204,4 +186,5 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
     self.assertIsInstance(ed.regularizers.get('l2'), tf.keras.regularizers.L1L2)
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

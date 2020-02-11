@@ -23,10 +23,7 @@ import edward2 as ed
 import six
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class TracersTest(tf.test.TestCase):
 
   def testCondition(self):
@@ -39,9 +36,8 @@ class TracersTest(tf.test.TestCase):
     with ed.condition(x=5.):
       x, y = model()
 
-    x_value, y_value = self.evaluate([x, y])
-    self.assertEqual(x_value, 5.)
-    self.assertAllClose(y_value, 5., atol=1e-3)
+    self.assertEqual(x, 5.)
+    self.assertAllClose(tf.convert_to_tensor(y), 5., atol=1e-3)
 
   def testTape(self):
     def model():
@@ -52,9 +48,9 @@ class TracersTest(tf.test.TestCase):
     with ed.tape() as model_tape:
       output = model()
 
-    expected_value, actual_value = self.evaluate([
-        model_tape["x"] + model_tape["y"], output])
     self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    expected_value = model_tape["x"] + model_tape["y"]
+    actual_value = output
     self.assertEqual(expected_value, actual_value)
 
   def testTapeNoName(self):
@@ -81,9 +77,9 @@ class TracersTest(tf.test.TestCase):
       with ed.trace(double):
         output = model()
 
-    expected_value, actual_value = self.evaluate([
-        2. * model_tape["x"] + 2. * model_tape["y"], output])
     self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    expected_value = 2. * model_tape["x"] + 2. * model_tape["y"]
+    actual_value = output
     self.assertEqual(expected_value, actual_value)
 
   def testTapeInnerForwarding(self):
@@ -99,11 +95,12 @@ class TracersTest(tf.test.TestCase):
       with ed.tape() as model_tape:
         output = model()
 
-    expected_value, actual_value = self.evaluate([
-        model_tape["x"] + model_tape["y"], output])
     self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    expected_value = model_tape["x"] + model_tape["y"]
+    actual_value = output
     self.assertEqual(expected_value, actual_value)
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

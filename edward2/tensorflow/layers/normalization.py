@@ -21,7 +21,6 @@ from __future__ import print_function
 
 from edward2.tensorflow import random_variable
 from edward2.tensorflow import transformed_random_variable
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -40,8 +39,6 @@ class ActNorm(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     last_dim = input_shape[-1]
-    if isinstance(last_dim, tf1.Dimension):
-      last_dim = last_dim.value
     if last_dim is None:
       raise ValueError('The last dimension of the inputs to `ActNorm` '
                        'should be defined. Found `None`.')

@@ -24,10 +24,7 @@ import edward2 as ed
 import numpy as np
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
   def testAddWeightWithTrainableInitializer(self):
@@ -59,8 +56,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                          [1., 0., 0.]])
 
     outputs = ed.layers.utils.one_hot_add(inputs, shift)
-    outputs_val = self.evaluate(outputs)
-    self.assertAllClose(outputs_val,
+    self.assertAllClose(outputs,
                         np.array([[0., 0., 1.],
                                   [0., 0., 1.]], dtype=np.float32),
                         rtol=1e-4, atol=1e-4)
@@ -72,9 +68,8 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                          [1., 0., 0.]])
 
     outputs = ed.layers.utils.one_hot_minus(inputs, shift)
-    outputs_val = self.evaluate(outputs)
-    self.assertAllEqual(outputs_val, np.array([[1., 0., 0.],
-                                               [0., 0., 1.]], dtype=np.float32))
+    self.assertAllEqual(outputs, np.array([[1., 0., 0.],
+                                           [0., 0., 1.]], dtype=np.float32))
 
   def testOneHotMultiplyExactHard(self):
     inputs = tf.constant([[0., 1., 0.],
@@ -83,16 +78,14 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                          [0., 0., 1.]])
 
     outputs = ed.layers.utils.one_hot_multiply(inputs, scale)
-    outputs_val = self.evaluate(outputs)
-    self.assertAllEqual(outputs_val, np.array([[0., 1., 0.],
-                                               [0., 1., 0.]], dtype=np.float32))
+    self.assertAllEqual(outputs, np.array([[0., 1., 0.],
+                                           [0., 1., 0.]], dtype=np.float32))
 
   def testOneHotAddExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
     shift = tf.constant([[0.1, 0.6, 0.3],
                          [0.2, 0.4, 0.4]])
-
     outputs = ed.layers.utils.one_hot_add(inputs, shift)
 
     shift_zero = inputs
@@ -103,17 +96,13 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     expected_outputs = (shift[..., 0][..., tf.newaxis] * shift_zero +
                         shift[..., 1][..., tf.newaxis] * shift_one +
                         shift[..., 2][..., tf.newaxis] * shift_two)
-
-    actual_outputs_val, expected_outputs_val = self.evaluate([
-        outputs, expected_outputs])
-    self.assertAllClose(actual_outputs_val, expected_outputs_val)
+    self.assertAllClose(outputs, expected_outputs)
 
   def testOneHotMinusExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
     shift = tf.constant([[0.1, 0.6, 0.3],
                          [0.2, 0.4, 0.4]])
-
     outputs = ed.layers.utils.one_hot_minus(inputs, shift)
 
     shift_zero = inputs
@@ -124,17 +113,13 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     expected_outputs = (shift[..., 0][..., tf.newaxis] * shift_zero +
                         shift[..., 1][..., tf.newaxis] * shift_one +
                         shift[..., 2][..., tf.newaxis] * shift_two)
-
-    actual_outputs_val, expected_outputs_val = self.evaluate([
-        outputs, expected_outputs])
-    self.assertAllEqual(actual_outputs_val, expected_outputs_val)
+    self.assertAllEqual(outputs, expected_outputs)
 
   def testOneHotMultiplyExactSoft(self):
     inputs = tf.constant([[0., 1., 0.],
                           [0., 0., 1.]])
     scale = tf.constant([[0.1, 0.6, 0.3],
                          [0.2, 0.4, 0.4]])
-
     outputs = ed.layers.utils.one_hot_multiply(inputs, scale)
 
     scale_zero = np.array([[0., 0., 0.],
@@ -145,10 +130,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     expected_outputs = (scale[..., 0][..., tf.newaxis] * scale_zero +
                         scale[..., 1][..., tf.newaxis] * scale_one +
                         scale[..., 2][..., tf.newaxis] * scale_two)
-
-    actual_outputs_val, expected_outputs_val = self.evaluate([
-        outputs, expected_outputs])
-    self.assertAllEqual(actual_outputs_val, expected_outputs_val)
+    self.assertAllEqual(outputs, expected_outputs)
 
   @parameterized.parameters(
       (ed.layers.utils.one_hot_add,),
@@ -166,8 +148,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     shift = tf.one_hot(shift, depth=vocab_size)
 
     outputs = one_hot_add_fn(inputs, shift)
-    outputs_val = self.evaluate(outputs)
-    self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
 
   @parameterized.parameters(
       (ed.layers.utils.one_hot_add,),
@@ -181,8 +162,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     shift = tf.random.uniform([batch_size, length, vocab_size])
 
     outputs = one_hot_add_fn(inputs, shift)
-    outputs_val = self.evaluate(outputs)
-    self.assertEqual(outputs_val.shape, (batch_size, length, vocab_size))
+    self.assertEqual(outputs.shape, (batch_size, length, vocab_size))
 
   def testMultiplicativeInverse(self):
     batch_size = 3
@@ -195,8 +175,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
                                                          vocab_size)
     inv_inputs = tf.argmax(one_hot_inv, axis=-1)
     inputs_inv_inputs = tf.math.floormod(inputs * inv_inputs, vocab_size)
-    inputs_inv_inputs_val = self.evaluate(inputs_inv_inputs)
-    self.assertAllEqual(inputs_inv_inputs_val, np.ones((batch_size, length)))
+    self.assertAllEqual(inputs_inv_inputs, np.ones((batch_size, length)))
 
   def testApproximatelyStochastic(self):
     rng = np.random.RandomState(0)
@@ -205,11 +184,10 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
       for batch_size in [1, 2, 10]:
         log_alpha = rng.randn(batch_size, dims, dims)
         result = ed.layers.utils.sinkhorn(log_alpha)
-        result_val = self.evaluate(result)
-        self.assertAllClose(np.sum(result_val, 1),
+        self.assertAllClose(np.sum(result, 1),
                             np.tile([1.0], (batch_size, dims)),
                             atol=1e-3)
-        self.assertAllClose(np.sum(result_val, 2),
+        self.assertAllClose(np.sum(result, 2),
                             np.tile([1.0], (batch_size, dims)),
                             atol=1e-3)
 
@@ -218,9 +196,9 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     dims = 10
     identity = tf.eye(dims)
     result_matching = ed.layers.utils.soft_to_hard_permutation(identity)
-    result_matching_val = self.evaluate(result_matching)
-    self.assertAllEqual(result_matching_val[0], np.eye(dims))
+    self.assertAllEqual(result_matching[0], np.eye(dims))
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

@@ -22,13 +22,9 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -88,14 +84,12 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
     outputs2, _ = cell(inputs[:, 0, :], state)
     cell.call_weights()
     outputs3, _ = cell(inputs[:, 0, :], state)
-    self.evaluate(tf1.global_variables_initializer())
-    res1, res2, res3 = self.evaluate([outputs1, outputs2, outputs3])
-    self.assertEqual(res1.shape, (batch_size, hidden_size))
-    self.assertAllClose(res1, res2)
+    self.assertEqual(outputs1.shape, (batch_size, hidden_size))
+    self.assertAllClose(outputs1, outputs2)
     if all_close:
-      self.assertAllClose(res1, res3)
+      self.assertAllClose(outputs1, outputs3)
     else:
-      self.assertNotAllClose(res1, res3)
+      self.assertNotAllClose(outputs1, outputs3)
     cell.get_config()
 
   @parameterized.parameters(
@@ -181,20 +175,19 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
       out, state = cell(inputs[:, t, :], state)
       outputs3.append(out)
     outputs3 = tf.stack(outputs3, axis=1)
-    self.evaluate(tf1.global_variables_initializer())
-    res1, res2, res3 = self.evaluate([outputs1, outputs2, outputs3])
-    self.assertEqual(res1.shape, (batch_size, timesteps, hidden_size))
-    self.assertEqual(res3.shape, (batch_size, timesteps, hidden_size))
+    self.assertEqual(outputs1.shape, (batch_size, timesteps, hidden_size))
+    self.assertEqual(outputs3.shape, (batch_size, timesteps, hidden_size))
     # NOTE: `cell.call_weights` should have been called at the beginning of
     # each call, so these should be different.
-    self.assertNotAllClose(res1, res2)
+    self.assertNotAllClose(outputs1, outputs2)
     # NOTE: We didn't call `cell.call_weights` again before computing
     # `outputs3`, so the cell should have had the same weights as it did
     # during computation of `outputs2`, and thus yielded the same output
     # tensor.
-    self.assertAllClose(res2, res3)
+    self.assertAllClose(outputs2, outputs3)
     self.assertLen(model.losses, 2)
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

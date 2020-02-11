@@ -23,10 +23,7 @@ from absl.testing import parameterized
 import edward2 as ed
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class TraceTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -42,9 +39,8 @@ class TraceTest(parameterized.TestCase, tf.test.TestCase):
     rv1 = cls(value=value, name="rv1", **kwargs)
     with ed.trace(tracer):
       rv2 = cls(name="rv2", **kwargs)
-    rv1_value, rv2_value = self.evaluate([rv1.value, rv2.value])
-    self.assertEqual(rv1_value, value)
-    self.assertEqual(rv2_value, value)
+    self.assertEqual(rv1, value)
+    self.assertEqual(rv2, value)
 
   def testTrivialTracerPreservesLogJoint(self):
     def trivial_tracer(fn, *args, **kwargs):
@@ -60,8 +56,7 @@ class TraceTest(parameterized.TestCase, tf.test.TestCase):
 
     log_joint = ed.make_log_joint_fn(model)
     log_joint_transformed = ed.make_log_joint_fn(transformed_model)
-    self.assertEqual(self.evaluate(log_joint(x=5.)),
-                     self.evaluate(log_joint_transformed(x=5.)))
+    self.assertEqual(log_joint(x=5.), log_joint_transformed(x=5.))
 
   def testTraceForwarding(self):
     def double(f, *args, **kwargs):
@@ -84,8 +79,7 @@ class TraceTest(parameterized.TestCase, tf.test.TestCase):
         z = model()
 
     value = 2. * 1. + 2. * 0.42
-    z_value = self.evaluate(z)
-    self.assertAlmostEqual(z_value, value, places=5)
+    self.assertAlmostEqual(z, value, places=5)
 
   def testTraceNonForwarding(self):
     def double(f, *args, **kwargs):
@@ -109,8 +103,7 @@ class TraceTest(parameterized.TestCase, tf.test.TestCase):
         z = model()
 
     value = 1. + 0.42
-    z_value = self.evaluate(z)
-    self.assertAlmostEqual(z_value, value, places=5)
+    self.assertAlmostEqual(z, value, places=5)
 
   def testTraceException(self):
     def f():
@@ -132,4 +125,5 @@ class TraceTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

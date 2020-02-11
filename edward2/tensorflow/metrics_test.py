@@ -22,13 +22,9 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class ExpectedCalibrationErrorTest(tf.test.TestCase):
 
   def testOneClassFailure(self):
@@ -62,17 +58,16 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     metric = ed.metrics.ExpectedCalibrationError(
         2, num_bins, name='ECE', dtype=tf.float64)
     self.assertEqual(len(metric.variables), 3)
-    self.evaluate(tf1.variables_initializer(metric.variables))
 
-    self.evaluate(metric.update_state(labels[:4], pred_probs[:4]))
-    ece1 = self.evaluate(metric(labels[4:], pred_probs[4:]))
-    ece2 = self.evaluate(metric.result())
+    metric.update_state(labels[:4], pred_probs[:4])
+    ece1 = metric(labels[4:], pred_probs[4:])
+    ece2 = metric.result()
     self.assertAllClose(ece1, ece2)
     self.assertAllClose(ece2, correct_ece)
 
-    actual_bin_counts = self.evaluate(metric.counts)
-    actual_bin_correct_sums = self.evaluate(metric.correct_sums)
-    actual_bin_prob_sums = self.evaluate(metric.prob_sums)
+    actual_bin_counts = metric.counts
+    actual_bin_correct_sums = metric.correct_sums
+    actual_bin_prob_sums = metric.prob_sums
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
@@ -111,9 +106,9 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     _, ece = model.evaluate(pred_probs, labels)
     self.assertAllClose(ece, correct_ece)
 
-    actual_bin_counts = self.evaluate(metric.counts)
-    actual_bin_correct_sums = self.evaluate(metric.correct_sums)
-    actual_bin_prob_sums = self.evaluate(metric.prob_sums)
+    actual_bin_counts = metric.counts
+    actual_bin_correct_sums = metric.correct_sums
+    actual_bin_prob_sums = metric.prob_sums
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
@@ -152,21 +147,21 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     metric = ed.metrics.ExpectedCalibrationError(
         num_classes, num_bins, name='ECE', dtype=tf.float64)
     self.assertEqual(len(metric.variables), 3)
-    self.evaluate(tf1.variables_initializer(metric.variables))
 
-    self.evaluate(metric.update_state(labels[:4], pred_probs[:4]))
-    ece1 = self.evaluate(metric(labels[4:], pred_probs[4:]))
-    ece2 = self.evaluate(metric.result())
+    metric.update_state(labels[:4], pred_probs[:4])
+    ece1 = metric(labels[4:], pred_probs[4:])
+    ece2 = metric.result()
     self.assertAllClose(ece1, ece2)
     self.assertAllClose(ece2, correct_ece)
 
-    actual_bin_counts = self.evaluate(metric.counts)
-    actual_bin_correct_sums = self.evaluate(metric.correct_sums)
-    actual_bin_prob_sums = self.evaluate(metric.prob_sums)
+    actual_bin_counts = metric.counts
+    actual_bin_correct_sums = metric.correct_sums
+    actual_bin_prob_sums = metric.prob_sums
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

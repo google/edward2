@@ -22,16 +22,13 @@ from __future__ import print_function
 import batchensemble_model  # local file import
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
-
 
 class BatchEnsembleModelTest(tf.test.TestCase):
 
-  @test_util.run_v2_only
   def testWideResnet(self):
     tf.random.set_seed(83922)
     dataset_size = 10
-    batch_size = 5
+    batch_size = 4  # must be divisible by num_models
     input_shape = (32, 32, 1)
     num_classes = 2
 
@@ -40,7 +37,6 @@ class BatchEnsembleModelTest(tf.test.TestCase):
     net = tf.reshape(features, [dataset_size, -1])
     logits = tf.matmul(net, coeffs)
     labels = tf.random.categorical(logits, 1)
-    features, labels = self.evaluate([features, labels])
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
     dataset = dataset.repeat().shuffle(dataset_size).batch(batch_size)
 
@@ -63,4 +59,5 @@ class BatchEnsembleModelTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

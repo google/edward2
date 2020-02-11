@@ -23,21 +23,17 @@ import inspect
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
-
-from tensorflow_probability import distributions as tfd
-
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
+import tensorflow_probability as tfp
 
 
 class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
 
-  @test_util.run_in_graph_and_eager_modes
   def testBernoulliDoc(self):
     self.assertGreater(len(ed.Bernoulli.__doc__), 0)
-    self.assertIn(inspect.cleandoc(tfd.Bernoulli.__init__.__doc__),
-                  ed.Bernoulli.__doc__)
+    self.assertIn(
+        inspect.cleandoc(tfp.distributions.Bernoulli.__init__.__doc__),
+        ed.Bernoulli.__doc__)
     self.assertEqual(ed.Bernoulli.__name__, "Bernoulli")
 
   @parameterized.named_parameters(
@@ -46,14 +42,11 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
       {"testcase_name": "5d_rv_1d_event", "logits": np.zeros(5), "n": [1]},
       {"testcase_name": "5d_rv_5d_event", "logits": np.zeros(5), "n": [5]},
   )
-  @test_util.run_in_graph_and_eager_modes
   def testBernoulliLogProb(self, logits, n):
     rv = ed.Bernoulli(logits)
-    dist = tfd.Bernoulli(logits)
+    dist = tfp.distributions.Bernoulli(logits)
     x = rv.distribution.sample(n)
-    rv_log_prob, dist_log_prob = self.evaluate(
-        [rv.distribution.log_prob(x), dist.log_prob(x)])
-    self.assertAllEqual(rv_log_prob, dist_log_prob)
+    self.assertAllEqual(rv.distribution.log_prob(x), dist.log_prob(x))
 
   @parameterized.named_parameters(
       {"testcase_name": "0d_rv_0d_sample",
@@ -75,56 +68,63 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
        "logits": np.array([-0.2, 0.8]),
        "n": [5]},
   )
-  @test_util.run_in_graph_and_eager_modes
   def testBernoulliSample(self, logits, n):
     rv = ed.Bernoulli(logits)
-    dist = tfd.Bernoulli(logits)
+    dist = tfp.distributions.Bernoulli(logits)
     self.assertEqual(rv.distribution.sample(n).shape, dist.sample(n).shape)
 
   @parameterized.named_parameters(
       {"testcase_name": "0d_bernoulli",
-       "rv": ed.Bernoulli(probs=0.5),
+       "rv_cls": ed.Bernoulli,
        "sample_shape": [],
        "batch_shape": [],
-       "event_shape": []},
+       "event_shape": [],
+       "probs": 0.5},
       {"testcase_name": "2d_bernoulli",
-       "rv": ed.Bernoulli(tf.zeros([2, 3])),
+       "rv_cls": ed.Bernoulli,
        "sample_shape": [],
        "batch_shape": [2, 3],
-       "event_shape": []},
+       "event_shape": [],
+       "logits": np.zeros([2, 3])},
       {"testcase_name": "2x0d_bernoulli",
-       "rv": ed.Bernoulli(probs=0.5, sample_shape=2),
+       "rv_cls": ed.Bernoulli,
        "sample_shape": [2],
        "batch_shape": [],
-       "event_shape": []},
+       "event_shape": [],
+       "probs": 0.5},
       {"testcase_name": "2x1d_bernoulli",
-       "rv": ed.Bernoulli(probs=0.5, sample_shape=[2, 1]),
+       "rv_cls": ed.Bernoulli,
        "sample_shape": [2, 1],
        "batch_shape": [],
-       "event_shape": []},
+       "event_shape": [],
+       "probs": 0.5},
       {"testcase_name": "3d_dirichlet",
-       "rv": ed.Dirichlet(tf.zeros(3)),
+       "rv_cls": ed.Dirichlet,
        "sample_shape": [],
        "batch_shape": [],
-       "event_shape": [3]},
+       "event_shape": [3],
+       "concentration": np.ones(3)},
       {"testcase_name": "2x3d_dirichlet",
-       "rv": ed.Dirichlet(tf.zeros([2, 3])),
+       "rv_cls": ed.Dirichlet,
        "sample_shape": [],
        "batch_shape": [2],
-       "event_shape": [3]},
+       "event_shape": [3],
+       "concentration": np.ones([2, 3])},
       {"testcase_name": "1x3d_dirichlet",
-       "rv": ed.Dirichlet(tf.zeros(3), sample_shape=1),
+       "rv_cls": ed.Dirichlet,
        "sample_shape": [1],
        "batch_shape": [],
-       "event_shape": [3]},
+       "event_shape": [3],
+       "concentration": np.ones(3)},
       {"testcase_name": "2x1x3d_dirichlet",
-       "rv": ed.Dirichlet(tf.zeros(3), sample_shape=[2, 1]),
+       "rv_cls": ed.Dirichlet,
        "sample_shape": [2, 1],
        "batch_shape": [],
-       "event_shape": [3]},
+       "event_shape": [3],
+       "concentration": np.ones(3)},
   )
-  @test_util.run_in_graph_and_eager_modes
-  def testShape(self, rv, sample_shape, batch_shape, event_shape):
+  def testShape(self, rv_cls, sample_shape, batch_shape, event_shape, **kwargs):
+    rv = rv_cls(sample_shape=sample_shape, **kwargs)
     self.assertEqual(rv.shape, sample_shape + batch_shape + event_shape)
     self.assertEqual(rv.sample_shape, sample_shape)
     self.assertEqual(rv.distribution.batch_shape, batch_shape)
@@ -135,7 +135,6 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
       {"cls": ed.Normal, "value": [2], "loc": [0.5], "scale": [1.0]},
       {"cls": ed.Poisson, "value": 2, "rate": 0.5},
   )
-  @test_util.run_in_graph_and_eager_modes
   def testValueShapeAndDtype(self, cls, value, **kwargs):
     rv = cls(value=value, **kwargs)
     value_shape = rv.value.shape
@@ -150,20 +149,13 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
       {"cls": ed.Normal, "value": np.zeros([10, 3]), "loc": [0.5, 0.5],
        "scale": [1.0, 1.0]},
   )
-  @test_util.run_in_graph_and_eager_modes
   def testValueMismatchRaises(self, cls, value, **kwargs):
     with self.assertRaises(ValueError):
-      cls(value=value, **kwargs)
+      cls(value=tf.convert_to_tensor(value), **kwargs)
 
-  @test_util.run_v1_only("Graph mode-only test.")
-  def testValueUnknownShape(self):
-    # should not raise error
-    ed.Bernoulli(probs=0.5, value=tf1.placeholder(tf.int32))
-
-  @test_util.run_in_graph_and_eager_modes
   def testMakeRandomVariable(self):
     """Tests that manual wrapping is the same as the built-in solution."""
-    custom_normal = ed.make_random_variable(tfd.Normal)
+    custom_normal = ed.make_random_variable(tfp.distributions.Normal)
 
     def model_builtin():
       return ed.Normal(1., 0.1, name="x")
@@ -173,8 +165,8 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
 
     log_joint_builtin = ed.make_log_joint_fn(model_builtin)
     log_joint_wrapped = ed.make_log_joint_fn(model_wrapped)
-    self.assertEqual(self.evaluate(log_joint_builtin(x=7.)),
-                     self.evaluate(log_joint_wrapped(x=7.)))
+    self.assertEqual(log_joint_builtin(x=7.), log_joint_wrapped(x=7.))
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

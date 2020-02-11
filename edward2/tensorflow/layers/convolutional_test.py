@@ -22,13 +22,9 @@ from __future__ import print_function
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -95,14 +91,12 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
                   activation=tf.nn.relu)
     outputs1 = model(inputs)
     outputs2 = model(inputs)
-    self.evaluate(tf1.global_variables_initializer())
-    res1, res2 = self.evaluate([outputs1, outputs2])
-    self.assertEqual(res1.shape, (5, 3, 3, 4))
-    self.assertAllGreaterEqual(res1, 0.)
+    self.assertEqual(outputs1.shape, (5, 3, 3, 4))
+    self.assertAllGreaterEqual(outputs1, 0.)
     if all_close:
-      self.assertAllClose(res1, res2)
+      self.assertAllClose(outputs1, outputs2)
     else:
-      self.assertNotAllClose(res1, res2)
+      self.assertNotAllClose(outputs1, outputs2)
     model.get_config()
 
   @parameterized.parameters(
@@ -119,9 +113,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
         tf.keras.layers.Dense(2, activation=None),
     ])
     outputs = model(inputs, training=True)
-    self.evaluate(tf1.global_variables_initializer())
-    res = self.evaluate(outputs)
-    self.assertEqual(res.shape, (3, 2))
+    self.assertEqual(outputs.shape, (3, 2))
     if layer == ed.layers.Conv2DHierarchical:
       self.assertLen(model.losses, 3)
     else:
@@ -129,4 +121,5 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == "__main__":
+  tf.enable_v2_behavior()
   tf.test.main()

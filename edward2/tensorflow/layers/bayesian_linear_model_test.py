@@ -23,10 +23,7 @@ import edward2 as ed
 import numpy as np
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class BayesianLinearModelTest(tf.test.TestCase):
 
   def testBayesianLinearModel(self):
@@ -53,15 +50,12 @@ class BayesianLinearModelTest(tf.test.TestCase):
     test_predictions = outputs.distribution.mean()
     test_predictions_variance = outputs.distribution.variance()
 
-    [
-        test_labels_val, test_predictions_val, test_predictions_variance_val,
-    ] = self.evaluate(
-        [test_labels, test_predictions, test_predictions_variance])
-    self.assertEqual(test_predictions_val.shape, (test_batch_size,))
-    self.assertEqual(test_predictions_variance_val.shape, (test_batch_size,))
-    self.assertAllClose(test_predictions_val, test_labels_val, atol=0.1)
-    self.assertAllLessEqual(test_predictions_variance_val, noise_variance)
+    self.assertEqual(test_predictions.shape, (test_batch_size,))
+    self.assertEqual(test_predictions_variance.shape, (test_batch_size,))
+    self.assertAllClose(test_predictions, test_labels, atol=0.1)
+    self.assertAllLessEqual(test_predictions_variance, noise_variance)
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

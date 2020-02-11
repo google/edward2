@@ -21,13 +21,9 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class MADETest(tf.test.TestCase):
 
   def testMADELeftToRight(self):
@@ -46,10 +42,8 @@ class MADETest(tf.test.TestCase):
     # pylint: enable=g-generic-assert
     self.assertEqual(num_weights, (3*1*4 + 4) + (4*3*5 + 3*5))
 
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertAllEqual(outputs_val[:, 0, :], np.zeros((batch_size, units)))
-    self.assertEqual(outputs_val.shape, (batch_size, length, units))
+    self.assertAllEqual(outputs[:, 0, :], np.zeros((batch_size, units)))
+    self.assertEqual(outputs.shape, (batch_size, length, units))
 
   def testMADERightToLeft(self):
     np.random.seed(1328)
@@ -70,10 +64,8 @@ class MADETest(tf.test.TestCase):
     # pylint: enable=g-generic-assert
     self.assertEqual(num_weights, 3*5*4 + 4*3 + 3*3*1)
 
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertAllEqual(outputs_val[:, -1, :], np.zeros((batch_size, units)))
-    self.assertEqual(outputs_val.shape, (batch_size, length, units))
+    self.assertAllEqual(outputs[:, -1, :], np.zeros((batch_size, units)))
+    self.assertEqual(outputs.shape, (batch_size, length, units))
 
   def testMADENoHidden(self):
     np.random.seed(532)
@@ -91,11 +83,10 @@ class MADETest(tf.test.TestCase):
     # pylint: enable=g-generic-assert
     self.assertEqual(num_weights, 3*5*3*4 + 3*4)
 
-    self.evaluate(tf1.global_variables_initializer())
-    outputs_val = self.evaluate(outputs)
-    self.assertAllEqual(outputs_val[:, 0, :], np.zeros((batch_size, units)))
-    self.assertEqual(outputs_val.shape, (batch_size, length, units))
+    self.assertAllEqual(outputs[:, 0, :], np.zeros((batch_size, units)))
+    self.assertEqual(outputs.shape, (batch_size, length, units))
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

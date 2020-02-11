@@ -21,13 +21,9 @@ from __future__ import print_function
 
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
 
-
-@test_util.run_all_in_graph_and_eager_modes
 class GaussianProcessTest(tf.test.TestCase):
 
   def testGaussianProcessPosterior(self):
@@ -46,11 +42,9 @@ class GaussianProcessTest(tf.test.TestCase):
         np.float32)
     test_outputs = layer(test_features)
     test_nats = -test_outputs.distribution.log_prob(test_labels)
-    self.evaluate(tf1.global_variables_initializer())
-    test_nats_val, outputs_val = self.evaluate([test_nats, test_outputs])
-    self.assertEqual(test_nats_val.shape, ())
-    self.assertGreaterEqual(test_nats_val, 0.)
-    self.assertEqual(outputs_val.shape, (test_batch_size, output_dim))
+    self.assertEqual(test_nats.shape, ())
+    self.assertGreaterEqual(test_nats, 0.)
+    self.assertEqual(test_outputs.shape, (test_batch_size, output_dim))
 
   def testGaussianProcessPrior(self):
     batch_size = 3
@@ -64,11 +58,9 @@ class GaussianProcessTest(tf.test.TestCase):
     ])
     outputs = model(features)
     log_prob = outputs.distribution.log_prob(labels)
-    self.evaluate(tf1.global_variables_initializer())
-    log_prob_val, outputs_val = self.evaluate([log_prob, outputs])
-    self.assertEqual(log_prob_val.shape, ())
-    self.assertLessEqual(log_prob_val, 0.)
-    self.assertEqual(outputs_val.shape, (batch_size, output_dim))
+    self.assertEqual(log_prob.shape, ())
+    self.assertLessEqual(log_prob, 0.)
+    self.assertEqual(outputs.shape, (batch_size, output_dim))
 
   def testSparseGaussianProcess(self):
     dataset_size = 10
@@ -84,15 +76,13 @@ class GaussianProcessTest(tf.test.TestCase):
       kl = sum(model.losses) / dataset_size
       loss = nll + kl
 
-    self.evaluate(tf1.global_variables_initializer())
     grads = tape.gradient(loss, model.variables)
     for grad in grads:
       self.assertIsNotNone(grad)
 
-    loss_val, predictions_val = self.evaluate([loss, predictions])
-    self.assertEqual(loss_val.shape, ())
-    self.assertGreaterEqual(loss_val, 0.)
-    self.assertEqual(predictions_val.shape, (batch_size, output_dim))
+    self.assertEqual(loss.shape, ())
+    self.assertGreaterEqual(loss, 0.)
+    self.assertEqual(predictions.shape, (batch_size, output_dim))
 
     # Check that gradients work on a second iteration. This can fail if
     # trainable initializers do not recall their weights.
@@ -107,4 +97,5 @@ class GaussianProcessTest(tf.test.TestCase):
       self.assertIsNotNone(grad)
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

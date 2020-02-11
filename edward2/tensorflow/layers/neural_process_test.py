@@ -23,8 +23,6 @@ import edward2 as ed
 import numpy as np
 import tensorflow.compat.v2 as tf
 
-from tensorflow.python.framework import test_util  # pylint: disable=g-direct-tensorflow-import
-
 
 def train_neural_process(model,
                          train_data,
@@ -133,7 +131,6 @@ class NeuralProcessTest(tf.test.TestCase):
                                                             num_targets)
     super(NeuralProcessTest, self).setUp()
 
-  @test_util.run_v2_only
   def testTermination(self):
     for model in self.models:
       validation_loss = train_neural_process(
@@ -146,7 +143,6 @@ class NeuralProcessTest(tf.test.TestCase):
 
       self.assertGreaterEqual(validation_loss, 0.)
 
-  @test_util.run_v2_only
   def testLatentEncoder(self):
     valid_context_x, valid_context_y, _, _ = self.valid_data
     batch_size = valid_context_x.shape[0]
@@ -157,7 +153,6 @@ class NeuralProcessTest(tf.test.TestCase):
       self.assertEqual(dist.scale.shape,
                        (batch_size, self.num_latents, self.num_latents))
 
-  @test_util.run_v2_only
   def testDeterministicEncoder(self):
     valid_context_x, valid_context_y, valid_target_x, _ = self.valid_data
     batch_size = valid_context_x.shape[0]
@@ -168,7 +163,6 @@ class NeuralProcessTest(tf.test.TestCase):
       self.assertEqual(embedding.shape, (batch_size, self.num_targets,
                                          self.hidden_size))
 
-  @test_util.run_v2_only
   def testCall(self):
     (valid_context_x,
      valid_context_y,
@@ -195,4 +189,5 @@ class NeuralProcessTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+  tf.enable_v2_behavior()
   tf.test.main()

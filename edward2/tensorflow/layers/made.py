@@ -20,7 +20,6 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 
@@ -79,10 +78,6 @@ class MADE(tf.keras.Model):
     input_shape = tf.TensorShape(input_shape)
     length = input_shape[-2]
     channels = input_shape[-1]
-    if isinstance(length, tf1.Dimension):
-      length = length.value
-    if isinstance(channels, tf1.Dimension):
-      channels = channels.value
     if length is None or channels is None:
       raise ValueError('The two last dimensions of the inputs to '
                        '`MADE` should be defined. Found `None`.')
