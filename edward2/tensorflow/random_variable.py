@@ -69,7 +69,8 @@ class RandomVariable(object):
   def __init__(self,
                distribution,
                sample_shape=(),
-               value=None):
+               value=None,
+               seed=None):
     """Create a new random variable.
 
     Args:
@@ -81,6 +82,7 @@ class RandomVariable(object):
       value: tf.Tensor to associate with random variable. Must have shape
         `sample_shape + distribution.batch_shape + distribution.event_shape`.
         Default is to sample from random variable according to `sample_shape`.
+      seed: Python integer to seed the random number generator.
 
     Raises:
       ValueError: `value` has incompatible shape with
@@ -88,6 +90,7 @@ class RandomVariable(object):
     """
     self._distribution = distribution
     self._sample_shape = sample_shape
+    self._seed = seed
     if value is not None:
       value = tf.cast(value, self.distribution.dtype)
       value_shape = value.shape
@@ -117,6 +120,10 @@ class RandomVariable(object):
       return tf.TensorShape(tf.get_static_value(self._sample_shape))
     return tf.TensorShape(self._sample_shape)
 
+  @property
+  def seed(self):
+    return self._seed
+
   def sample_shape_tensor(self, name="sample_shape_tensor"):
     """Sample shape of random variable as a 1-D `Tensor`.
 
@@ -141,7 +148,8 @@ class RandomVariable(object):
     """Get tensor that the random variable corresponds to."""
     if self._value is None:
       try:
-        self._value = self.distribution.sample(self.sample_shape_tensor())
+        self._value = self.distribution.sample(self.sample_shape_tensor(),
+                                               seed=self.seed)
       except NotImplementedError:
         raise NotImplementedError(
             "sample is not implemented for {0}. You must either pass in the "

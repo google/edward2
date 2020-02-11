@@ -36,6 +36,7 @@ else:
   from edward2.tensorflow import regularizers
   from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
   from edward2.tensorflow.generated_random_variables import make_random_variable
+  from edward2.tensorflow.joint_distribution import JointDistributionEdward2
   from edward2.tensorflow.program_transformations import make_log_joint_fn
   from edward2.tensorflow.random_variable import RandomVariable
   from edward2.tensorflow.transformed_random_variable import TransformedRandomVariable
@@ -50,6 +51,7 @@ else:
   from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
   _allowed_symbols = [
+      "JointDistributionEdward2",
       "RandomVariable",
       "TransformedRandomVariable",
       "condition",
