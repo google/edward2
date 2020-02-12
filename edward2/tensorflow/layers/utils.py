@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import functools
 import numpy as np
+import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
 # SciPy is not a mandatory dependency when using the TF backend.
@@ -173,13 +174,13 @@ def py_multiplicative_inverse(a, n):
   Implements extended Euclidean algorithm.
 
   Args:
-    a: int-like Tensor.
+    a: int-like np.ndarray.
     n: int.
 
   Returns:
-    Multiplicative inverse as an int32 tf.Tensor with same shape as a.
+    Multiplicative inverse as an int32 np.ndarray with same shape as a.
   """
-  batched_a = np.asarray(a.numpy(), dtype=np.int32)
+  batched_a = np.asarray(a, dtype=np.int32)
   batched_inverse = []
   for a in np.nditer(batched_a):
     inverse = 0
@@ -197,8 +198,7 @@ def py_multiplicative_inverse(a, n):
     if inverse < 0:
       inverse += n
     batched_inverse.append(inverse)
-  outputs = np.asarray(batched_inverse, dtype=np.int32).reshape(batched_a.shape)
-  return tf.convert_to_tensor(outputs)
+  return np.asarray(batched_inverse, dtype=np.int32).reshape(batched_a.shape)
 
 
 def multiplicative_inverse(a, n):
@@ -217,7 +217,8 @@ def multiplicative_inverse(a, n):
   vocab_size = a.shape[-1]
   a_dtype = a.dtype
   sparse_a = tf.argmax(a, axis=-1)
-  sparse_outputs = tf.py_function(
+  # TODO(trandustin): Change to tf.py_function.
+  sparse_outputs = tf1.py_func(
       py_multiplicative_inverse, [sparse_a, n], tf.int32)
   sparse_outputs.set_shape(sparse_a.shape)
   outputs = tf.one_hot(sparse_outputs, depth=vocab_size, dtype=a_dtype)
