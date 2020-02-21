@@ -65,9 +65,9 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     self.assertAllClose(ece1, ece2)
     self.assertAllClose(ece2, correct_ece)
 
-    actual_bin_counts = metric.counts
-    actual_bin_correct_sums = metric.correct_sums
-    actual_bin_prob_sums = metric.prob_sums
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
@@ -106,9 +106,9 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     _, ece = model.evaluate(pred_probs, labels)
     self.assertAllClose(ece, correct_ece)
 
-    actual_bin_counts = metric.counts
-    actual_bin_correct_sums = metric.correct_sums
-    actual_bin_prob_sums = metric.prob_sums
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
@@ -154,9 +154,9 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     self.assertAllClose(ece1, ece2)
     self.assertAllClose(ece2, correct_ece)
 
-    actual_bin_counts = metric.counts
-    actual_bin_correct_sums = metric.correct_sums
-    actual_bin_prob_sums = metric.prob_sums
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
     self.assertAllEqual(bin_counts, actual_bin_counts)
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)

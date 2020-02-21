@@ -173,8 +173,12 @@ def main(argv):
           initializer=tf.constant_initializer(0.),
           trainable=False)
 
-    negative_log_likelihood, accuracy, mse, mll, kl, elbo = get_losses_and_metrics(
-        neural_net, n_train, image_classification)
+    [negative_log_likelihood,
+     accuracy,
+     mse,
+     mll,
+     kl,
+     elbo] = get_losses_and_metrics(neural_net, n_train, image_classification)
 
     if image_classification:
       metrics = [elbo, mll, kl, accuracy]

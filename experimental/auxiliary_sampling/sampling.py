@@ -146,7 +146,8 @@ def sample_auxiliary_op(prior, posterior, aux_variance_ratio):
   """
   if aux_variance_ratio > 1. or aux_variance_ratio < 0.:
     raise ValueError(
-        "The ratio of the variance of the auxiliary variable must be between 0 and 1."
+        "The ratio of the variance of the auxiliary variable must be between 0 "
+        "and 1."
     )
 
   p_a1_loc = tf.zeros_like(prior.loc)

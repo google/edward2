@@ -144,12 +144,12 @@ def build_resnet_v1(input_layer,
   activation = 'selu' if variational else 'relu'
   resnet_layer = functools.partial(
       _resnet_layer,
-      activation=activation,
       depth=depth,
       n_examples=n_examples)
 
   logging.info('Starting ResNet build.')
-  x = resnet_layer(inputs=input_layer)
+  x = resnet_layer(inputs=input_layer,
+                   activation=activation)
   # Instantiate the stack of residual units
   for stack in range(3):
     for res_block in range(num_res_blocks):
@@ -161,6 +161,7 @@ def build_resnet_v1(input_layer,
           inputs=x,
           num_filters=num_filters,
           strides=strides,
+          activation=activation,
           variational=True if variational == 'full' else False,
           batchnorm=batchnorm)
       y = resnet_layer(

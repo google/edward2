@@ -34,7 +34,9 @@ class InitializersTest(tf.test.TestCase):
     # Get distribution of rv -> get distribution of Independent.
     loc = rv.distribution.distribution.loc
     atol = np.sqrt(6/sum(shape)) + 1e-8
-    self.assertAllClose(loc, np.zeros(shape), atol=atol)
+    self.assertAllClose(tf.convert_to_tensor(loc),
+                        np.zeros(shape),
+                        atol=atol)
 
     self.assertEqual(rv.shape, shape)
 
@@ -46,9 +48,11 @@ class InitializersTest(tf.test.TestCase):
     # Get distribution of rv -> get distribution of Independent.
     loc = half_cauchy.distribution.distribution.loc
     scale = half_cauchy.distribution.distribution.scale
-    self.assertAllClose(loc, np.zeros(shape), atol=1e-4)
+    self.assertAllClose(tf.convert_to_tensor(loc), np.zeros(shape), atol=1e-4)
     target_scale = np.log(1. + np.exp(-3.))
-    self.assertAllClose(scale, target_scale * np.ones(shape), atol=5e-2)
+    self.assertAllClose(tf.convert_to_tensor(scale),
+                        target_scale * np.ones(shape),
+                        atol=5e-2)
 
     self.assertAllEqual(half_cauchy.shape, shape)
     self.assertAllGreaterEqual(half_cauchy.value, 0.)
@@ -61,9 +65,11 @@ class InitializersTest(tf.test.TestCase):
     # Get distribution of rv -> get distribution of Independent.
     loc = log_normal.distribution.distribution.loc
     scale = log_normal.distribution.distribution.scale
-    self.assertAllClose(loc, np.zeros(shape), atol=1e-4)
+    self.assertAllClose(tf.convert_to_tensor(loc), np.zeros(shape), atol=1e-4)
     target_scale = np.log(1. + np.exp(-3.))
-    self.assertAllClose(scale, target_scale * np.ones(shape), atol=5e-2)
+    self.assertAllClose(tf.convert_to_tensor(scale),
+                        target_scale * np.ones(shape),
+                        atol=5e-2)
 
     self.assertAllGreater(tf.convert_to_tensor(log_normal), 0.)
     self.assertEqual(log_normal.shape, shape)
@@ -76,9 +82,11 @@ class InitializersTest(tf.test.TestCase):
     # Get distribution of rv -> get distribution of Independent.
     loc = normal.distribution.distribution.loc
     scale = normal.distribution.distribution.scale
-    self.assertAllClose(loc, np.zeros(shape), atol=1e-4)
+    self.assertAllClose(tf.convert_to_tensor(loc), np.zeros(shape), atol=1e-4)
     target_scale = np.log(1. + np.exp(-3.))
-    self.assertAllClose(scale, target_scale * np.ones(shape), atol=5e-2)
+    self.assertAllClose(tf.convert_to_tensor(scale),
+                        target_scale * np.ones(shape),
+                        atol=5e-2)
     self.assertEqual(normal.shape, shape)
 
   def testTrainableMixtureOfDeltas(self):
@@ -95,7 +103,7 @@ class InitializersTest(tf.test.TestCase):
         probs,
         tf.broadcast_to([[1/num_components]*num_components], mixture_shape),
         atol=1e-4)
-    self.assertAllClose(loc, np.zeros(mixture_shape), atol=1.)
+    self.assertAllClose(tf.convert_to_tensor(loc), tf.zeros_like(loc), atol=1.)
     self.assertEqual(rv.shape, shape)
 
   def testInitializersGet(self):
