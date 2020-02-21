@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Dataset loading utility."""
+"""Utilities for UCI datasets."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -23,8 +23,8 @@ import collections
 import os
 import numpy as np
 import pandas as pd
+import scipy
 import tensorflow.compat.v2 as tf
-import tensorflow_datasets as tfds
 
 
 class DataSpec(collections.namedtuple(
@@ -117,44 +117,83 @@ def get_uci_data(name):
   return features, labels
 
 
-def load(name, session):
-  """Load dataset (UCI or mnist, fashion_mnist, cifar10) as numpy array."""
+def load(name):
+  """Loads dataset as numpy array."""
+  x, y = get_uci_data(name)
+  if len(y.shape) == 1:
+    y = y[:, None]
+  train_test_split = 0.8
+  random_permutation = np.random.permutation(x.shape[0])
+  n_train = int(x.shape[0] * train_test_split)
+  train_ind = random_permutation[:n_train]
+  test_ind = random_permutation[n_train:]
+  x_train, y_train = x[train_ind, :], y[train_ind, :]
+  x_test, y_test = x[test_ind, :], y[test_ind, :]
 
-  if name in ['mnist', 'fashion_mnist', 'cifar10']:
-    train_ds = tfds.load(
-        name, split=tfds.Split.TRAIN, batch_size=-1, as_supervised=True)
-    x_train, y_train = session.run(train_ds)
-    n_train = x_train.shape[0]
-    test_ds = tfds.load(
-        name, split=tfds.Split.TEST, batch_size=-1, as_supervised=True)
-    x_test, y_test = session.run(test_ds)
-    # Cifar10 is standardized. The other datasets are scaled to the [0, 1]
-    # interval.
-    if name == 'cifar10':
-      x_mean = np.mean(x_train, axis=(0, 1, 2))
-      x_std = np.std(x_train, axis=(0, 1, 2))
-      x_train = (x_train - x_mean) / (x_std + 1e-10)
-      x_test = (x_test - x_mean) / (x_std + 1e-10)
-    else:
-      x_min, x_max = np.amin(x_train), np.amax(x_train)
-      x_train = (x_train - x_min) / (x_max + 1e-10)
-      x_test = (x_test - x_min) / (x_max + 1e-10)
-  else:
-    x, y = get_uci_data(name)
-    if len(y.shape) == 1:
-      y = y[:, None]
-    train_test_split = 0.8
-    random_permutation = np.random.permutation(x.shape[0])
-    n_train = int(x.shape[0] * train_test_split)
-    train_ind = random_permutation[:n_train]
-    test_ind = random_permutation[n_train:]
-    x_train, y_train = x[train_ind, :], y[train_ind, :]
-    x_test, y_test = x[test_ind, :], y[test_ind, :]
-
-    # Standardize
-    x_mean, x_std = np.mean(x_train, axis=0), np.std(x_train, axis=0)
-    y_mean = np.mean(y_train, axis=0)
-    x_train = (x_train - x_mean) / (x_std + 1e-10)
-    x_test = (x_test - x_mean) / (x_std + 1e-10)
-    y_train, y_test = y_train - y_mean, y_test - y_mean
+  x_mean, x_std = np.mean(x_train, axis=0), np.std(x_train, axis=0)
+  y_mean = np.mean(y_train, axis=0)
+  epsilon = tf.keras.backend.epsilon()
+  x_train = (x_train - x_mean) / (x_std + epsilon)
+  x_test = (x_test - x_mean) / (x_std + epsilon)
+  y_train, y_test = y_train - y_mean, y_test - y_mean
   return x_train, y_train, x_test, y_test
+
+
+def ensemble_metrics(x,
+                     y,
+                     model,
+                     log_likelihood_fn,
+                     n_samples=1,
+                     weight_files=None):
+  """Evaluate metrics of an ensemble.
+
+  Args:
+    x: numpy array of inputs
+    y: numpy array of labels
+    model: tf.keras.Model.
+    log_likelihood_fn: keras function of log likelihood.
+    n_samples: number of Monte Carlo samples to draw per ensemble member (each
+      weight file).
+    weight_files: to draw samples from multiple weight sets, specify a list of
+      weight files to load. These files must have been generated through
+      keras's model.save_weights(...).
+
+  Returns:
+    metrics_dict: dictionary containing the metrics
+  """
+  if weight_files is None:
+    ensemble_logprobs = [log_likelihood_fn([x, y])[0] for _ in range(n_samples)]
+    metric_values = [model.evaluate(x, y, verbose=0)
+                     for _ in range(n_samples)]
+    ensemble_error = [log_likelihood_fn([x, y])[1] for _ in range(n_samples)]
+  else:
+    ensemble_logprobs = []
+    metric_values = []
+    ensemble_error = []
+    for filename in weight_files:
+      model.load_weights(filename)
+      ensemble_logprobs.extend([
+          log_likelihood_fn([x, y])[0] for _ in range(n_samples)])
+      ensemble_error.extend([
+          log_likelihood_fn([x, y])[1] for _ in range(n_samples)])
+      metric_values.extend([
+          model.evaluate(x, y, verbose=0) for _ in range(n_samples)])
+
+  metric_values = np.mean(np.array(metric_values), axis=0)
+  results = {}
+  for m, name in zip(metric_values, model.metrics_names):
+    results[name] = m
+
+  ensemble_logprobs = np.array(ensemble_logprobs)
+  probabilistic_log_likelihood = np.mean(
+      scipy.special.logsumexp(
+          np.sum(ensemble_logprobs, axis=2)
+          if len(ensemble_logprobs.shape) > 2 else ensemble_logprobs,
+          b=1. / ensemble_logprobs.shape[0],
+          axis=0),
+      axis=0)
+  results['probabilistic_log_likelihood'] = probabilistic_log_likelihood
+  ensemble_error = np.stack([np.array(l) for l in ensemble_error])
+  results['probabilistic_mse'] = np.mean(
+      np.square(np.mean(ensemble_error, axis=0)))
+  return results

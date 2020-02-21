@@ -50,4 +50,4 @@ def det_conv_net(input_shape, num_classes):
   outputs = tfp.layers.DistributionLambda(
       lambda l: tfd.Categorical(logits=l))(
           logits)
-  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
+  return tf.keras.Model(inputs=inputs, outputs=outputs)

@@ -13,35 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DNN on image data trained with maximum likelihood and gradient descent."""
+"""MLP on UCI data trained with maximum likelihood and gradient descent."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import os
-
 from absl import app
 from absl import flags
 from absl import logging
 
-from edward2.experimental.auxiliary_sampling import datasets
-from edward2.experimental.auxiliary_sampling.compute_metrics import ensemble_metrics
-from edward2.experimental.auxiliary_sampling.deterministic_baseline.det_conv_net import det_conv_net
-from edward2.experimental.auxiliary_sampling.res_net import res_net
+import edward2 as ed
+import utils  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
+import tensorflow_probability as tfp
 
-flags.DEFINE_enum('dataset', 'mnist',
-                  enum_values=['mnist',
-                               'fashion_mnist',
-                               'cifar10'],
-                  help='Name of the image dataset.')
+flags.DEFINE_enum('dataset', 'boston_housing',
+                  enum_values=['boston_housing',
+                               'concrete_strength',
+                               'energy_efficiency',
+                               'naval_propulsion',
+                               'kin8nm',
+                               'power_plant',
+                               'protein_structure',
+                               'wine',
+                               'yacht_hydrodynamics'],
+                  help='Name of the UCI dataset.')
 flags.DEFINE_integer('ensemble_size', 1, 'Number of ensemble members.')
 flags.DEFINE_boolean('bootstrap', False,
                      'Sample the training set for bootstrapping.')
-flags.DEFINE_integer('training_steps', 80000, 'Training steps.')
+flags.DEFINE_integer('training_steps', 2500, 'Training steps.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate.')
 flags.DEFINE_float('epsilon', 0.,
@@ -49,17 +53,40 @@ flags.DEFINE_float('epsilon', 0.,
                    'of the input range (e.g the adjustment is 2.55 if input '
                    'range is [0,255]). Set to 0. for no adversarial training.')
 flags.DEFINE_integer('validation_freq', 5, 'Validation frequency in steps.')
-flags.DEFINE_string('output_dir', '/tmp/det_training',
+flags.DEFINE_string('output_dir', '/tmp/uci',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
-flags.DEFINE_integer('seed', 0, 'Random seed.')
-flags.DEFINE_boolean(
-    'resnet', False, 'Use a ResNet for image classification.' +
-    'The default is to use the LeNet5 arhitecture.' +
-    'Currently only supported on cifar10.')
-flags.DEFINE_boolean('batchnorm', False,
-                     'Use batchnorm. Only applies when resnet is True.')
+flags.DEFINE_integer('seed', 0,
+                     'Random seed. Note train/test splits are random and also '
+                     'based on this seed.')
 FLAGS = flags.FLAGS
+
+
+def multilayer_perceptron(input_shape, output_scaler=1.):
+  """Builds a single hidden layer feedforward network.
+
+  Args:
+    input_shape: tf.TensorShape.
+    output_scaler: Float to scale mean predictions. Training is faster and more
+      stable when both the inputs and outputs are normalized. To not affect
+      metrics such as RMSE and NLL, the outputs need to be scaled back
+      (de-normalized, but the mean doesn't matter), using output_scaler.
+
+  Returns:
+    tf.keras.Model.
+  """
+
+  def output_fn(inputs):
+    loc, untransformed_scale = inputs
+    return ed.Normal(loc=loc, scale=tf.nn.softplus(untransformed_scale))
+
+  inputs = tf.keras.layers.Input(shape=input_shape)
+  hidden = tf.keras.layers.Dense(50, activation='relu')(inputs)
+  loc = tf.keras.layers.Dense(1, activation=None)(hidden)
+  untransformed_scale = tfp.layers.VariableLayer(shape=())(loc)
+  outputs = tf.keras.layers.Lambda(output_fn)(
+      (loc * output_scaler, untransformed_scale))
+  return tf.keras.Model(inputs=inputs, outputs=outputs)
 
 
 def main(argv):
@@ -69,60 +96,34 @@ def main(argv):
   tf.io.gfile.makedirs(FLAGS.output_dir)
   tf1.disable_v2_behavior()
 
-  session = tf1.Session()
-  x_train, y_train, x_test, y_test = datasets.load(FLAGS.dataset, session)
+  x_train, y_train, x_test, y_test = utils.load(FLAGS.dataset)
   n_train = x_train.shape[0]
-  num_classes = int(np.amax(y_train)) + 1
 
+  session = tf1.Session()
   ensemble_filenames = []
   for i in range(FLAGS.ensemble_size):
     # TODO(trandustin): We re-build the graph for each ensemble member. This
     # is due to an unknown bug where the variables are otherwise not
     # re-initialized to be random. While this is inefficient in graph mode, I'm
     # keeping this for now as we'd like to move to eager mode anyways.
-    # Scale the output of the network by y_std to improve stability.
-    if not FLAGS.resnet:
-      model = det_conv_net(x_train.shape[1:], num_classes)
-    else:
-      model = res_net(
-          n_train,
-          x_train.shape[1:],
-          num_classes,
-          batchnorm=FLAGS.batchnorm,
-          variational=False)
-
-      def schedule_fn(epoch):
-        """Learning rate schedule function."""
-        rate = FLAGS.learning_rate
-        if epoch > 180:
-          rate *= 0.5e-3
-        elif epoch > 160:
-          rate *= 1e-3
-        elif epoch > 120:
-          rate *= 1e-2
-        elif epoch > 80:
-          rate *= 1e-1
-        return rate
-
-      lr_callback = tf.keras.callbacks.LearningRateScheduler(schedule_fn)
+    model = multilayer_perceptron(
+        x_train.shape[1:], np.std(y_train, axis=0) + tf.keras.backend.epsilon())
 
     def negative_log_likelihood(y, rv_y):
       del rv_y  # unused arg
-      return -model.output.log_prob(tf.squeeze(y))  # pylint: disable=cell-var-from-loop
+      return -model.output.distribution.log_prob(y)  # pylint: disable=cell-var-from-loop
 
-    def accuracy(y_true, y_sample):
+    def mse(y_true, y_sample):
       del y_sample  # unused arg
-      return tf.equal(
-          tf.argmax(input=model.output.logits, axis=1),  # pylint: disable=cell-var-from-loop
-          tf.cast(tf.squeeze(y_true), tf.int64))
+      return tf.math.square(model.output.distribution.loc - y_true)  # pylint: disable=cell-var-from-loop
 
     def log_likelihood(y_true, y_sample):
       del y_sample  # unused arg
-      return model.output.log_prob(tf.squeeze(y_true))  # pylint: disable=cell-var-from-loop
+      return model.output.distribution.log_prob(y_true)  # pylint: disable=cell-var-from-loop
 
     if FLAGS.epsilon:
       y_true = tf.keras.Input(shape=y_train.shape[1:], name='labels')
-      loss = tf.reduce_mean(-model.output.log_prob(y_true))
+      loss = tf.reduce_mean(-model.output.distribution.log_prob(y_true))
       nn_input_tensor = model.input
       grad = tf1.gradients(loss, nn_input_tensor)[0]
       # It is assumed that the training data is normalized.
@@ -130,20 +131,19 @@ def main(argv):
           tf1.stop_gradient(grad))
       adv_inputs = tf.keras.Input(tensor=adv_inputs_tensor, name='adv_inputs')
       adv_out_dist = model(adv_inputs)
-      adv_loss = tf.reduce_mean(-adv_out_dist.log_prob(y_true))
+      adv_loss = tf.reduce_mean(-adv_out_dist.distribution.log_prob(y_true))
       optimizer = tf1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
       train_op = optimizer.minimize(0.5 * loss + 0.5 * adv_loss)
     else:
       model.compile(
           optimizer=tf.keras.optimizers.Adam(lr=FLAGS.learning_rate),
           loss=negative_log_likelihood,
-          metrics=[log_likelihood, accuracy])
+          metrics=[log_likelihood, mse])
 
     member_dir = os.path.join(FLAGS.output_dir, 'member_' + str(i))
     tensorboard = tf1.keras.callbacks.TensorBoard(
         log_dir=member_dir,
         update_freq=FLAGS.batch_size * FLAGS.validation_freq)
-
     if FLAGS.epsilon:
       session.run(tf1.initialize_all_variables())
       for epoch in range((FLAGS.batch_size * FLAGS.training_steps) // n_train):
@@ -168,25 +168,25 @@ def main(argv):
           batch_size=FLAGS.batch_size,
           epochs=(FLAGS.batch_size * FLAGS.training_steps) // n_train,
           validation_data=(x_test, y_test),
-          validation_freq=(FLAGS.validation_freq * FLAGS.batch_size) // n_train,
-          verbose=1,
-          callbacks=[tensorboard]
-          if not FLAGS.resnet else [tensorboard, lr_callback])
+          validation_freq=max(
+              (FLAGS.validation_freq * FLAGS.batch_size) // n_train, 1),
+          verbose=0,
+          callbacks=[tensorboard])
 
     member_filename = os.path.join(member_dir, 'model.weights')
     ensemble_filenames.append(member_filename)
     model.save_weights(member_filename)
 
   labels = tf.keras.layers.Input(shape=y_train.shape[1:])
-  ll = tf.keras.backend.function([model.input, labels], [
-      model.output.log_prob(tf.squeeze(labels)),
-      model.output.logits,
-  ])
+  ll = tf.keras.backend.function(
+      [model.input, labels],
+      [model.output.distribution.log_prob(labels),
+       model.output.distribution.loc - labels])
 
   ensemble_metrics_vals = {
-      'train': ensemble_metrics(
+      'train': utils.ensemble_metrics(
           x_train, y_train, model, ll, weight_files=ensemble_filenames),
-      'test': ensemble_metrics(
+      'test': utils.ensemble_metrics(
           x_test, y_test, model, ll, weight_files=ensemble_filenames),
   }
 
