@@ -105,7 +105,7 @@ def main(argv):
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
-  # TODO(trandustin): Replace with load_distributed_dataset. Currently hangs.
+  # TODO(trandustin): Replace with load_input_fn.
   dataset_train = utils.load_dataset(tfds.Split.TRAIN, FLAGS.dataset)
   dataset_test = utils.load_dataset(tfds.Split.TEST, FLAGS.dataset)
   dataset_train = dataset_train.batch(FLAGS.per_core_batch_size)
