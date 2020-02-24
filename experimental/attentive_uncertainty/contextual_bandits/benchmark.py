@@ -38,7 +38,6 @@ from deep_contextual_bandits import neural_linear_sampling  # local file import
 from deep_contextual_bandits import posterior_bnn_sampling  # local file import
 from deep_contextual_bandits import uniform_sampling  # local file import
 
-
 from tensorflow.contrib import training as contrib_training
 
 gfile = tf.compat.v1.gfile

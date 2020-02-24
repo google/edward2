@@ -407,7 +407,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
   def __init__(self,
                filters,
                kernel_size,
-               num_models=4,
+               ensemble_size=4,
                alpha_initializer=tf.keras.initializers.Ones(),
                gamma_initializer=tf.keras.initializers.Ones(),
                strides=(1, 1),
@@ -427,7 +427,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     self.filters = filters
     self.kernel_size = kernel_size
     self.data_format = data_format
-    self.num_models = num_models
+    self.ensemble_size = ensemble_size
     self.alpha_initializer = alpha_initializer
     self.gamma_initializer = gamma_initializer
     self.use_bias = use_bias
@@ -457,20 +457,20 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
 
     self.alpha = self.add_weight(
         'alpha',
-        shape=[self.num_models, input_channel],
+        shape=[self.ensemble_size, input_channel],
         initializer=self.alpha_initializer,
         trainable=True,
         dtype=self.dtype)
     self.gamma = self.add_weight(
         'gamma',
-        shape=[self.num_models, self.filters],
+        shape=[self.ensemble_size, self.filters],
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
     if self.use_bias:
       self.bias = self.add_weight(
           name='bias',
-          shape=[self.num_models, self.filters],
+          shape=[self.ensemble_size, self.filters],
           initializer=tf.keras.initializers.Zeros(),
           trainable=True,
           dtype=self.dtype)
@@ -482,7 +482,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     axis_change = -1 if self.data_format == 'channels_first' else 1
     batch_size = tf.shape(inputs)[0]
     input_dim = self.alpha.shape[-1]
-    examples_per_model = batch_size // self.num_models
+    examples_per_model = batch_size // self.ensemble_size
     alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
                        [batch_size, input_dim])
     gamma = tf.reshape(tf.tile(self.gamma, [1, examples_per_model]),
@@ -506,7 +506,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
 
   def get_config(self):
     config = {
-        'num_models': self.num_models,
+        'ensemble_size': self.ensemble_size,
         'random_sign_init': self.random_sign_init,
         'alpha_initializer': tf.keras.initializers.serialize(
             self.alpha_initializer),

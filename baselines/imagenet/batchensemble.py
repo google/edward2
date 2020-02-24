@@ -30,10 +30,9 @@ from absl import logging
 import edward2 as ed
 import batchensemble_model  # local file import
 import utils  # local file import
-
 import tensorflow.compat.v2 as tf
 
-flags.DEFINE_integer('num_models', 4, 'Size of ensemble.')
+flags.DEFINE_integer('ensemble_size', 4, 'Size of ensemble.')
 flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')
 flags.DEFINE_float('random_sign_init', -0.5,
                    'Use random sign init for fast weights.')
@@ -86,7 +85,7 @@ def main(argv):
 
   per_core_batch_size = FLAGS.per_core_batch_size
   if FLAGS.version2:
-    per_core_batch_size = per_core_batch_size // FLAGS.num_models
+    per_core_batch_size = per_core_batch_size // FLAGS.ensemble_size
 
   batch_size = per_core_batch_size * FLAGS.num_cores
   steps_per_epoch = APPROX_IMAGENET_TRAIN_IMAGES // batch_size
@@ -148,7 +147,7 @@ def main(argv):
     model = batchensemble_model.ensemble_resnet50(
         input_shape=(224, 224, 3),
         num_classes=NUM_CLASSES,
-        num_models=FLAGS.num_models,
+        ensemble_size=FLAGS.ensemble_size,
         random_sign_init=FLAGS.random_sign_init,
         use_tpu=not FLAGS.use_gpu)
     logging.info('Model input shape: %s', model.input_shape)
@@ -189,8 +188,8 @@ def main(argv):
 
     test_diversity = {}
     training_diversity = {}
-    if FLAGS.num_models > 1:
-      for i in range(FLAGS.num_models):
+    if FLAGS.ensemble_size > 1:
+      for i in range(FLAGS.ensemble_size):
         metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
         metrics['test/accuracy_member_{}'.format(i)] = (
             tf.keras.metrics.SparseCategoricalAccuracy())
@@ -225,8 +224,8 @@ def main(argv):
       images, labels = inputs
 
       if FLAGS.version2:
-        images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
-        labels = tf.tile(labels, [FLAGS.num_models, 1])
+        images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
+        labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
@@ -234,11 +233,11 @@ def main(argv):
           logits = tf.cast(logits, tf.float32)
 
         probs = tf.nn.softmax(logits)
-        if FLAGS.version2 and FLAGS.num_models > 1:
+        if FLAGS.version2 and FLAGS.ensemble_size > 1:
           per_probs = tf.reshape(
-              probs, tf.concat([[FLAGS.num_models, -1], probs.shape[1:]], 0))
+              probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
           diversity_results = ed.metrics.average_pairwise_diversity(
-              per_probs, FLAGS.num_models)
+              per_probs, FLAGS.ensemble_size)
 
         negative_log_likelihood = tf.reduce_mean(
             tf.keras.losses.sparse_categorical_crossentropy(labels,
@@ -280,7 +279,7 @@ def main(argv):
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, logits)
-      if FLAGS.version2 and FLAGS.num_models > 1:
+      if FLAGS.version2 and FLAGS.ensemble_size > 1:
         for k, v in diversity_results.items():
           training_diversity['train/' + k].update_state(v)
 
@@ -292,21 +291,21 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
+      images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
       logits = model(images, training=False)
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
-      if FLAGS.num_models > 1:
+      if FLAGS.ensemble_size > 1:
         per_probs = tf.split(
-            probs, num_or_size_splits=FLAGS.num_models, axis=0)
+            probs, num_or_size_splits=FLAGS.ensemble_size, axis=0)
         probs = tf.reduce_mean(per_probs, axis=0)
 
-      if dataset_name == 'clean' and FLAGS.num_models > 1:
+      if dataset_name == 'clean' and FLAGS.ensemble_size > 1:
         per_probs_tensor = tf.reshape(
-            probs, tf.concat([[FLAGS.num_models, -1], probs.shape[1:]], 0))
+            probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
         diversity_results = utils.average_pairwise_diversity(
-            per_probs_tensor, FLAGS.num_models)
+            per_probs_tensor, FLAGS.ensemble_size)
         for k, v in diversity_results.items():
           test_diversity['test/' + k].update_state(v)
 
@@ -314,8 +313,8 @@ def main(argv):
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
 
       if dataset_name == 'clean':
-        if FLAGS.num_models > 1:
-          for i in range(FLAGS.num_models):
+        if FLAGS.ensemble_size > 1:
+          for i in range(FLAGS.ensemble_size):
             member_probs = per_probs[i]
             member_loss = tf.keras.losses.sparse_categorical_crossentropy(
                 labels, member_probs)
@@ -387,7 +386,7 @@ def main(argv):
     logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
                  metrics['test/negative_log_likelihood'].result(),
                  metrics['test/accuracy'].result() * 100)
-    for i in range(FLAGS.num_models):
+    for i in range(FLAGS.ensemble_size):
       logging.info('Member %d Test Loss: %.4f, Accuracy: %.2f%%',
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)

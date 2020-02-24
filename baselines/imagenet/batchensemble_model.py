@@ -43,7 +43,7 @@ def bottleneck_block(inputs,
                      stage,
                      block,
                      strides,
-                     num_models,
+                     ensemble_size,
                      random_sign_init,
                      use_tpu):
   """Residual block with 1x1 -> 3x3 -> 1x1 convs in main path.
@@ -58,7 +58,7 @@ def bottleneck_block(inputs,
     stage: integer, current stage label, used for generating layer names
     block: 'a','b'..., current block label, used for generating layer names
     strides: Strides for the second conv layer in the block.
-    num_models: the ensemble size, when it is one, it goes back to the
+    ensemble_size: the ensemble size, when it is one, it goes back to the
         single model case.
     random_sign_init: whether uses random sign initializer to initializer
         the fast weights.
@@ -79,10 +79,10 @@ def bottleneck_block(inputs,
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),
       name=conv_name_base + '2a',
-      num_models=num_models)(inputs)
+      ensemble_size=ensemble_size)(inputs)
   x = ed.layers.ensemble_batchnorm(
       x,
-      num_models=num_models,
+      ensemble_size=ensemble_size,
       use_tpu=use_tpu,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
@@ -99,10 +99,10 @@ def bottleneck_block(inputs,
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),
       name=conv_name_base + '2b',
-      num_models=num_models)(x)
+      ensemble_size=ensemble_size)(x)
   x = ed.layers.ensemble_batchnorm(
       x,
-      num_models=num_models,
+      ensemble_size=ensemble_size,
       use_tpu=use_tpu,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
@@ -117,10 +117,10 @@ def bottleneck_block(inputs,
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),
       name=conv_name_base + '2c',
-      num_models=num_models)(x)
+      ensemble_size=ensemble_size)(x)
   x = ed.layers.ensemble_batchnorm(
       x,
-      num_models=num_models,
+      ensemble_size=ensemble_size,
       use_tpu=use_tpu,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
@@ -137,10 +137,10 @@ def bottleneck_block(inputs,
         alpha_initializer=make_random_sign_initializer(random_sign_init),
         gamma_initializer=make_random_sign_initializer(random_sign_init),
         name=conv_name_base + '1',
-        num_models=num_models)(inputs)
+        ensemble_size=ensemble_size)(inputs)
     shortcut = ed.layers.ensemble_batchnorm(
         shortcut,
-        num_models=num_models,
+        ensemble_size=ensemble_size,
         use_tpu=use_tpu,
         momentum=BATCH_NORM_DECAY,
         epsilon=BATCH_NORM_EPSILON,
@@ -152,12 +152,12 @@ def bottleneck_block(inputs,
 
 
 def group(inputs, filters, num_blocks, stage, strides,
-          num_models, random_sign_init, use_tpu):
+          ensemble_size, random_sign_init, use_tpu):
   """Group of residual blocks."""
   bottleneck_block_ = functools.partial(bottleneck_block,
                                         filters=filters,
                                         stage=stage,
-                                        num_models=num_models,
+                                        ensemble_size=ensemble_size,
                                         random_sign_init=random_sign_init,
                                         use_tpu=use_tpu)
   blocks = string.ascii_lowercase
@@ -169,7 +169,7 @@ def group(inputs, filters, num_blocks, stage, strides,
 
 def ensemble_resnet50(input_shape,
                       num_classes,
-                      num_models,
+                      ensemble_size,
                       random_sign_init,
                       use_tpu):
   """Builds BatchEnsemble ResNet50.
@@ -181,7 +181,7 @@ def ensemble_resnet50(input_shape,
   Args:
     input_shape: Shape tuple of input excluding batch dimension.
     num_classes: Number of output classes.
-    num_models: Ensemble size.
+    ensemble_size: Ensemble size.
     random_sign_init: float, probability of RandomSign initializer.
     use_tpu: whether the model runs on TPU.
 
@@ -189,7 +189,7 @@ def ensemble_resnet50(input_shape,
     tf.keras.Model.
   """
   group_ = functools.partial(group,
-                             num_models=num_models,
+                             ensemble_size=ensemble_size,
                              use_tpu=use_tpu,
                              random_sign_init=random_sign_init)
   inputs = tf.keras.layers.Input(shape=input_shape)
@@ -204,10 +204,10 @@ def ensemble_resnet50(input_shape,
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),
       name='conv1',
-      num_models=num_models)(x)
+      ensemble_size=ensemble_size)(x)
   x = ed.layers.ensemble_batchnorm(
       x,
-      num_models=num_models,
+      ensemble_size=ensemble_size,
       use_tpu=use_tpu,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
@@ -221,7 +221,7 @@ def ensemble_resnet50(input_shape,
   x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
   x = ed.layers.DenseBatchEnsemble(
       num_classes,
-      num_models=num_models,
+      ensemble_size=ensemble_size,
       kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
       alpha_initializer=make_random_sign_initializer(random_sign_init),
       gamma_initializer=make_random_sign_initializer(random_sign_init),

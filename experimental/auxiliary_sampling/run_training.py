@@ -36,7 +36,6 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 
-
 tfd = tfp.distributions
 FLAGS = flags.FLAGS
 

@@ -49,7 +49,9 @@ flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
 flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 2e-4, 'L2 regularization coefficient.')
-flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
+flags.DEFINE_enum('dataset', 'cifar10',
+                  enum_values=['cifar10', 'cifar100'],
+                  help='Dataset.')
 # TODO(ghassen): consider adding CIFAR-100-C to TFDS.
 flags.DEFINE_string('cifar100_c_path', None,
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '

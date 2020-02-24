@@ -30,7 +30,6 @@ from absl import logging
 import edward2 as ed
 import deterministic_model  # local file import
 import utils  # local file import
-
 import tensorflow.compat.v2 as tf
 
 flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')

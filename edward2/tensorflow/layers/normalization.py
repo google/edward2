@@ -84,12 +84,12 @@ class ActNorm(tf.keras.layers.Layer):
     return log_det_jacobian
 
 
-def ensemble_batchnorm(x, num_models=1, use_tpu=True, **kwargs):
+def ensemble_batchnorm(x, ensemble_size=1, use_tpu=True, **kwargs):
   """A modified batch norm layer for Batch Ensemble model.
 
   Args:
     x: input tensor.
-    num_models: number of ensemble members.
+    ensemble_size: number of ensemble members.
     use_tpu: whether the model is running on TPU.
     **kwargs: Keyword arguments to batch normalization layers.
 
@@ -101,11 +101,11 @@ def ensemble_batchnorm(x, num_models=1, use_tpu=True, **kwargs):
   # is not supported in tf2.0 on TPU. For current workaround, we use single
   # BatchNormalization layer for all ensemble member. This is not correct in
   # math but works in practice.
-  if num_models == 1 or use_tpu:
+  if ensemble_size == 1 or use_tpu:
     return tf.keras.layers.BatchNormalization(**kwargs)(x)
   name = kwargs.get('name')
-  split_inputs = tf.split(x, num_models, axis=0)
-  for i in range(num_models):
+  split_inputs = tf.split(x, ensemble_size, axis=0)
+  for i in range(ensemble_size):
     if name is not None:
       kwargs['name'] = name + '_{}'.format(i)
     split_inputs[i] = tf.keras.layers.BatchNormalization(**kwargs)(

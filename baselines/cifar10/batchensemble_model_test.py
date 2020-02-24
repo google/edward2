@@ -28,7 +28,7 @@ class BatchEnsembleModelTest(tf.test.TestCase):
   def testWideResnet(self):
     tf.random.set_seed(83922)
     dataset_size = 10
-    batch_size = 4  # must be divisible by num_models
+    batch_size = 4  # must be divisible by ensemble_size
     input_shape = (32, 32, 1)
     num_classes = 2
 
@@ -44,7 +44,7 @@ class BatchEnsembleModelTest(tf.test.TestCase):
                                             depth=10,
                                             width_multiplier=1,
                                             num_classes=num_classes,
-                                            num_models=2,
+                                            ensemble_size=2,
                                             random_sign_init=-0.5,
                                             l2=0.)
     model.compile(

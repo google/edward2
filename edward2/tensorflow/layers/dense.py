@@ -472,7 +472,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def __init__(self,
                units,
-               num_models=4,
+               ensemble_size=4,
                use_bias=True,
                alpha_initializer=tf.keras.initializers.Ones(),
                gamma_initializer=tf.keras.initializers.Ones(),
@@ -488,7 +488,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
     super(DenseBatchEnsemble, self).__init__(**kwargs)
     self.units = units
     self.use_bias = use_bias
-    self.num_models = num_models
+    self.ensemble_size = ensemble_size
     self.alpha_initializer = alpha_initializer
     self.gamma_initializer = gamma_initializer
     self.activation = tf.keras.activations.get(activation)
@@ -509,20 +509,20 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
     input_dim = input_shape[-1]
     self.alpha = self.add_weight(
         name='alpha',
-        shape=[self.num_models, input_dim],
+        shape=[self.ensemble_size, input_dim],
         initializer=self.alpha_initializer,
         trainable=True,
         dtype=self.dtype)
     self.gamma = self.add_weight(
         name='gamma',
-        shape=[self.num_models, self.units],
+        shape=[self.ensemble_size, self.units],
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
     if self.use_bias:
       self.bias = self.add_weight(
           name='bias',
-          shape=[self.num_models, self.units],
+          shape=[self.ensemble_size, self.units],
           initializer=tf.keras.initializers.Zeros(),
           trainable=True,
           dtype=self.dtype)
@@ -533,10 +533,10 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
     input_dim = tf.shape(inputs)[-1]
-    examples_per_model = batch_size // self.num_models
+    examples_per_model = batch_size // self.ensemble_size
     # TODO(trandustin): Reapply fix using proper reshape.
     inputs = tf.reshape(inputs,
-                        [examples_per_model, self.num_models, input_dim])
+                        [examples_per_model, self.ensemble_size, input_dim])
     alpha = tf.expand_dims(self.alpha, 0)
     gamma = tf.expand_dims(self.gamma, 0)
     outputs = self.dense(inputs * alpha) * gamma
@@ -552,7 +552,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def get_config(self):
     config = {
-        'num_models': self.num_models,
+        'ensemble_size': self.ensemble_size,
         'random_sign_init': self.random_sign_init,
         'alpha_initializer': tf.keras.initializers.serialize(
             self.alpha_initializer),

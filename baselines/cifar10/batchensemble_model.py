@@ -43,14 +43,14 @@ def make_sign_initializer(random_sign_init):
                                               stddev=-random_sign_init)
 
 
-def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
+def basic_block(inputs, filters, strides, ensemble_size, random_sign_init, l2):
   """Basic residual block of two 3x3 convs.
 
   Args:
     inputs: tf.Tensor.
     filters: Number of filters for Conv2D.
     strides: Stride dimensions for Conv2D.
-    num_models: Number of ensemble members.
+    ensemble_size: Number of ensemble members.
     random_sign_init: Probability of 1 in random sign init.
     l2: L2 regularization coefficient.
 
@@ -68,7 +68,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
       kernel_regularizer=tf.keras.regularizers.l2(l2),
-      num_models=num_models)(y)
+      ensemble_size=ensemble_size)(y)
   y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
@@ -78,7 +78,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
       kernel_regularizer=tf.keras.regularizers.l2(l2),
-      num_models=num_models)(y)
+      ensemble_size=ensemble_size)(y)
   if not x.shape.is_compatible_with(y.shape):
     x = Conv2DBatchEnsemble(
         filters,
@@ -87,7 +87,7 @@ def basic_block(inputs, filters, strides, num_models, random_sign_init, l2):
         alpha_initializer=make_sign_initializer(random_sign_init),
         gamma_initializer=make_sign_initializer(random_sign_init),
         kernel_regularizer=tf.keras.regularizers.l2(l2),
-        num_models=num_models)(x)
+        ensemble_size=ensemble_size)(x)
   x = tf.keras.layers.add([x, y])
   return x
 
@@ -100,8 +100,8 @@ def group(inputs, filters, strides, num_blocks, **kwargs):
   return x
 
 
-def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
-                random_sign_init, l2):
+def wide_resnet(input_shape, depth, width_multiplier, num_classes,
+                ensemble_size, random_sign_init, l2):
   """Builds Wide ResNet.
 
   Following Zagoruyko and Komodakis (2016), it accepts a width multiplier on the
@@ -116,7 +116,7 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
     width_multiplier: Integer to multiply the number of typical filters by. "k"
       in WRN-n-k.
     num_classes: Number of output classes.
-    num_models: Number of ensemble members.
+    ensemble_size: Number of ensemble members.
     random_sign_init: Probability of 1 in random sign init.
     l2: L2 regularization coefficient.
 
@@ -133,14 +133,14 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
       kernel_regularizer=tf.keras.regularizers.l2(l2),
-      num_models=num_models)(inputs)
+      ensemble_size=ensemble_size)(inputs)
   for strides, filters in zip([1, 2, 2], [16, 32, 64]):
     x = group(x,
               filters=filters * width_multiplier,
               strides=strides,
               num_blocks=num_blocks,
               random_sign_init=random_sign_init,
-              num_models=num_models,
+              ensemble_size=ensemble_size,
               l2=l2)
 
   x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
@@ -156,5 +156,5 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, num_models,
       kernel_initializer='he_normal',
       kernel_regularizer=tf.keras.regularizers.l2(l2),
       bias_regularizer=tf.keras.regularizers.l2(l2),
-      num_models=num_models)(x)
+      ensemble_size=ensemble_size)(x)
   return tf.keras.Model(inputs=inputs, outputs=x)

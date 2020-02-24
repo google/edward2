@@ -32,11 +32,11 @@ import utils  # local file import
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
-flags.DEFINE_integer('num_models', 4, 'Size of ensemble.')
+flags.DEFINE_integer('ensemble_size', 4, 'Size of ensemble.')
 flags.DEFINE_integer('per_core_batch_size', 64,
                      'Batch size per TPU core/GPU. The number of new '
                      'datapoints gathered per batch is this number divided by '
-                     'num_models (we tile the batch by num_models # of times).')
+                     'ensemble_size (we tile the batch by that # of times).')
 flags.DEFINE_float('random_sign_init', -0.5,
                    'Use random sign init for fast weights.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
@@ -53,7 +53,9 @@ flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
 flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
-flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
+flags.DEFINE_enum('dataset', 'cifar10',
+                  enum_values=['cifar10', 'cifar100'],
+                  help='Dataset.')
 # TODO(ghassen): consider adding CIFAR-100-C to TFDS.
 flags.DEFINE_string('cifar100_c_path', None,
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '
@@ -100,13 +102,13 @@ def main(argv):
   train_input_fn = utils.load_input_fn(
       split=tfds.Split.TRAIN,
       name=FLAGS.dataset,
-      batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
+      batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
       use_bfloat16=FLAGS.use_bfloat16,
       proportion=FLAGS.train_proportion)
   clean_test_input_fn = utils.load_input_fn(
       split=tfds.Split.TEST,
       name=FLAGS.dataset,
-      batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
+      batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
       use_bfloat16=FLAGS.use_bfloat16)
   train_dataset = strategy.experimental_distribute_datasets_from_function(
       train_input_fn)
@@ -127,13 +129,13 @@ def main(argv):
         input_fn = load_c_input_fn(
             corruption_name=corruption,
             corruption_intensity=intensity,
-            batch_size=FLAGS.per_core_batch_size // FLAGS.num_models,
+            batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
             use_bfloat16=FLAGS.use_bfloat16)
         test_datasets['{0}_{1}'.format(corruption, intensity)] = (
             strategy.experimental_distribute_datasets_from_function(input_fn))
 
   ds_info = tfds.builder(FLAGS.dataset).info
-  batch_size = ((FLAGS.per_core_batch_size // FLAGS.num_models) *
+  batch_size = ((FLAGS.per_core_batch_size // FLAGS.ensemble_size) *
                 FLAGS.num_cores)
   # Train_proportion is a float so need to convert steps_per_epoch to int.
   steps_per_epoch = int((ds_info.splits['train'].num_examples *
@@ -155,7 +157,7 @@ def main(argv):
         depth=28,
         width_multiplier=10,
         num_classes=num_classes,
-        num_models=FLAGS.num_models,
+        ensemble_size=FLAGS.ensemble_size,
         random_sign_init=FLAGS.random_sign_init,
         l2=FLAGS.l2)
     logging.info('Model input shape: %s', model.input_shape)
@@ -185,7 +187,7 @@ def main(argv):
         'test/ece': ed.metrics.ExpectedCalibrationError(
             num_classes=num_classes, num_bins=FLAGS.num_bins),
     }
-    for i in range(FLAGS.num_models):
+    for i in range(FLAGS.ensemble_size):
       metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
       metrics['test/accuracy_member_{}'.format(i)] = (
           tf.keras.metrics.SparseCategoricalAccuracy())
@@ -218,8 +220,8 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
-      labels = tf.tile(labels, [FLAGS.num_models])
+      images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
+      labels = tf.tile(labels, [FLAGS.ensemble_size])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
@@ -266,15 +268,15 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      images = tf.tile(images, [FLAGS.num_models, 1, 1, 1])
+      images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
       logits = model(images, training=False)
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
       per_probs = tf.split(probs,
-                           num_or_size_splits=FLAGS.num_models,
+                           num_or_size_splits=FLAGS.ensemble_size,
                            axis=0)
-      for i in range(FLAGS.num_models):
+      for i in range(FLAGS.ensemble_size):
         member_probs = per_probs[i]
         member_loss = tf.keras.losses.sparse_categorical_crossentropy(
             labels, member_probs)
@@ -350,7 +352,7 @@ def main(argv):
     logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
                  metrics['test/negative_log_likelihood'].result(),
                  metrics['test/accuracy'].result() * 100)
-    for i in range(FLAGS.num_models):
+    for i in range(FLAGS.ensemble_size):
       logging.info('Member %d Test Loss: %.4f, Accuracy: %.2f%%',
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)

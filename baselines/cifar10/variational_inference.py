@@ -60,7 +60,9 @@ flags.DEFINE_float('l2', 5e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('prior_stddev', 0.1, 'Fixed stddev for weight prior.')
 flags.DEFINE_float('stddev_init', 1e-3,
                    'Initialization of posterior standard deviation parameters.')
-flags.DEFINE_string('dataset', 'cifar10', 'Dataset: cifar10 or cifar100.')
+flags.DEFINE_enum('dataset', 'cifar10',
+                  enum_values=['cifar10', 'cifar100'],
+                  help='Dataset.')
 # TODO(ghassen): consider adding CIFAR-100-C to TFDS.
 flags.DEFINE_string('cifar100_c_path', None,
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '
