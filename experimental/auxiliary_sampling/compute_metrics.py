@@ -101,20 +101,20 @@ def calibration(y, p_mean, num_bins=10):
 
 def ensemble_metrics(x,
                      y,
-                     neural_net,
+                     model,
                      log_likelihood_fn,
-                     n_samples=10,
+                     n_samples=1,
                      weight_files=None):
   """Evaluate metrics of a Bayesian ensemble.
 
   Args:
     x: numpy array of inputs
     y: numpy array of labels
-    neural_net: keras model
+    model: tf.keras.Model.
     log_likelihood_fn: keras function of log likelihood. For classification
       tasks, log_likelihood_fn(...)[1] should return the logits
-    n_samples: number of Monte Carlo samples to draw. The samples are evenly
-      divided aross multiple weight sets.
+    n_samples: number of Monte Carlo samples to draw per ensemble member (each
+      weight file).
     weight_files: to draw samples from multiple weight sets, specify a list of
       weight files to load. These files must have been generated through
       keras's model.save_weights(...).
@@ -122,49 +122,27 @@ def ensemble_metrics(x,
   Returns:
     metrics_dict: dictionary containing the metrics
   """
-
-  # in classification, log_likelihood_fn[1] returns the logits,
-  # which has shape > 1 while in regression it returns the error.
-  classification = (
-      log_likelihood_fn.outputs[1].shape.as_list()[1] > 1
-  )
   if weight_files is None:
     ensemble_logprobs = [log_likelihood_fn([x, y])[0] for _ in range(n_samples)]
-    metric_values = [neural_net.evaluate(x, y, verbose=0)
+    metric_values = [model.evaluate(x, y, verbose=0)
                      for _ in range(n_samples)]
-    if classification:
-      ensemble_logits = [log_likelihood_fn([x, y])[1] for _ in range(n_samples)]
-    else:
-      ensemble_error = [log_likelihood_fn([x, y])[1] for _ in range(n_samples)]
+    ensemble_logits = [log_likelihood_fn([x, y])[1] for _ in range(n_samples)]
   else:
     ensemble_logprobs = []
     metric_values = []
     ensemble_logits = []
-    ensemble_error = []
     for filename in weight_files:
-      neural_net.load_weights(filename)
-      ensemble_logprobs.extend([
-          log_likelihood_fn([x, y])[0]
-          for _ in range(n_samples // len(weight_files))
-      ])
-      if classification:
-        ensemble_logits.extend([
-            log_likelihood_fn([x, y])[1]
-            for _ in range(n_samples // len(weight_files))
-        ])
-      else:
-        ensemble_error.extend([
-            log_likelihood_fn([x, y])[1]
-            for _ in range(n_samples // len(weight_files))
-        ])
-      metric_values.extend([
-          neural_net.evaluate(x, y, verbose=0)
-          for _ in range(n_samples // len(weight_files))
-      ])
+      model.load_weights(filename)
+      ensemble_logprobs.extend([log_likelihood_fn([x, y])[0]
+                                for _ in range(n_samples)])
+      ensemble_logits.extend([log_likelihood_fn([x, y])[1]
+                              for _ in range(n_samples)])
+      metric_values.extend([model.evaluate(x, y, verbose=0)
+                            for _ in range(n_samples)])
 
   metric_values = np.mean(np.array(metric_values), axis=0)
   results = {}
-  for m, name in zip(metric_values, neural_net.metrics_names):
+  for m, name in zip(metric_values, model.metrics_names):
     results[name] = m
 
   ensemble_logprobs = np.array(ensemble_logprobs)
@@ -177,17 +155,12 @@ def ensemble_metrics(x,
       axis=0)
   results['bayesian_mll'] = bayesian_mll
 
-  if classification:
-    ensemble_logits = np.array(ensemble_logits)
-    probs = np.mean(scipy.special.softmax(ensemble_logits, axis=2), axis=0)
-    class_pred = np.argmax(probs, axis=1)
-    bayesian_accuracy = np.mean(np.equal(y, class_pred))
-    results['bayesian_accuracy'] = bayesian_accuracy
-    results['ece'], results['mce'] = calibration(
-        one_hot(y, probs.shape[1]), probs)
-    results['brier_score'] = brier_score(one_hot(y, probs.shape[1]), probs)
-  else:
-    ensemble_error = np.stack([np.array(l) for l in ensemble_error])
-    results['bayesian_mse'] = np.mean(
-        np.square(np.mean(ensemble_error, axis=0)))
+  ensemble_logits = np.array(ensemble_logits)
+  probs = np.mean(scipy.special.softmax(ensemble_logits, axis=2), axis=0)
+  class_pred = np.argmax(probs, axis=1)
+  bayesian_accuracy = np.mean(np.equal(y, class_pred))
+  results['bayesian_accuracy'] = bayesian_accuracy
+  results['ece'], results['mce'] = calibration(
+      one_hot(y, probs.shape[1]), probs)
+  results['brier_score'] = brier_score(one_hot(y, probs.shape[1]), probs)
   return results

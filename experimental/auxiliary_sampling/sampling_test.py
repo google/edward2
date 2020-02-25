@@ -21,7 +21,7 @@ from __future__ import print_function
 
 from edward2.experimental.auxiliary_sampling import sampling
 import numpy as np
-import tensorflow.compat.v1 as tf  # tf
+import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
@@ -113,4 +113,5 @@ def softplus_inverse_test(self):
 
 
 if __name__ == '__main__':
+  tf.disable_v2_behavior()
   tf.test.main()

@@ -22,23 +22,24 @@ from __future__ import print_function
 
 from absl import flags
 import numpy as np
-import tensorflow.compat.v1 as tf  # tf
+import tensorflow.compat.v1 as tf1
+import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
 
-FLAGS = flags.FLAGS
 flags.DEFINE_float("mean_field_init_untransformed_scale", -7,
                    "Initial scale (before softplus) for mean field.")
+FLAGS = flags.FLAGS
 
 
 def mean_field_fn(empirical_bayes=False,
-                  initializer=tf.initializers.he_normal()):
+                  initializer=tf1.initializers.he_normal()):
   """Constructors for Gaussian prior and posterior distributions.
 
   Args:
     empirical_bayes (bool): Whether to train the variance of the prior or not.
-    initializer (tf.initializer): Initializer for the posterior means.
+    initializer (tf1.initializer): Initializer for the posterior means.
   Returns:
     prior, posterior (tfp.distribution): prior and posterior
     to be fed into a Bayesian Layer.
@@ -51,38 +52,39 @@ def mean_field_fn(empirical_bayes=False,
     istrainable = add_variable_fn(
         name=name + "_istrainable",
         shape=(),
-        initializer=tf.constant_initializer(1.),
+        initializer=tf1.constant_initializer(1.),
         dtype=dtype,
         trainable=False)
 
     untransformed_scale = add_variable_fn(
         name=name + "_untransformed_scale",
         shape=(),
-        initializer=tf.constant_initializer(softplus_inverse_scale),
+        initializer=tf1.constant_initializer(softplus_inverse_scale),
         dtype=dtype,
         trainable=empirical_bayes and trainable)
     scale = (
         np.finfo(dtype.as_numpy_dtype).eps +
         tf.nn.softplus(untransformed_scale * istrainable + (1. - istrainable) *
-                       tf.stop_gradient(untransformed_scale)))
+                       tf1.stop_gradient(untransformed_scale)))
     loc = add_variable_fn(
         name=name + "_loc",
         shape=shape,
-        initializer=tf.constant_initializer(0.),
+        initializer=tf1.constant_initializer(0.),
         dtype=dtype,
         trainable=False)
-    dist = tfd.Normal(loc=loc, scale=scale)
+    dist = tfp.distributions.Normal(loc=loc, scale=scale)
     dist.istrainable = istrainable
     dist.untransformed_scale = untransformed_scale
-    batch_ndims = tf.size(input=dist.batch_shape_tensor())
-    return tfd.Independent(dist, reinterpreted_batch_ndims=batch_ndims)
+    batch_ndims = tf1.size(input=dist.batch_shape_tensor())
+    return tfp.distributions.Independent(dist,
+                                         reinterpreted_batch_ndims=batch_ndims)
 
   def posterior(dtype, shape, name, trainable, add_variable_fn):
     """Returns the posterior distribution (tfp.distributions.Independent)."""
     untransformed_scale = add_variable_fn(
         name=name + "_untransformed_scale",
         shape=shape,
-        initializer=tf.compat.v1.initializers.random_normal(
+        initializer=tf1.compat.v1.initializers.random_normal(
             mean=FLAGS.mean_field_init_untransformed_scale, stddev=0.1),
         dtype=dtype,
         trainable=trainable)
@@ -95,10 +97,11 @@ def mean_field_fn(empirical_bayes=False,
         initializer=initializer,
         dtype=dtype,
         trainable=trainable)
-    dist = tfd.Normal(loc=loc, scale=scale)
+    dist = tfp.distributions.Normal(loc=loc, scale=scale)
     dist.untransformed_scale = untransformed_scale
-    batch_ndims = tf.size(input=dist.batch_shape_tensor())
-    return tfd.Independent(dist, reinterpreted_batch_ndims=batch_ndims)
+    batch_ndims = tf1.size(input=dist.batch_shape_tensor())
+    return tfp.distributions.Independent(dist,
+                                         reinterpreted_batch_ndims=batch_ndims)
 
   return prior, posterior
 
@@ -151,16 +154,16 @@ def sample_auxiliary_op(prior, posterior, aux_variance_ratio):
     )
 
   p_a1_loc = tf.zeros_like(prior.loc)
-  p_a1_scale = tf.sqrt(prior.scale**2 * aux_variance_ratio)
-  p_a1 = tf.distributions.Normal(loc=p_a1_loc, scale=p_a1_scale)
+  p_a1_scale = tf.math.sqrt(prior.scale**2 * aux_variance_ratio)
+  p_a1 = tfp.distributions.Normal(loc=p_a1_loc, scale=p_a1_scale)
   p_a2_loc = prior.loc
-  p_a2_scale = tf.sqrt(prior.scale**2 - p_a1_scale**2)
+  p_a2_scale = tf.math.sqrt(prior.scale**2 - p_a1_scale**2)
   # q(a1)
   a1_loc = (posterior.loc - prior.loc) * p_a1_scale**2 / prior.scale**2
-  a1_scale = tf.sqrt(
+  a1_scale = tf.math.sqrt(
       (posterior.scale**2 * p_a1_scale**2 / prior.scale**2 + p_a2_scale**2) *
       p_a1_scale**2 / prior.scale**2)
-  q_a1 = tf.distributions.Normal(loc=a1_loc, scale=a1_scale)
+  q_a1 = tfp.distributions.Normal(loc=a1_loc, scale=a1_scale)
   a1 = q_a1.sample()
 
   # q(z|a1)
@@ -168,11 +171,11 @@ def sample_auxiliary_op(prior, posterior, aux_variance_ratio):
       (posterior.loc - prior.loc) * p_a2_scale**2 * prior.scale**2 +
       a1 * posterior.scale**2 * prior.scale**2) / (
           prior.scale**2 * p_a2_scale**2 + posterior.scale**2 * p_a1_scale**2)
-  z_a1_scale = tf.sqrt(
+  z_a1_scale = tf.math.sqrt(
       (posterior.scale**2 * p_a2_scale**2 * prior.scale**2) /
       (prior.scale**2 * p_a2_scale**2 + p_a1_scale**2 * posterior.scale**2))
 
-  with tf.control_dependencies([
+  with tf1.control_dependencies([
       q_a1.loc, q_a1.scale, p_a1.loc, p_a1.scale, a1, p_a2_loc, p_a2_scale,
       z_a1_loc, z_a1_scale
   ]):
