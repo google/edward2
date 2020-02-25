@@ -13,30 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DNN on CIFAR-10 trained with maximum likelihood and gradient descent."""
+"""LeNet-5 on (Fashion) MNIST."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import os
-
 from absl import app
 from absl import flags
 from absl import logging
 
-from edward2.experimental.auxiliary_sampling import datasets
-from edward2.experimental.auxiliary_sampling.compute_metrics import ensemble_metrics
-from edward2.experimental.auxiliary_sampling.deterministic_baseline.lenet5 import lenet5
-from edward2.experimental.auxiliary_sampling.res_net import res_net
+import edward2 as ed
+import utils  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 
+flags.DEFINE_enum('dataset', 'mnist',
+                  enum_values=['mnist', 'fashion_mnist'],
+                  help='Name of the image dataset.')
 flags.DEFINE_integer('ensemble_size', 1, 'Number of ensemble members.')
 flags.DEFINE_boolean('bootstrap', False,
                      'Sample the training set for bootstrapping.')
-flags.DEFINE_integer('training_steps', 40000, 'Training steps.')
+flags.DEFINE_integer('training_steps', 5000, 'Training steps.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate.')
 flags.DEFINE_integer('validation_freq', 5, 'Validation frequency in steps.')
@@ -44,13 +44,35 @@ flags.DEFINE_string('output_dir', '/tmp/det_training',
                     'The directory where the model weights and '
                     'training/evaluation summaries are stored.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
-flags.DEFINE_boolean(
-    'resnet', False, 'Use a ResNet for image classification.' +
-    'The default is to use the LeNet5 arhitecture.' +
-    'Currently only supported on cifar10.')
-flags.DEFINE_boolean('batchnorm', False,
-                     'Use batchnorm. Only applies when resnet is True.')
 FLAGS = flags.FLAGS
+
+
+def lenet5(input_shape, num_classes):
+  """Builds LeNet5."""
+  inputs = tf.keras.layers.Input(shape=input_shape)
+  conv1 = tf.keras.layers.Conv2D(6,
+                                 kernel_size=5,
+                                 padding='SAME',
+                                 activation='relu')(inputs)
+  pool1 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+                                       strides=[2, 2],
+                                       padding='SAME')(conv1)
+  conv2 = tf.keras.layers.Conv2D(16,
+                                 kernel_size=5,
+                                 padding='SAME',
+                                 activation='relu')(pool1)
+  pool2 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+                                       strides=[2, 2],
+                                       padding='SAME')(conv2)
+  conv3 = tf.keras.layers.Conv2D(120,
+                                 kernel_size=5,
+                                 padding='SAME',
+                                 activation=tf.nn.relu)(pool2)
+  flatten = tf.keras.layers.Flatten()(conv3)
+  dense1 = tf.keras.layers.Dense(84, activation=tf.nn.relu)(flatten)
+  logits = tf.keras.layers.Dense(num_classes)(dense1)
+  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
+  return tf.keras.Model(inputs=inputs, outputs=outputs)
 
 
 def main(argv):
@@ -61,7 +83,7 @@ def main(argv):
   tf1.disable_v2_behavior()
 
   session = tf1.Session()
-  x_train, y_train, x_test, y_test = datasets.load('cifar10', session)
+  x_train, y_train, x_test, y_test = utils.load(FLAGS.dataset, session)
   n_train = x_train.shape[0]
   num_classes = int(np.amax(y_train)) + 1
 
@@ -71,30 +93,7 @@ def main(argv):
     # is due to an unknown bug where the variables are otherwise not
     # re-initialized to be random. While this is inefficient in graph mode, I'm
     # keeping this for now as we'd like to move to eager mode anyways.
-    if not FLAGS.resnet:
-      model = lenet5(x_train.shape[1:], num_classes)
-    else:
-      model = res_net(
-          n_train,
-          x_train.shape[1:],
-          num_classes,
-          batchnorm=FLAGS.batchnorm,
-          variational=False)
-
-      def schedule_fn(epoch):
-        """Learning rate schedule function."""
-        rate = FLAGS.learning_rate
-        if epoch > 180:
-          rate *= 0.5e-3
-        elif epoch > 160:
-          rate *= 1e-3
-        elif epoch > 120:
-          rate *= 1e-2
-        elif epoch > 80:
-          rate *= 1e-1
-        return rate
-
-      lr_callback = tf.keras.callbacks.LearningRateScheduler(schedule_fn)
+    model = lenet5(x_train.shape[1:], num_classes)
 
     def negative_log_likelihood(y, rv_y):
       del rv_y  # unused arg
@@ -133,8 +132,7 @@ def main(argv):
         validation_freq=max(
             (FLAGS.validation_freq * FLAGS.batch_size) // n_train, 1),
         verbose=1,
-        callbacks=[tensorboard]
-        if not FLAGS.resnet else [tensorboard, lr_callback])
+        callbacks=[tensorboard])
 
     member_filename = os.path.join(member_dir, 'model.weights')
     ensemble_filenames.append(member_filename)
@@ -147,9 +145,9 @@ def main(argv):
   ])
 
   ensemble_metrics_vals = {
-      'train': ensemble_metrics(
+      'train': utils.ensemble_metrics(
           x_train, y_train, model, ll, weight_files=ensemble_filenames),
-      'test': ensemble_metrics(
+      'test': utils.ensemble_metrics(
           x_test, y_test, model, ll, weight_files=ensemble_filenames),
   }
 
