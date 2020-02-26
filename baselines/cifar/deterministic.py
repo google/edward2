@@ -13,17 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Variational inference for Wide ResNet 28-10 on CIFAR-10.
+"""Wide ResNet 28-10 on CIFAR-10/100 trained with maximum likelihood.
 
-This script performs variational inference with a few notable techniques:
-
-1. Normal prior whose mean is tied at the variational posterior's. This makes
-   the KL penalty only penalize the weight posterior's standard deviation and
-   not its mean. The prior's standard deviation is a fixed hyperparameter.
-2. Fully factorized normal variational distribution (Blundell et al., 2015).
-3. Flipout for lower-variance gradients in convolutional layers and the final
-   dense layer (Wen et al., 2018).
-4. KL annealing (Bowman et al., 2015).
+Hyperparameters differ slightly from the original paper's code
+(https://github.com/szagoruyko/wide-residual-networks) as TensorFlow uses, for
+example, l2 instead of weight decay, and a different parameterization for SGD's
+momentum.
 """
 
 from __future__ import absolute_import
@@ -39,7 +34,6 @@ from absl import logging
 
 import edward2 as ed
 import utils  # local file import
-import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -54,12 +48,7 @@ flags.DEFINE_integer('lr_warmup_epochs', 1,
 flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
 flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
                   'Epochs to decay learning rate by.')
-flags.DEFINE_integer('kl_annealing_epochs', 200,
-                     'Number of epoch over which to anneal the KL term to 1.')
-flags.DEFINE_float('l2', 5e-4, 'L2 regularization coefficient.')
-flags.DEFINE_float('prior_stddev', 0.1, 'Fixed stddev for weight prior.')
-flags.DEFINE_float('stddev_init', 1e-3,
-                   'Initialization of posterior standard deviation parameters.')
+flags.DEFINE_float('l2', 2e-4, 'L2 regularization coefficient.')
 flags.DEFINE_enum('dataset', 'cifar10',
                   enum_values=['cifar10', 'cifar100'],
                   help='Dataset.')
@@ -67,18 +56,15 @@ flags.DEFINE_enum('dataset', 'cifar10',
 flags.DEFINE_string('cifar100_c_path', None,
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '
                     '(and required) if dataset is cifar100 and corruptions.')
-flags.DEFINE_integer('corruptions_interval', 250,
+flags.DEFINE_integer('corruptions_interval', 200,
                      'Number of epochs between evaluating on the corrupted '
                      'test data. Use -1 to never evaluate.')
 flags.DEFINE_integer('checkpoint_interval', 25,
                      'Number of epochs between saving checkpoints. Use -1 to '
                      'never save checkpoints.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE.')
-flags.DEFINE_integer('num_eval_samples', 5,
-                     'Number of samples per example during evaluation. Only '
-                     'used for corrupted predicitons.')
 flags.DEFINE_string('output_dir', '/tmp/cifar', 'Output directory.')
-flags.DEFINE_integer('train_epochs', 250, 'Number of training epochs.')
+flags.DEFINE_integer('train_epochs', 200, 'Number of training epochs.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -92,100 +78,67 @@ BatchNormalization = functools.partial(  # pylint: disable=invalid-name
     tf.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
-Conv2DFlipout = functools.partial(  # pylint: disable=invalid-name
-    ed.layers.Conv2DFlipout,
+Conv2D = functools.partial(  # pylint: disable=invalid-name
+    tf.keras.layers.Conv2D,
     kernel_size=3,
     padding='same',
-    use_bias=False)
+    use_bias=False,
+    kernel_initializer='he_normal')
 
 
-class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
-  """KL with normal prior whose mean is fixed at the variational posterior's."""
-
-  def __init__(self, stddev=1., scale_factor=1.):
-    """Constructs regularizer."""
-    self.stddev = stddev
-    self.scale_factor = scale_factor
-
-  def __call__(self, x):
-    """Computes regularization given an ed.Normal random variable as input."""
-    if not isinstance(x, ed.RandomVariable):
-      raise ValueError('Input must be an ed.RandomVariable.')
-    prior = ed.Independent(
-        ed.Normal(loc=x.distribution.mean(), scale=self.stddev).distribution,
-        reinterpreted_batch_ndims=len(x.distribution.event_shape))
-    regularization = x.distribution.kl_divergence(prior.distribution)
-    return self.scale_factor * regularization
-
-  def get_config(self):
-    return {
-        'stddev': self.stddev,
-        'scale_factor': self.scale_factor,
-    }
-
-
-def basic_block(inputs, filters, strides, prior_stddev, dataset_size,
-                stddev_init):
+def basic_block(inputs, filters, strides, l2, version):
   """Basic residual block of two 3x3 convs.
 
   Args:
     inputs: tf.Tensor.
     filters: Number of filters for Conv2D.
     strides: Stride dimensions for Conv2D.
-    prior_stddev: Fixed standard deviation for weight prior.
-    dataset_size: Dataset size to properly scale the KL.
-    stddev_init: float to initialize variational posterior stddev parameters.
+    l2: L2 regularization coefficient.
+    version: 1, indicating the original ordering from He et al. (2015); or 2,
+      indicating the preactivation ordering from He et al. (2016).
 
   Returns:
     tf.Tensor.
   """
   x = inputs
   y = inputs
-  y = BatchNormalization()(y)
+  if version == 2:
+    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
+    y = tf.keras.layers.Activation('relu')(y)
+  y = Conv2D(filters,
+             strides=strides,
+             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
+  y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                         gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
-  y = Conv2DFlipout(
-      filters,
-      strides=strides,
-      kernel_initializer=ed.initializers.TrainableHeNormal(
-          stddev_initializer=tf.keras.initializers.TruncatedNormal(
-              mean=np.log(np.expm1(stddev_init)), stddev=0.1)),
-      kernel_regularizer=NormalKLDivergenceWithTiedMean(
-          stddev=prior_stddev, scale_factor=1./dataset_size))(y)
-  y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
-  y = Conv2DFlipout(
-      filters,
-      strides=1,
-      kernel_initializer=ed.initializers.TrainableHeNormal(
-          stddev_initializer=tf.keras.initializers.TruncatedNormal(
-              mean=np.log(np.expm1(stddev_init)), stddev=0.1)),
-      kernel_regularizer=NormalKLDivergenceWithTiedMean(
-          stddev=prior_stddev, scale_factor=1./dataset_size))(y)
+  y = Conv2D(filters,
+             strides=1,
+             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
+  if version == 1:
+    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   if not x.shape.is_compatible_with(y.shape):
-    x = Conv2DFlipout(
-        filters,
-        kernel_size=1,
-        strides=strides,
-        kernel_initializer=ed.initializers.TrainableHeNormal(
-            stddev_initializer=tf.keras.initializers.TruncatedNormal(
-                mean=np.log(np.expm1(stddev_init)), stddev=0.1)),
-        kernel_regularizer=NormalKLDivergenceWithTiedMean(
-            stddev=prior_stddev, scale_factor=1./dataset_size))(x)
+    x = Conv2D(filters,
+               kernel_size=1,
+               strides=strides,
+               kernel_regularizer=tf.keras.regularizers.l2(l2))(x)
   x = tf.keras.layers.add([x, y])
+  if version == 1:
+    x = tf.keras.layers.Activation('relu')(x)
   return x
 
 
-def group(inputs, filters, strides, num_blocks, **kwargs):
+def group(inputs, filters, strides, num_blocks, l2, version):
   """Group of residual blocks."""
-  x = basic_block(inputs, filters=filters, strides=strides, **kwargs)
+  x = basic_block(inputs, filters=filters, strides=strides, l2=l2,
+                  version=version)
   for _ in range(num_blocks - 1):
-    x = basic_block(x, filters=filters, strides=1, **kwargs)
+    x = basic_block(x, filters=filters, strides=1, l2=l2, version=version)
   return x
 
 
-def wide_resnet(input_shape, depth, width_multiplier, num_classes,
-                prior_stddev, dataset_size,
-                stddev_init):
+def wide_resnet(input_shape, depth, width_multiplier, num_classes, l2, version):
   """Builds Wide ResNet.
 
   Following Zagoruyko and Komodakis (2016), it accepts a width multiplier on the
@@ -200,9 +153,9 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     width_multiplier: Integer to multiply the number of typical filters by. "k"
       in WRN-n-k.
     num_classes: Number of output classes.
-    prior_stddev: Fixed standard deviation for weight prior.
-    dataset_size: Dataset size to properly scale the KL.
-    stddev_init: float to initialize variational posterior stddev parameters.
+    l2: L2 regularization coefficient.
+    version: 1, indicating the original ordering from He et al. (2015); or 2,
+      indicating the preactivation ordering from He et al. (2016).
 
   Returns:
     tf.keras.Model.
@@ -211,34 +164,42 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
   inputs = tf.keras.layers.Input(shape=input_shape)
-  x = Conv2DFlipout(
-      16,
-      strides=1,
-      kernel_initializer=ed.initializers.TrainableHeNormal(
-          stddev_initializer=tf.keras.initializers.TruncatedNormal(
-              mean=np.log(np.expm1(stddev_init)), stddev=0.1)),
-      kernel_regularizer=NormalKLDivergenceWithTiedMean(
-          stddev=prior_stddev, scale_factor=1./dataset_size))(inputs)
-  for strides, filters in zip([1, 2, 2], [16, 32, 64]):
-    x = group(x,
-              filters=filters * width_multiplier,
-              strides=strides,
-              num_blocks=num_blocks,
-              prior_stddev=prior_stddev,
-              dataset_size=dataset_size,
-              stddev_init=stddev_init)
-
-  x = BatchNormalization()(x)
-  x = tf.keras.layers.Activation('relu')(x)
+  x = Conv2D(16,
+             strides=1,
+             kernel_regularizer=tf.keras.regularizers.l2(l2))(inputs)
+  if version == 1:
+    x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
+    x = tf.keras.layers.Activation('relu')(x)
+  x = group(x,
+            filters=16 * width_multiplier,
+            strides=1,
+            num_blocks=num_blocks,
+            l2=l2,
+            version=version)
+  x = group(x,
+            filters=32 * width_multiplier,
+            strides=2,
+            num_blocks=num_blocks,
+            l2=l2,
+            version=version)
+  x = group(x,
+            filters=64 * width_multiplier,
+            strides=2,
+            num_blocks=num_blocks,
+            l2=l2,
+            version=version)
+  if version == 2:
+    x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
+    x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = ed.layers.DenseFlipout(
+  x = tf.keras.layers.Dense(
       num_classes,
-      kernel_initializer=ed.initializers.TrainableHeNormal(
-          stddev_initializer=tf.keras.initializers.TruncatedNormal(
-              mean=np.log(np.expm1(stddev_init)), stddev=0.1)),
-      kernel_regularizer=NormalKLDivergenceWithTiedMean(
-          stddev=prior_stddev, scale_factor=1./dataset_size))(x)
+      kernel_initializer='he_normal',
+      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      bias_regularizer=tf.keras.regularizers.l2(l2))(x)
   return tf.keras.Model(inputs=inputs, outputs=x)
 
 
@@ -272,7 +233,6 @@ def main(argv):
       use_bfloat16=FLAGS.use_bfloat16)
   train_dataset = strategy.experimental_distribute_datasets_from_function(
       train_input_fn)
-
   test_datasets = {
       'clean': strategy.experimental_distribute_datasets_from_function(
           clean_test_input_fn),
@@ -297,8 +257,7 @@ def main(argv):
 
   ds_info = tfds.builder(FLAGS.dataset).info
   batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
-  train_dataset_size = ds_info.splits['train'].num_examples
-  steps_per_epoch = train_dataset_size // batch_size
+  steps_per_epoch = ds_info.splits['train'].num_examples // batch_size
   steps_per_eval = ds_info.splits['test'].num_examples // batch_size
   num_classes = ds_info.features['label'].num_classes
 
@@ -315,9 +274,8 @@ def main(argv):
                         depth=28,
                         width_multiplier=10,
                         num_classes=num_classes,
-                        prior_stddev=FLAGS.prior_stddev,
-                        dataset_size=train_dataset_size,
-                        stddev_init=FLAGS.stddev_init)
+                        l2=FLAGS.l2,
+                        version=2)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -340,8 +298,6 @@ def main(argv):
         'train/loss': tf.keras.metrics.Mean(),
         'train/ece': ed.metrics.ExpectedCalibrationError(
             num_classes=num_classes, num_bins=FLAGS.num_bins),
-        'train/kl': tf.keras.metrics.Mean(),
-        'train/kl_scale': tf.keras.metrics.Mean(),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': ed.metrics.ExpectedCalibrationError(
@@ -360,15 +316,7 @@ def main(argv):
               ed.metrics.ExpectedCalibrationError(
                   num_classes=num_classes, num_bins=FLAGS.num_bins))
 
-    global_step = tf.Variable(
-        0,
-        trainable=False,
-        name='global_step',
-        dtype=tf.int64,
-        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
-    checkpoint = tf.train.Checkpoint(model=model,
-                                     optimizer=optimizer,
-                                     global_step=global_step)
+    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
     initial_epoch = 0
     if latest_checkpoint:
@@ -392,25 +340,9 @@ def main(argv):
             tf.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True))
-
-        filtered_variables = []
-        for var in model.trainable_variables:
-          # Apply l2 on the BN parameters and bias terms. This
-          # excludes only fast weight approximate posterior/prior parameters,
-          # but pay caution to their naming scheme.
-          if 'batch_norm' in var.name or 'bias' in var.name:
-            filtered_variables.append(tf.reshape(var, (-1,)))
-
-        l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
-            tf.concat(filtered_variables, axis=0))
-        kl = sum(model.losses)
-        kl_scale = tf.cast(global_step + 1, tf.float32)
-        kl_scale /= steps_per_epoch * FLAGS.kl_annealing_epochs
-        kl_scale = tf.minimum(1., kl_scale)
-        kl_loss = kl_scale * kl
-
+        l2_loss = sum(model.losses)
+        loss = negative_log_likelihood + l2_loss
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
-        loss = negative_log_likelihood + l2_loss + kl_loss
         scaled_loss = loss / strategy.num_replicas_in_sync
 
       grads = tape.gradient(scaled_loss, model.trainable_variables)
@@ -421,11 +353,7 @@ def main(argv):
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
-      metrics['train/kl'].update_state(kl)
-      metrics['train/kl_scale'].update_state(kl_scale)
       metrics['train/accuracy'].update_state(labels, logits)
-
-      global_step.assign_add(1)
 
     strategy.experimental_run_v2(step_fn, args=(next(iterator),))
 
@@ -435,18 +363,10 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      # TODO(trandustin): Use more eval samples only on corrupted predictions;
-      # it's expensive but a one-time compute if scheduled post-training.
-      if FLAGS.num_eval_samples > 1 and dataset_name != 'clean':
-        logits = tf.stack([model(images, training=False)
-                           for _ in range(FLAGS.num_eval_samples)], axis=0)
-      else:
-        logits = model(images, training=False)
+      logits = model(images, training=False)
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
-      if FLAGS.num_eval_samples > 1 and dataset_name != 'clean':
-        probs = tf.reduce_mean(probs, axis=0)
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
 

@@ -102,5 +102,3 @@ We note results in the literature below. Note there are differences in the setup
 TODO(trandustin): Add column for Test runtime.
 
 TODO(trandustin): Add column for Checkpoints.
-
-TODO(trandustin): Rename directory to `cifar/`.

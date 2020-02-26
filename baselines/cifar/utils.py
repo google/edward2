@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utilities for CIFAR-10."""
+"""Utilities for CIFAR-10 and CIFAR-100."""
 
 from __future__ import absolute_import
 from __future__ import division
