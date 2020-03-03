@@ -17,7 +17,10 @@
 
 from __future__ import absolute_import
 from __future__ import division
+from __future__ import google_type_annotations
 from __future__ import print_function
+
+from typing import List, Tuple, Union  # pylint:disable=g-bad-import-order
 
 from edward2.tensorflow import constraints
 from edward2.tensorflow import initializers
@@ -90,7 +93,14 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
         implementation=implementation,
         **kwargs)
 
-  def build(self, input_shape):
+  # TODO(dusenberrymw): TensorFlow has an open RFC
+  # (https://github.com/tensorflow/community/pull/208) for adding core TF types
+  # to the library such that the library and end users can upgrade to the use of
+  # type annotations. Once that RFC is accepted and implemented, we should
+  # update these types below.
+  def build(
+      self, input_shape: Union[tf.TensorShape, List[int], Tuple[int, ...]]
+  ) -> None:
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
     self.kernel = self.add_weight(
@@ -107,26 +117,14 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
         constraint=self.recurrent_constraint)
 
     if self.use_bias:
-      if self.unit_forget_bias:
-        if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-          def bias_mean_initializer(_, *args, **kwargs):
-            return tf.concat([
-                tf.keras.initializers.TruncatedNormal(
-                    stddev=1e-5)((self.units,), *args, **kwargs),
-                tf.keras.initializers.TruncatedNormal(
-                    mean=1., stddev=1e-5)((self.units,), *args, **kwargs),
-                tf.keras.initializers.TruncatedNormal(
-                    stddev=1e-5)((self.units * 2,), *args, **kwargs),
-            ], axis=0)
-          bias_initializer = initializers.TrainableNormal(
-              mean_initializer=bias_mean_initializer)
-        else:
-          def bias_initializer(_, *args, **kwargs):
-            return tf.keras.backend.concatenate([
-                self.bias_initializer((self.units,), *args, **kwargs),
-                tf.keras.initializers.Ones()((self.units,), *args, **kwargs),
-                self.bias_initializer((self.units * 2,), *args, **kwargs),
-            ])
+      if (self.unit_forget_bias and not isinstance(self.bias_initializer,
+                                                   tf.keras.layers.Layer)):
+        def bias_initializer(_, *args, **kwargs):
+          return tf.keras.backend.concatenate([
+              self.bias_initializer((self.units,), *args, **kwargs),
+              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),
+              self.bias_initializer((self.units * 2,), *args, **kwargs),
+          ])
       else:
         bias_initializer = self.bias_initializer
       self.bias = self.add_weight(
