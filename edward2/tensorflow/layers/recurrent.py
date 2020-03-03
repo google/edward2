@@ -208,13 +208,17 @@ class LSTMCellFlipout(LSTMCellReparameterization):
       dtype = inputs.dtype
     input_dim = tf.shape(self.kernel)[0]
     self.sign_input = 2 * tf.random.uniform(
-        [batch_size, 4 * input_dim], minval=0, maxval=2, dtype=dtype) - 1
+        [batch_size, 4 * input_dim], minval=0, maxval=2, dtype=tf.int32) - 1
     self.sign_output = 2 * tf.random.uniform(
-        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=dtype) - 1
+        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
     self.recurrent_sign_input = 2 * tf.random.uniform(
-        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=dtype) - 1
+        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
     self.recurrent_sign_output = 2 * tf.random.uniform(
-        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=dtype) - 1
+        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
+    self.sign_input = tf.cast(self.sign_input, dtype)
+    self.sign_output = tf.cast(self.sign_output, dtype)
+    self.recurrent_sign_input = tf.cast(self.recurrent_sign_input, dtype)
+    self.recurrent_sign_output = tf.cast(self.recurrent_sign_output, dtype)
 
   def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
     """Get the initial state and side-effect sampling of stochastic weights."""

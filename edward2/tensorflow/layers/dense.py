@@ -259,15 +259,17 @@ class DenseFlipout(DenseReparameterization):
       return super(DenseFlipout, self).call(inputs)
     self.call_weights()
     input_shape = tf.shape(inputs)
-    sign_input = 2 * tf.random.uniform(input_shape,
-                                       minval=0,
-                                       maxval=2,
-                                       dtype=inputs.dtype) - 1
-    sign_output = 2 * tf.random.uniform(tf.concat([input_shape[:-1],
-                                                   [self.units]], 0),
-                                        minval=0,
-                                        maxval=2,
-                                        dtype=inputs.dtype) - 1
+    output_shape = tf.concat([input_shape[:-1], [self.units]], 0)
+    sign_input = tf.cast(2 * tf.random.uniform(input_shape,
+                                               minval=0,
+                                               maxval=2,
+                                               dtype=tf.int32) - 1,
+                         inputs.dtype)
+    sign_output = tf.cast(2 * tf.random.uniform(output_shape,
+                                                minval=0,
+                                                maxval=2,
+                                                dtype=inputs.dtype) - 1,
+                          inputs.dtype)
     kernel_mean = self.kernel.distribution.mean()
     perturbation = self.kernel - kernel_mean
     if inputs.shape.ndims <= 2:

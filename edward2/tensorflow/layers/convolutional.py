@@ -164,14 +164,16 @@ class Conv2DFlipout(Conv2DReparameterization):
       channels = input_shape[-1]
       sign_input_shape = [batch_dim, 1, 1, channels]
       sign_output_shape = [batch_dim, 1, 1, self.filters]
-    sign_input = 2 * tf.random.uniform(sign_input_shape,
-                                       minval=0,
-                                       maxval=2,
-                                       dtype=inputs.dtype) - 1
-    sign_output = 2 * tf.random.uniform(sign_output_shape,
-                                        minval=0,
-                                        maxval=2,
-                                        dtype=inputs.dtype) - 1
+    sign_input = tf.cast(2 * tf.random.uniform(sign_input_shape,
+                                               minval=0,
+                                               maxval=2,
+                                               dtype=tf.int32) - 1,
+                         inputs.dtype)
+    sign_output = tf.cast(2 * tf.random.uniform(sign_output_shape,
+                                                minval=0,
+                                                maxval=2,
+                                                dtype=tf.int32) - 1,
+                          inputs.dtype)
     kernel_mean = self.kernel.distribution.mean()
     perturbation = self.kernel - kernel_mean
     outputs = self._convolution_op(inputs, kernel_mean)
