@@ -53,7 +53,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
   def __init__(self,
                units,
                activation='tanh',
-               recurrent_activation='hard_sigmoid',
+               recurrent_activation='sigmoid',
                use_bias=True,
                kernel_initializer='trainable_normal',
                recurrent_initializer='trainable_normal',
@@ -67,7 +67,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
                bias_constraint=None,
                dropout=0.,
                recurrent_dropout=0.,
-               implementation=1,
+               implementation=2,
                **kwargs):
     self.called_weights = False
     super(LSTMCellReparameterization, self).__init__(
