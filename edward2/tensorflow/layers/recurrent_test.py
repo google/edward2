@@ -32,36 +32,67 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
        "kernel_initializer": "zeros",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "zeros",
+       "implementation": 1,
        "all_close": True},
       {"lstm_cell": ed.layers.LSTMCellFlipout,
        "kernel_initializer": "trainable_normal",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "zeros",
+       "implementation": 1,
        "all_close": False},
       {"lstm_cell": ed.layers.LSTMCellFlipout,
        "kernel_initializer": "zeros",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "trainable_normal",
+       "implementation": 1,
+       "all_close": False},
+      {"lstm_cell": ed.layers.LSTMCellFlipout,
+       "kernel_initializer": "zeros",
+       "recurrent_initializer": "orthogonal",
+       "bias_initializer": "zeros",
+       "implementation": 2,
+       "all_close": True},
+      {"lstm_cell": ed.layers.LSTMCellFlipout,
+       "kernel_initializer": "trainable_normal",
+       "recurrent_initializer": "orthogonal",
+       "bias_initializer": "zeros",
+       "implementation": 2,
+       "all_close": False},
+      {"lstm_cell": ed.layers.LSTMCellFlipout,
+       "kernel_initializer": "zeros",
+       "recurrent_initializer": "orthogonal",
+       "bias_initializer": "trainable_normal",
+       "implementation": 2,
        "all_close": False},
       {"lstm_cell": ed.layers.LSTMCellReparameterization,
        "kernel_initializer": "zeros",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "zeros",
+       "implementation": 1,
        "all_close": True},
       {"lstm_cell": ed.layers.LSTMCellReparameterization,
        "kernel_initializer": "trainable_normal",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "zeros",
+       "implementation": 1,
        "all_close": False},
       {"lstm_cell": ed.layers.LSTMCellReparameterization,
        "kernel_initializer": "zeros",
        "recurrent_initializer": "trainable_normal",
        "bias_initializer": "zeros",
+       "implementation": 1,
        "all_close": False},
       {"lstm_cell": ed.layers.LSTMCellReparameterization,
        "kernel_initializer": "zeros",
        "recurrent_initializer": "orthogonal",
        "bias_initializer": "trainable_normal",
+       "implementation": 1,
+       "all_close": False},
+      {"lstm_cell": ed.layers.LSTMCellReparameterization,
+       "kernel_initializer": "trainable_normal",
+       "recurrent_initializer": "orthogonal",
+       "bias_initializer": "zeros",
+       "implementation": 2,
        "all_close": False},
   )
   def testLSTMCell(self,
@@ -69,21 +100,23 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
                    kernel_initializer,
                    recurrent_initializer,
                    bias_initializer,
+                   implementation,
                    all_close):
-    batch_size, timesteps, dim = 5, 3, 12
+    batch_size, dim = 5, 12
     hidden_size = 10
-    inputs = np.random.rand(batch_size, timesteps, dim).astype(np.float32)
+    inputs = np.random.rand(batch_size, dim).astype(np.float32)
     cell = lstm_cell(hidden_size,
                      kernel_initializer=kernel_initializer,
                      recurrent_initializer=recurrent_initializer,
-                     bias_initializer=bias_initializer)
+                     bias_initializer=bias_initializer,
+                     implementation=implementation)
     noise = np.random.rand(1, hidden_size).astype(np.float32)
     h0, c0 = cell.get_initial_state(inputs)
     state = (h0 + noise, c0)
-    outputs1, _ = cell(inputs[:, 0, :], state)
-    outputs2, _ = cell(inputs[:, 0, :], state)
+    outputs1, _ = cell(inputs, state)
+    outputs2, _ = cell(inputs, state)
     cell.call_weights()
-    outputs3, _ = cell(inputs[:, 0, :], state)
+    outputs3, _ = cell(inputs, state)
     self.assertEqual(outputs1.shape, (batch_size, hidden_size))
     self.assertAllClose(outputs1, outputs2)
     if all_close:

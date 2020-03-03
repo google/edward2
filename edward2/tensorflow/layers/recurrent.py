@@ -208,11 +208,11 @@ class LSTMCellFlipout(LSTMCellReparameterization):
       dtype = inputs.dtype
     input_dim = tf.shape(self.kernel)[0]
     self.sign_input = 2 * tf.random.uniform(
-        [batch_size, 4 * input_dim], minval=0, maxval=2, dtype=tf.int32) - 1
+        [batch_size, input_dim], minval=0, maxval=2, dtype=tf.int32) - 1
     self.sign_output = 2 * tf.random.uniform(
         [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
     self.recurrent_sign_input = 2 * tf.random.uniform(
-        [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
+        [batch_size, self.units], minval=0, maxval=2, dtype=tf.int32) - 1
     self.recurrent_sign_output = 2 * tf.random.uniform(
         [batch_size, 4 * self.units], minval=0, maxval=2, dtype=tf.int32) - 1
     self.sign_input = tf.cast(self.sign_input, dtype)
@@ -239,18 +239,16 @@ class LSTMCellFlipout(LSTMCellReparameterization):
     perturbation = self.recurrent_kernel - kernel_mean
     k_i, k_f, k_c, k_o = tf.split(kernel_mean, num_or_size_splits=4, axis=1)
     p_i, p_f, p_c, p_o = tf.split(perturbation, num_or_size_splits=4, axis=1)
-    si_i, si_f, si_c, si_o = tf.split(self.recurrent_sign_input,
-                                      num_or_size_splits=4, axis=1)
     so_i, so_f, so_c, so_o = tf.split(self.recurrent_sign_output,
                                       num_or_size_splits=4, axis=1)
     z0 = (x_i + tf.keras.backend.dot(h_tm1_i, k_i) +
-          tf.keras.backend.dot(h_tm1_i * si_i, p_i) * so_i)
+          tf.keras.backend.dot(h_tm1_i * self.recurrent_sign_input, p_i) * so_i)
     z1 = (x_f + tf.keras.backend.dot(h_tm1_f, k_f) +
-          tf.keras.backend.dot(h_tm1_f * si_f, p_f) * so_f)
+          tf.keras.backend.dot(h_tm1_f * self.recurrent_sign_input, p_f) * so_f)
     z2 = (x_c + tf.keras.backend.dot(h_tm1_c, k_c) +
-          tf.keras.backend.dot(h_tm1_c * si_c, p_c) * so_c)
+          tf.keras.backend.dot(h_tm1_c * self.recurrent_sign_input, p_c) * so_c)
     z3 = (x_o + tf.keras.backend.dot(h_tm1_o, k_o) +
-          tf.keras.backend.dot(h_tm1_o * si_o, p_o) * so_o)
+          tf.keras.backend.dot(h_tm1_o * self.recurrent_sign_input, p_o) * so_o)
     i = self.recurrent_activation(z0)
     f = self.recurrent_activation(z1)
     c = f * c_tm1 + i * self.activation(z2)
@@ -289,18 +287,16 @@ class LSTMCellFlipout(LSTMCellReparameterization):
       perturbation = self.kernel - kernel_mean
       k_i, k_f, k_c, k_o = tf.split(kernel_mean, num_or_size_splits=4, axis=1)
       p_i, p_f, p_c, p_o = tf.split(perturbation, num_or_size_splits=4, axis=1)
-      si_i, si_f, si_c, si_o = tf.split(self.sign_input,
-                                        num_or_size_splits=4, axis=1)
       so_i, so_f, so_c, so_o = tf.split(self.sign_output,
                                         num_or_size_splits=4, axis=1)
       x_i = (tf.keras.backend.dot(inputs_i, k_i) +
-             tf.keras.backend.dot(inputs_i * si_i, p_i) * so_i)
+             tf.keras.backend.dot(inputs_i * self.sign_input, p_i) * so_i)
       x_f = (tf.keras.backend.dot(inputs_f, k_f) +
-             tf.keras.backend.dot(inputs_f * si_f, p_f) * so_f)
+             tf.keras.backend.dot(inputs_f * self.sign_input, p_f) * so_f)
       x_c = (tf.keras.backend.dot(inputs_c, k_c) +
-             tf.keras.backend.dot(inputs_c * si_c, p_c) * so_c)
+             tf.keras.backend.dot(inputs_c * self.sign_input, p_c) * so_c)
       x_o = (tf.keras.backend.dot(inputs_o, k_o) +
-             tf.keras.backend.dot(inputs_o * si_o, p_o) * so_o)
+             tf.keras.backend.dot(inputs_o * self.sign_input, p_o) * so_o)
       if self.use_bias:
         b_i, b_f, b_c, b_o = tf.split(
             self.bias, num_or_size_splits=4, axis=0)
