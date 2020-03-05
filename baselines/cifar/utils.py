@@ -339,36 +339,41 @@ def aggregate_corrupt_metrics(metrics,
   """Aggregates metrics across intensities and corruption types."""
   results = {'test/nll_mean_corrupted': 0.,
              'test/accuracy_mean_corrupted': 0.,
-             'test/ece_mean_corrupted': 0.}
+             'test/ece_mean_corrupted': 0.,
+             'test/brier_mean_corrupted': 0.}
   for intensity in range(1, max_intensity + 1):
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
     acc = np.zeros(len(corruption_types))
+    bri = np.zeros(len(corruption_types))
     for i in range(len(corruption_types)):
       dataset_name = '{0}_{1}'.format(corruption_types[i], intensity)
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      bri[i] = metrics['test/brier_{}'.format(dataset_name)].result()
       if fine_metrics:
         results['test/nll_{}'.format(dataset_name)] = nll[i]
         results['test/accuracy_{}'.format(dataset_name)] = acc[i]
         results['test/ece_{}'.format(dataset_name)] = ece[i]
+        results['test/brier_{}'.format(dataset_name)] = bri[i]
     avg_nll = np.mean(nll)
-    avg_accuracy = np.mean(acc)
+    avg_acc = np.mean(acc)
     avg_ece = np.mean(ece)
+    avg_bri = np.mean(bri)
     results['test/nll_mean_{}'.format(intensity)] = avg_nll
-    results['test/accuracy_mean_{}'.format(intensity)] = avg_accuracy
+    results['test/accuracy_mean_{}'.format(intensity)] = avg_acc
     results['test/ece_mean_{}'.format(intensity)] = avg_ece
-    results['test/nll_median_{}'.format(intensity)] = np.median(nll)
-    results['test/accuracy_median_{}'.format(intensity)] = np.median(acc)
-    results['test/ece_median_{}'.format(intensity)] = np.median(ece)
+    results['test/brier_mean_corrupted{}'.format(intensity)] = avg_bri
     results['test/nll_mean_corrupted'] += avg_nll
-    results['test/accuracy_mean_corrupted'] += avg_accuracy
+    results['test/accuracy_mean_corrupted'] += avg_acc
     results['test/ece_mean_corrupted'] += avg_ece
+    results['test/brier_mean_corrupted'] += avg_bri
 
   results['test/nll_mean_corrupted'] /= max_intensity
   results['test/accuracy_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
+  results['test/brier_mean_corrupted'] /= max_intensity
   return results
 
 
