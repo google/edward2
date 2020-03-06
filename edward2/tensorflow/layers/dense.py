@@ -549,7 +549,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
     if self.activation is not None:
       outputs = self.activation(outputs)
-    outputs = tf.reshape(outputs, [batch_size, -1])
+    outputs = tf.reshape(outputs, [batch_size, self.units])
     return outputs
 
   def get_config(self):
