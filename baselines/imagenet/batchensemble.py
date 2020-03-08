@@ -19,7 +19,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import itertools
 import os
 import time
 
@@ -304,7 +303,7 @@ def main(argv):
       if dataset_name == 'clean' and FLAGS.ensemble_size > 1:
         per_probs_tensor = tf.reshape(
             probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-        diversity_results = utils.average_pairwise_diversity(
+        diversity_results = ed.metrics.average_pairwise_diversity(
             per_probs_tensor, FLAGS.ensemble_size)
         for k, v in diversity_results.items():
           test_diversity['test/' + k].update_state(v)
@@ -391,16 +390,17 @@ def main(argv):
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)
 
-    total_metrics = itertools.chain(metrics.items(),
-                                    training_diversity.items(),
-                                    test_diversity.items())
-    total_results = {name: metric.result() for name, metric in total_metrics}
+    total_metrics = metrics.copy()
+    total_metrics.update(training_diversity)
+    total_metrics.update(test_diversity)
+    total_results = {name: metric.result()
+                     for name, metric in total_metrics.items()}
     total_results.update(corrupt_results)
     with summary_writer.as_default():
       for name, result in total_results.items():
         tf.summary.scalar(name, result, step=epoch + 1)
 
-    for _, metric in total_metrics:
+    for _, metric in total_metrics.items():
       metric.reset_states()
 
     if (FLAGS.checkpoint_interval > 0 and
