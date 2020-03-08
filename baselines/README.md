@@ -16,7 +16,7 @@ Non-goals:
 
 ## Metrics
 
-We define metrics used across datasets below. All results are reported by roughly 3 significant digits and averaged over (at least) 3 runs.
+We define metrics used across datasets below. All results are reported by roughly 3 significant digits and averaged over 10 runs.
 
 1. __# Parameters.__ Number of parameters in the model to make predictions after training.
 2. __Train/Test Accuracy.__ Accuracy over the train and test sets respectively. For a dataset of `N` input-output pairs `(xn, yn)` where the label `yn` takes on 1 of `K` values, the accuracy is
@@ -26,7 +26,7 @@ We define metrics used across datasets below. All results are reported by roughl
     ```
 
     where `1` is the indicator function that is 1 when the model's predicted class is equal to the label and 0 otherwise.
-3. __Train/Test Cal. Error.__ Expected calibration error (ECE) over the train and test sets respectively. ECE discretizes the probability interval `[0, 1]` under equally spaced bins and assigns each predicted probability to the bin that encompasses it. The calibration error is the difference between the fraction of predictions in the bin that are correct (accuracy) and the mean of the probabilities in the bin (confidence). The expected calibration error averages across bins.
+3. __Train/Test Cal. Error.__ Expected calibration error (ECE) over the train and test sets respectively ([Naeini et al., 2015](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4410090)). ECE discretizes the probability interval `[0, 1]` under equally spaced bins and assigns each predicted probability to the bin that encompasses it. The calibration error is the difference between the fraction of predictions in the bin that are correct (accuracy) and the mean of the probabilities in the bin (confidence). The expected calibration error averages across bins.
 
     For a dataset of `N` input-output pairs `(xn, yn)` where the label `yn` takes on 1 of `K` values, ECE computes a weighted average
 
@@ -38,8 +38,8 @@ We define metrics used across datasets below. All results are reported by roughl
 4. __Train/Test NLL.__ Negative log-likelihood over the train and test sets respectively (measured in nats). For a dataset of `N` input-output pairs `(xn, yn)`, the negative log-likelihood is
 
     ```sh
-    1/N \sum_{n=1}^N \log p(yn | xn)
+    -1/N \sum_{n=1}^N \log p(yn | xn).
     ```
 
-    where each datapoint's log-probability is given by estimated or averaging parameters.
+    It is equivalent up to a constant to the KL divergence from the true data distribution to the model, therefore capturing the overall goodness of fit to the true distribution ([Murphy, 2012](https://www.cs.ubc.ca/~murphyk/MLbook/)). It can also be intepreted as the amount of bits (nats) to explain the data ([Grunwald, 2004](https://arxiv.org/abs/math/0406077)).
 5. __Train/Test Runtime.__ Training runtime is the total wall-clock time to train the model, including any intermediate test set evaluations. Test runtime is the total wall-clock make and evaluate predictions on the test set.
