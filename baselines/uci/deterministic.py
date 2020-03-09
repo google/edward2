@@ -27,9 +27,7 @@ from absl import logging
 import edward2 as ed
 import utils  # local file import
 import numpy as np
-import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
-import tensorflow_probability as tfp
 
 flags.DEFINE_enum('dataset', 'boston_housing',
                   enum_values=['boston_housing',
@@ -62,6 +60,50 @@ flags.DEFINE_integer('seed', 0,
 FLAGS = flags.FLAGS
 
 
+# TODO(trandustin): Change to act like InputLayer or just swap to a Normal
+# custom layer with a scale tf.Variable.
+class VariableInputLayer(tf.keras.layers.Layer):
+  """Layer as an entry point into a Model, and which is learnable."""
+
+  def __init__(self,
+               input_shape,
+               initializer='zeros',
+               regularizer=None,
+               constraint=None,
+               **kwargs):
+    self.shape = input_shape
+    self.initializer = ed.initializers.get(initializer)
+    self.regularizer = ed.regularizers.get(regularizer)
+    self.constraint = ed.constraints.get(constraint)
+    super(VariableInputLayer, self).__init__(**kwargs)
+
+  def build(self, input_shape):
+    del input_shape  # unused arg
+    self.variable = self.add_weight(shape=self.shape,
+                                    name='variable',
+                                    initializer=self.initializer,
+                                    regularizer=self.regularizer,
+                                    constraint=None)
+    self.built = True
+
+  def call(self, inputs):
+    del inputs  # unused arg
+    variable = tf.convert_to_tensor(self.variable)
+    if self.constraint is not None:
+      variable = self.constraint(variable)
+    return variable
+
+  def get_config(self):
+    config = {
+        'input_shape': self.shape,
+        'initializer': ed.initializers.serialize(self.initializer),
+        'regularizer': ed.regularizers.serialize(self.regularizer),
+        'constraint': ed.constraints.serialize(self.constraint),
+    }
+    base_config = super(VariableInputLayer, self).get_config()
+    return dict(list(base_config.items()) + list(config.items()))
+
+
 def multilayer_perceptron(input_shape, output_scaler=1.):
   """Builds a single hidden layer feedforward network.
 
@@ -75,87 +117,70 @@ def multilayer_perceptron(input_shape, output_scaler=1.):
   Returns:
     tf.keras.Model.
   """
-
-  def output_fn(inputs):
-    loc, untransformed_scale = inputs
-    return ed.Normal(loc=loc, scale=tf.nn.softplus(untransformed_scale))
-
   inputs = tf.keras.layers.Input(shape=input_shape)
   hidden = tf.keras.layers.Dense(50, activation='relu')(inputs)
   loc = tf.keras.layers.Dense(1, activation=None)(hidden)
-  untransformed_scale = tfp.layers.VariableLayer(shape=())(loc)
-  outputs = tf.keras.layers.Lambda(output_fn)(
-      (loc * output_scaler, untransformed_scale))
+  loc = tf.keras.layers.Lambda(lambda x: x * output_scaler)(loc)
+  # The variable layer must depend on a symbolic input tensor.
+  scale = VariableInputLayer((), constraint='softplus')(inputs)
+  outputs = tf.keras.layers.Lambda(lambda x: ed.Normal(loc=x[0], scale=x[1]))(
+      (loc, scale))
   return tf.keras.Model(inputs=inputs, outputs=outputs)
+
+
+def make_adversarial_loss_fn(model):
+  """Returns loss function with adversarial training."""
+  def loss_fn(x, y):
+    """Loss function with adversarial training."""
+    with tf.GradientTape() as tape:
+      tape.watch(x)
+      predictions = model(x)
+      loss = -tf.reduce_mean(predictions.distribution.log_prob(y))
+    dx = tape.gradient(loss, x)
+    # Assume the training data is normalized.
+    adv_inputs = x + FLAGS.epsilon * tf.math.sign(tf.stop_gradient(dx))
+    adv_predictions = model(adv_inputs)
+    adv_loss = -tf.reduce_mean(adv_predictions.distribution.log_prob(y))
+    return 0.5 * loss + 0.5 * adv_loss
+  return loss_fn
 
 
 def main(argv):
   del argv  # unused arg
+  tf.enable_v2_behavior()
   np.random.seed(FLAGS.seed)
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)
-  tf1.disable_v2_behavior()
 
   x_train, y_train, x_test, y_test = utils.load(FLAGS.dataset)
   n_train = x_train.shape[0]
-
-  session = tf1.Session()
   ensemble_filenames = []
   for i in range(FLAGS.ensemble_size):
-    # TODO(trandustin): We re-build the graph for each ensemble member. This
-    # is due to an unknown bug where the variables are otherwise not
-    # re-initialized to be random. While this is inefficient in graph mode, I'm
-    # keeping this for now as we'd like to move to eager mode anyways.
     model = multilayer_perceptron(
         x_train.shape[1:], np.std(y_train, axis=0) + tf.keras.backend.epsilon())
-
-    def negative_log_likelihood(y, rv_y):
-      del rv_y  # unused arg
-      return -model.output.distribution.log_prob(y)  # pylint: disable=cell-var-from-loop
-
-    def mse(y_true, y_sample):
-      del y_sample  # unused arg
-      return tf.math.square(model.output.distribution.loc - y_true)  # pylint: disable=cell-var-from-loop
-
-    def log_likelihood(y_true, y_sample):
-      del y_sample  # unused arg
-      return model.output.distribution.log_prob(y_true)  # pylint: disable=cell-var-from-loop
-
     if FLAGS.epsilon:
-      y_true = tf.keras.Input(shape=y_train.shape[1:], name='labels')
-      loss = tf.reduce_mean(-model.output.distribution.log_prob(y_true))
-      nn_input_tensor = model.input
-      grad = tf1.gradients(loss, nn_input_tensor)[0]
-      # It is assumed that the training data is normalized.
-      adv_inputs_tensor = nn_input_tensor + FLAGS.epsilon * tf.math.sign(
-          tf1.stop_gradient(grad))
-      adv_inputs = tf.keras.Input(tensor=adv_inputs_tensor, name='adv_inputs')
-      adv_out_dist = model(adv_inputs)
-      adv_loss = tf.reduce_mean(-adv_out_dist.distribution.log_prob(y_true))
-      optimizer = tf1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-      train_op = optimizer.minimize(0.5 * loss + 0.5 * adv_loss)
+      loss_fn = make_adversarial_loss_fn(model)
+      optimizer = tf.keras.optimizers.Adam(lr=FLAGS.learning_rate)
     else:
-      model.compile(
-          optimizer=tf.keras.optimizers.Adam(lr=FLAGS.learning_rate),
-          loss=negative_log_likelihood,
-          metrics=[log_likelihood, mse])
+      def negative_log_likelihood(y_true, y_pred):
+        return -y_pred.distribution.log_prob(y_true)
+      model.compile(optimizer=tf.keras.optimizers.Adam(lr=FLAGS.learning_rate),
+                    loss=negative_log_likelihood)
 
     member_dir = os.path.join(FLAGS.output_dir, 'member_' + str(i))
-    tensorboard = tf1.keras.callbacks.TensorBoard(
+    tensorboard = tf.keras.callbacks.TensorBoard(
         log_dir=member_dir,
         update_freq=FLAGS.batch_size * FLAGS.validation_freq)
     if FLAGS.epsilon:
-      session.run(tf1.initialize_all_variables())
       for epoch in range((FLAGS.batch_size * FLAGS.training_steps) // n_train):
         logging.info('Epoch %s', epoch)
         for j in range(n_train // FLAGS.batch_size):
           perm = np.random.permutation(n_train)
-          session.run(
-              train_op,
-              feed_dict={
-                  nn_input_tensor: x_train[perm[j:j + FLAGS.batch_size]],
-                  y_true: y_train[perm[j:j + FLAGS.batch_size]],
-              })
+          with tf.GradientTape() as tape:
+            loss = loss_fn(x_train[perm[j:j + FLAGS.batch_size]],
+                           y_train[perm[j:j + FLAGS.batch_size]])
+          grads = tape.gradient(loss, model.trainable_weights)
+          optimizer.apply_gradients(zip(grads, model.trainable_weights))
     else:
       if FLAGS.bootstrap:
         inds = np.random.choice(n_train, n_train, replace=True)
@@ -177,11 +202,14 @@ def main(argv):
     ensemble_filenames.append(member_filename)
     model.save_weights(member_filename)
 
-  labels = tf.keras.layers.Input(shape=y_train.shape[1:])
-  ll = tf.keras.backend.function(
-      [model.input, labels],
-      [model.output.distribution.log_prob(labels),
-       model.output.distribution.loc - labels])
+  # TODO(trandustin): Move this into utils.ensemble_metrics. It's currently
+  # separate so that VI can use utils.ensemble_metrics while in TF1.
+  def ll(arg):
+    features, labels = arg
+    predictions = model(features)
+    log_prob = predictions.distribution.log_prob(labels)
+    error = predictions.distribution.loc - labels
+    return [log_prob, error]
 
   ensemble_metrics_vals = {
       'train': utils.ensemble_metrics(

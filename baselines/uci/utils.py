@@ -151,7 +151,8 @@ def ensemble_metrics(x,
     x: numpy array of inputs
     y: numpy array of labels
     model: tf.keras.Model.
-    log_likelihood_fn: keras function of log likelihood.
+    log_likelihood_fn: function which takes tuple of x, y and returns batched
+      tuple output of the log prob and mean error.
     n_samples: number of Monte Carlo samples to draw per ensemble member (each
       weight file).
     weight_files: to draw samples from multiple weight sets, specify a list of
@@ -163,12 +164,9 @@ def ensemble_metrics(x,
   """
   if weight_files is None:
     ensemble_logprobs = [log_likelihood_fn([x, y])[0] for _ in range(n_samples)]
-    metric_values = [model.evaluate(x, y, verbose=0)
-                     for _ in range(n_samples)]
     ensemble_error = [log_likelihood_fn([x, y])[1] for _ in range(n_samples)]
   else:
     ensemble_logprobs = []
-    metric_values = []
     ensemble_error = []
     for filename in weight_files:
       model.load_weights(filename)
@@ -176,15 +174,11 @@ def ensemble_metrics(x,
           log_likelihood_fn([x, y])[0] for _ in range(n_samples)])
       ensemble_error.extend([
           log_likelihood_fn([x, y])[1] for _ in range(n_samples)])
-      metric_values.extend([
-          model.evaluate(x, y, verbose=0) for _ in range(n_samples)])
 
-  metric_values = np.mean(np.array(metric_values), axis=0)
   results = {}
-  for m, name in zip(metric_values, model.metrics_names):
-    results[name] = m
-
   ensemble_logprobs = np.array(ensemble_logprobs)
+  results['log_likelihood'] = np.mean(ensemble_logprobs)
+  results['mse'] = np.mean(np.square(ensemble_error))
   probabilistic_log_likelihood = np.mean(
       scipy.special.logsumexp(
           np.sum(ensemble_logprobs, axis=2)
