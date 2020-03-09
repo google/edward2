@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ensemble on CIFAR.
+"""Ensemble on ImageNet.
 
 This script only performs evaluation, not training. We recommend training
 ensembles by launching independent runs of `deterministic.py` over different
@@ -24,7 +24,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import functools
 import os
 
 from absl import app
@@ -32,11 +31,10 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-import deterministic  # local file import
+import deterministic_model  # local file import
 import utils  # local file import
 
 import tensorflow.compat.v2 as tf
-import tensorflow_datasets as tfds
 
 # TODO(trandustin): We inherit
 # FLAGS.{dataset,per_core_batch_size,output_dir,seed} from deterministic. This
@@ -44,6 +42,7 @@ import tensorflow_datasets as tfds
 # from a binary or duplicate the model definition here.
 flags.mark_flag_as_required('output_dir')
 FLAGS = flags.FLAGS
+NUM_CLASSES = 1000
 
 
 def ensemble_negative_log_likelihood(labels, logits):
@@ -106,29 +105,19 @@ def main(argv):
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
-  dataset_input_fn = utils.load_input_fn(
-      tfds.Split.TEST,
-      FLAGS.per_core_batch_size,
-      name=FLAGS.dataset,
-      use_bfloat16=False,
-      normalize=True,
-      drop_remainder=True,
-      proportion=1.0)
-  test_datasets = {'clean': dataset_input_fn()}
+  dataset_test = utils.ImageNetInput(
+      is_training=False,
+      data_dir=FLAGS.data_dir,
+      batch_size=FLAGS.per_core_batch_size,
+      use_bfloat16=False).input_fn()
+  test_datasets = {'clean': dataset_test}
 
-  ds_info = tfds.builder(FLAGS.dataset).info
-  num_classes = ds_info.features['label'].num_classes
-  model = deterministic.wide_resnet(
-      input_shape=ds_info.features['image'].shape,
-      depth=28,
-      width_multiplier=10,
-      num_classes=num_classes,
-      l2=0.,
-      version=2)
+  model = deterministic_model.resnet50(input_shape=(224, 224, 3),
+                                       num_classes=NUM_CLASSES)
+
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
-
   # Search for checkpoints from their index file; then remove the index suffix.
   ensemble_filenames = tf.io.gfile.glob(os.path.join(FLAGS.output_dir,
                                                      '**/*.index'))
@@ -140,31 +129,24 @@ def main(argv):
   logging.info('Ensemble filenames: %s', str(ensemble_filenames))
   checkpoint = tf.train.Checkpoint(model=model)
 
-  # Collect the logits output for each ensemble member and train/test data
+  # Collect the logits output for each ensemble member and test data
   # point. We also collect the labels.
-  # TODO(trandustin): Refactor data loader so you can get the full dataset in
-  # memory without looping.
+
   logits_test = {'clean': []}
   labels_test = {'clean': []}
-  corruption_types, max_intensity = utils.load_corrupted_test_info(
-      FLAGS.dataset)
+  corruption_types, max_intensity = utils.load_corrupted_test_info()
   for name in corruption_types:
     for intensity in range(1, max_intensity + 1):
       dataset_name = '{0}_{1}'.format(name, intensity)
       logits_test[dataset_name] = []
       labels_test[dataset_name] = []
 
-      if FLAGS.dataset == 'cifar10':
-        load_c_dataset = utils.load_cifar10_c_input_fn
-      else:
-        load_c_dataset = functools.partial(
-            utils.load_cifar100_c_input_fn, path=FLAGS.cifar100_c_path)
-      corrupted_input_fn = load_c_dataset(
-          corruption_name=name,
-          corruption_intensity=intensity,
+      test_datasets[dataset_name] = utils.load_corrupted_test_dataset(
+          name=name,
+          intensity=intensity,
           batch_size=FLAGS.per_core_batch_size,
+          drop_remainder=True,
           use_bfloat16=False)
-      test_datasets[dataset_name] = corrupted_input_fn()
 
   for m, ensemble_filename in enumerate(ensemble_filenames):
     checkpoint.restore(ensemble_filename)
@@ -183,14 +165,14 @@ def main(argv):
       logging.info('Finished testing on %s', format(name))
 
   metrics = {
-      'test/ece': ed.metrics.ExpectedCalibrationError(num_classes=num_classes,
+      'test/ece': ed.metrics.ExpectedCalibrationError(num_classes=NUM_CLASSES,
                                                       num_bins=15)
   }
   corrupt_metrics = {}
   for name in test_datasets:
     corrupt_metrics['test/ece_{}'.format(
         name)] = ed.metrics.ExpectedCalibrationError(
-            num_classes=num_classes, num_bins=15)
+            num_classes=NUM_CLASSES, num_bins=15)
     corrupt_metrics['test/nll_{}'.format(name)] = tf.keras.metrics.Mean()
     corrupt_metrics['test/accuracy_{}'.format(name)] = tf.keras.metrics.Mean()
 

@@ -427,7 +427,8 @@ def load_corrupted_test_info():
 def aggregate_corrupt_metrics(metrics,
                               corruption_types,
                               max_intensity,
-                              alexnet_errors_path=None):
+                              alexnet_errors_path=None,
+                              fine_metrics=False):
   """Aggregates metrics across intensities and corruption types."""
   results = {'test/nll_mean_corrupted': 0.,
              'test/accuracy_mean_corrupted': 0.,
@@ -441,6 +442,10 @@ def aggregate_corrupt_metrics(metrics,
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      if fine_metrics:
+        results['test/nll_{}'.format(dataset_name)] = nll[i]
+        results['test/accuracy_{}'.format(dataset_name)] = acc[i]
+        results['test/ece_{}'.format(dataset_name)] = ece[i]
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)

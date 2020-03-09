@@ -106,7 +106,7 @@ def load_cifar100_c_input_fn(corruption_name,
     label = tf.cast(features['label'], dtype)
     return image, label
 
-  def input_fn(ctx):
+  def input_fn(ctx=None):
     """Returns a locally sharded (i.e., per-core) dataset batch."""
     dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
     dataset = dataset.map(
@@ -139,7 +139,7 @@ def load_cifar10_c_input_fn(corruption_name,
     label = tf.cast(label, dtype)
     return image, label
 
-  def input_fn(ctx):
+  def input_fn(ctx=None):
     """Returns a locally sharded (i.e., per-core) dataset batch."""
     dataset = tfds.load(name='cifar10_corrupted/{}'.format(corruption),
                         split=tfds.Split.TEST,
@@ -245,7 +245,7 @@ def load_input_fn(split,
     label = tf.cast(label, dtype)
     return image, label
 
-  def input_fn(ctx):
+  def input_fn(ctx=None):
     """Returns a locally sharded (i.e., per-core) dataset batch."""
     if proportion == 1.0:
       dataset = tfds.load(name, split=split, as_supervised=True)
@@ -332,7 +332,10 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     }
 
 
-def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
+def aggregate_corrupt_metrics(metrics,
+                              corruption_types,
+                              max_intensity,
+                              fine_metrics=False):
   """Aggregates metrics across intensities and corruption types."""
   results = {'test/nll_mean_corrupted': 0.,
              'test/accuracy_mean_corrupted': 0.,
@@ -346,6 +349,10 @@ def aggregate_corrupt_metrics(metrics, corruption_types, max_intensity):
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      if fine_metrics:
+        results['test/nll_{}'.format(dataset_name)] = nll[i]
+        results['test/accuracy_{}'.format(dataset_name)] = acc[i]
+        results['test/ece_{}'.format(dataset_name)] = ece[i]
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)
