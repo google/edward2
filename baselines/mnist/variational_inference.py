@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Variational inference for MLP on UCI data."""
+"""Variational inference for LeNet5 on (Fashion) MNIST."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -26,23 +26,14 @@ from absl import logging
 
 import edward2 as ed
 import utils  # local file import
-
 import numpy as np
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-flags.DEFINE_enum('dataset', 'boston_housing',
-                  enum_values=['boston_housing',
-                               'concrete_strength',
-                               'energy_efficiency',
-                               'naval_propulsion',
-                               'kin8nm',
-                               'power_plant',
-                               'protein_structure',
-                               'wine',
-                               'yacht_hydrodynamics'],
-                  help='Name of the UCI dataset.')
+flags.DEFINE_enum('dataset', 'mnist',
+                  enum_values=['mnist', 'fashion_mnist'],
+                  help='Name of the image dataset.')
 flags.DEFINE_integer('training_steps', 30000, 'Training steps.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate.')
@@ -224,50 +215,72 @@ def sample_auxiliary_op(prior, posterior, aux_variance_ratio):
   return [prior_update, posterior_update], tf.reduce_sum(log_density_ratio)
 
 
-def multilayer_perceptron(n_examples, input_shape, output_scaler=1.):
-  """Builds a single hidden layer Bayesian feedforward network.
-
-  Args:
-    n_examples: Number of examples in training set.
-    input_shape: tf.TensorShape.
-    output_scaler: Float to scale mean predictions. Training is faster and more
-      stable when both the inputs and outputs are normalized. To not affect
-      metrics such as RMSE and NLL, the outputs need to be scaled back
-      (de-normalized, but the mean doesn't matter), using output_scaler.
-
-  Returns:
-    tf.keras.Model.
-  """
+def lenet5(n_examples, input_shape, num_classes):
+  """Builds Bayesian LeNet5."""
   p_fn, q_fn = mean_field_fn(empirical_bayes=True)
   def normalized_kl_fn(q, p, _):
     return q.kl_divergence(p) / tf.cast(n_examples, tf.float32)
 
   inputs = tf.keras.layers.Input(shape=input_shape)
-  hidden = tfp.layers.DenseLocalReparameterization(
-      50,
-      activation='relu',
+  conv1 = tfp.layers.Convolution2DFlipout(
+      6,
+      kernel_size=5,
+      padding='SAME',
+      activation=tf.nn.relu,
       kernel_prior_fn=p_fn,
       kernel_posterior_fn=q_fn,
       bias_prior_fn=p_fn,
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(inputs)
-  loc = tfp.layers.DenseLocalReparameterization(
-      1,
-      activation=None,
+  pool1 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+                                       strides=[2, 2],
+                                       padding='SAME')(conv1)
+  conv2 = tfp.layers.Convolution2DFlipout(
+      16,
+      kernel_size=5,
+      padding='SAME',
+      activation=tf.nn.relu,
       kernel_prior_fn=p_fn,
       kernel_posterior_fn=q_fn,
       bias_prior_fn=p_fn,
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
-      bias_divergence_fn=normalized_kl_fn)(hidden)
-  loc = tf.keras.layers.Lambda(lambda x: x * output_scaler)(loc)
-  scale = tfp.layers.VariableLayer(
-      shape=(), initializer=tf.keras.initializers.Constant(-3.))(loc)
-  scale = tf.keras.layers.Activation('softplus')(scale)
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Normal(loc=x[0], scale=x[1]))(
-      (loc, scale))
-  return tf.keras.Model(inputs=inputs, outputs=outputs)
+      bias_divergence_fn=normalized_kl_fn)(pool1)
+  pool2 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+                                       strides=[2, 2],
+                                       padding='SAME')(conv2)
+  conv3 = tfp.layers.Convolution2DFlipout(
+      120,
+      kernel_size=5,
+      padding='SAME',
+      activation=tf.nn.relu,
+      kernel_prior_fn=p_fn,
+      kernel_posterior_fn=q_fn,
+      bias_prior_fn=p_fn,
+      bias_posterior_fn=q_fn,
+      kernel_divergence_fn=normalized_kl_fn,
+      bias_divergence_fn=normalized_kl_fn)(pool2)
+  flatten = tf.keras.layers.Flatten()(conv3)
+  dense1 = tfp.layers.DenseLocalReparameterization(
+      84,
+      activation=tf.nn.relu,
+      kernel_prior_fn=p_fn,
+      kernel_posterior_fn=q_fn,
+      bias_prior_fn=p_fn,
+      bias_posterior_fn=q_fn,
+      kernel_divergence_fn=normalized_kl_fn,
+      bias_divergence_fn=normalized_kl_fn)(flatten)
+  dense2 = tfp.layers.DenseLocalReparameterization(
+      num_classes,
+      kernel_prior_fn=p_fn,
+      kernel_posterior_fn=q_fn,
+      bias_prior_fn=p_fn,
+      bias_posterior_fn=q_fn,
+      kernel_divergence_fn=normalized_kl_fn,
+      bias_divergence_fn=normalized_kl_fn)(dense1)
+  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(dense2)
+  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
 
 
 def get_losses_and_metrics(model, n_train):
@@ -275,16 +288,18 @@ def get_losses_and_metrics(model, n_train):
 
   def negative_log_likelihood(y, rv_y):
     del rv_y  # unused arg
-    return -model.output.distribution.log_prob(y)
+    return -model.output.distribution.log_prob(tf.squeeze(y))
 
-  def mse(y_true, y_sample):
-    """Mean-squared error."""
+  def accuracy(y_true, y_sample):
     del y_sample  # unused arg
-    return tf.math.square(model.output.distribution.loc - y_true)
+    return tf.equal(
+        tf.argmax(input=model.output.distribution.logits, axis=1),
+        tf.cast(tf.squeeze(y_true), tf.int64))
 
   def log_likelihood(y_true, y_sample):
+    """Expected conditional log-likelihood."""
     del y_sample  # unused arg
-    return model.output.distribution.log_prob(y_true)
+    return model.output.distribution.log_prob(tf.squeeze(y_true))
 
   def kl(y_true, y_sample):
     """KL-divergence."""
@@ -297,7 +312,7 @@ def get_losses_and_metrics(model, n_train):
   def elbo(y_true, y_sample):
     return log_likelihood(y_true, y_sample) * n_train - kl(y_true, y_sample)
 
-  return negative_log_likelihood, mse, log_likelihood, kl, elbo
+  return negative_log_likelihood, accuracy, log_likelihood, kl, elbo
 
 
 def main(argv):
@@ -309,13 +324,11 @@ def main(argv):
 
   session = tf1.Session()
   with session.as_default():
-    x_train, y_train, x_test, y_test = utils.load(FLAGS.dataset)
+    x_train, y_train, x_test, y_test = utils.load(FLAGS.dataset, session)
     n_train = x_train.shape[0]
 
-    model = multilayer_perceptron(
-        n_train,
-        x_train.shape[1:],
-        np.std(y_train) + tf.keras.backend.epsilon())
+    num_classes = int(np.amax(y_train)) + 1
+    model = lenet5(n_train, x_train.shape[1:], num_classes)
     for l in model.layers:
       l.kl_cost_weight = l.add_weight(
           name='kl_cost_weight',
@@ -329,12 +342,11 @@ def main(argv):
           trainable=False)
 
     [negative_log_likelihood,
-     mse,
+     accuracy,
      log_likelihood,
      kl,
      elbo] = get_losses_and_metrics(model, n_train)
-    metrics = [elbo, log_likelihood, kl, mse]
-
+    metrics = [elbo, log_likelihood, kl, accuracy]
     tensorboard = tf1.keras.callbacks.TensorBoard(
         log_dir=FLAGS.output_dir,
         update_freq=FLAGS.batch_size * FLAGS.validation_freq)
@@ -353,6 +365,7 @@ def main(argv):
               (FLAGS.validation_freq * FLAGS.batch_size) // n_train, 1),
           verbose=1,
           callbacks=[tensorboard])
+
     model.compile(
         optimizer=tf.keras.optimizers.Adam(lr=float(FLAGS.learning_rate)),
         loss=negative_log_likelihood,
@@ -363,14 +376,14 @@ def main(argv):
     fit_fn(model, FLAGS.training_steps, initial_epoch=0)
 
     labels = tf.keras.layers.Input(shape=y_train.shape[1:])
-    ll = tf.keras.backend.function(
-        [model.input, labels],
-        [model.output.distribution.log_prob(labels),
-         model.output.distribution.loc - labels])
+    ll = tf.keras.backend.function([model.input, labels], [
+        model.output.distribution.log_prob(tf.squeeze(labels)),
+        model.output.distribution.logits
+    ])
 
     base_metrics = [
-        utils.ensemble_metrics(x_train, y_train, model, ll),
-        utils.ensemble_metrics(x_test, y_test, model, ll),
+        utils.ensemble_metrics(x_train, y_train, model, ll, n_samples=10),
+        utils.ensemble_metrics(x_test, y_test, model, ll, n_samples=10)
     ]
     model_dir = os.path.join(FLAGS.output_dir, 'models')
     tf.io.gfile.makedirs(model_dir)
@@ -385,14 +398,15 @@ def main(argv):
         initial_epoch=train_epochs)
 
     overtrained_metrics = [
-        utils.ensemble_metrics(x_train, y_train, model, ll),
-        utils.ensemble_metrics(x_test, y_test, model, ll),
+        utils.ensemble_metrics(x_train, y_train, model, ll, n_samples=10),
+        utils.ensemble_metrics(x_test, y_test, model, ll, n_samples=10)
     ]
 
     # Perform refined VI.
     sample_op = []
     for l in model.layers:
-      if hasattr(l, 'kernel_prior'):
+      if isinstance(l, tfp.layers.DenseLocalReparameterization) or isinstance(
+          l, tfp.layers.Convolution2DFlipout):
         weight_op, weight_cost = sample_auxiliary_op(
             l.kernel_prior.distribution, l.kernel_posterior.distribution,
             FLAGS.auxiliary_variance_ratio)
@@ -436,13 +450,13 @@ def main(argv):
             y_train,
             model,
             ll,
-            weight_files=ensemble_filenames),
+            weight_files=ensemble_filenames, n_samples=10),
         utils.ensemble_metrics(
             x_test,
             y_test,
             model,
             ll,
-            weight_files=ensemble_filenames),
+            weight_files=ensemble_filenames, n_samples=10)
     ]
 
     for metrics, name in [(base_metrics, 'Base model'),

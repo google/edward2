@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Variational inference for LeNet5 or ResNet-20 on image data."""
+"""Variational inference for LeNet5 or ResNet-20 on CIFAR-10."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -26,7 +26,7 @@ from absl import logging
 
 from edward2.experimental.auxiliary_sampling import datasets
 from edward2.experimental.auxiliary_sampling.compute_metrics import ensemble_metrics
-from edward2.experimental.auxiliary_sampling.conv_net import conv_net
+from edward2.experimental.auxiliary_sampling.lenet5 import lenet5
 from edward2.experimental.auxiliary_sampling.res_net import res_net
 from edward2.experimental.auxiliary_sampling.sampling import sample_auxiliary_op
 import numpy as np
@@ -34,11 +34,6 @@ import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-flags.DEFINE_enum('dataset', 'mnist',
-                  enum_values=['mnist',
-                               'fashion_mnist',
-                               'cifar10'],
-                  help='Name of the image dataset.')
 flags.DEFINE_integer('training_steps', 30000, 'Training steps.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate.')
@@ -73,18 +68,18 @@ def get_losses_and_metrics(model, n_train):
 
   def negative_log_likelihood(y, rv_y):
     del rv_y  # unused arg
-    return -model.output.log_prob(tf.squeeze(y))
+    return -model.output.distribution.log_prob(tf.squeeze(y))
 
   def accuracy(y_true, y_sample):
     del y_sample  # unused arg
     return tf.equal(
-        tf.argmax(input=model.output.logits, axis=1),
+        tf.argmax(input=model.output.distribution.logits, axis=1),
         tf.cast(tf.squeeze(y_true), tf.int64))
 
   def log_likelihood(y_true, y_sample):
     """Expected conditional log-likelihood."""
     del y_sample  # unused arg
-    return model.output.log_prob(tf.squeeze(y_true))
+    return model.output.distribution.log_prob(tf.squeeze(y_true))
 
   def kl(y_true, y_sample):
     """KL-divergence."""
@@ -109,12 +104,12 @@ def main(argv):
 
   session = tf1.Session()
   with session.as_default():
-    x_train, y_train, x_test, y_test = datasets.load(FLAGS.dataset, session)
+    x_train, y_train, x_test, y_test = datasets.load(session)
     n_train = x_train.shape[0]
 
     num_classes = int(np.amax(y_train)) + 1
     if not FLAGS.resnet:
-      model = conv_net(n_train, x_train.shape[1:], num_classes)
+      model = lenet5(n_train, x_train.shape[1:], num_classes)
     else:
       datagen = tf.keras.preprocessing.image.ImageDataGenerator(
           rotation_range=90,
@@ -200,8 +195,8 @@ def main(argv):
             initial_epoch=initial_epoch,
             steps_per_epoch=n_train // FLAGS.batch_size,
             validation_data=(x_test, y_test),
-            validation_freq=(
-                (FLAGS.validation_freq * FLAGS.batch_size) // n_train),
+            validation_freq=max(
+                (FLAGS.validation_freq * FLAGS.batch_size) // n_train, 1),
             verbose=1,
             callbacks=callbacks if with_lr_schedule else [tensorboard])
 
@@ -216,8 +211,8 @@ def main(argv):
 
     labels = tf.keras.layers.Input(shape=y_train.shape[1:])
     ll = tf.keras.backend.function([model.input, labels], [
-        model.output.log_prob(tf.squeeze(labels)),
-        model.output.logits
+        model.output.distribution.log_prob(tf.squeeze(labels)),
+        model.output.distribution.logits
     ])
 
     base_metrics = [

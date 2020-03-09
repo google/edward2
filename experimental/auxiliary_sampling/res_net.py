@@ -22,13 +22,13 @@ from __future__ import print_function
 import functools
 
 from absl import logging
+import edward2 as ed
 from edward2.experimental.auxiliary_sampling.sampling import mean_field_fn
 
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 
 keras = tf.keras
-tfd = tfp.distributions
 
 
 def _resnet_layer(inputs,
@@ -221,16 +221,13 @@ def res_net(n_examples,
   def normalized_kl_fn(q, p, _):
     return tfp.distributions.kl_divergence(q, p) / tf.to_float(n_examples)
 
-  out = tfp.layers.DenseLocalReparameterization(
+  logits = tfp.layers.DenseLocalReparameterization(
       num_classes,
       kernel_prior_fn=p_fn,
       kernel_posterior_fn=q_fn,
       bias_prior_fn=p_fn,
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
-      bias_divergence_fn=normalized_kl_fn)(
-          x)
-  output_dist = tfp.layers.DistributionLambda(
-      lambda o: tfd.Categorical(logits=o))(
-          out)
-  return tf.keras.models.Model(inputs=inputs, outputs=output_dist)
+      bias_divergence_fn=normalized_kl_fn)(x)
+  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
+  return tf.keras.models.Model(inputs=inputs, outputs=outputs)

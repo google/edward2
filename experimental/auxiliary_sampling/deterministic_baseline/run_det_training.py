@@ -61,7 +61,7 @@ def main(argv):
   tf1.disable_v2_behavior()
 
   session = tf1.Session()
-  x_train, y_train, x_test, y_test = datasets.load('cifar10', session)
+  x_train, y_train, x_test, y_test = datasets.load(session)
   n_train = x_train.shape[0]
   num_classes = int(np.amax(y_train)) + 1
 
