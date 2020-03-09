@@ -56,7 +56,7 @@ flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_integer('kl_annealing_epochs', 200,
                      'Number of epoch over which to anneal the KL term to 1.')
-flags.DEFINE_float('l2', 5e-4, 'L2 regularization coefficient.')
+flags.DEFINE_float('l2', 4e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('prior_stddev', 0.1, 'Fixed stddev for weight prior.')
 flags.DEFINE_float('stddev_init', 1e-3,
                    'Initialization of posterior standard deviation parameters.')

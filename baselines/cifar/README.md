@@ -8,7 +8,7 @@
 | BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.24 / 69.4% / 0.143 | 5.4 (8 TPUv2 cores) | 36.6M |
 | Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.35 / 67.8% / 0.178 | 1.2 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% |  - | - | 1.2 (32 TPUv2 cores) | 146M |
-| Variational inference | 1e-3 / 0.214 | 99.9% / 94.7% | 1e-3 / 0.029 | 1.53 / 70.6% / 0.190 | 5.5 (8 TPUv2 cores) | 73M |
+| Variational inference | 1e-3 / 0.211 | 99.9% / 94.7% | 1e-3 / 0.029 | 1.46 / 71.3% / 0.181 | 5.5 (8 TPUv2 cores) | 73M |
 
 ## CIFAR-100
 
@@ -18,7 +18,7 @@
 | BatchEnsemble (size=4) | 4e-3 / 0.734 | 99.7% / 81.5% | 3e-3 / 0.0338 | - | 5.5 (8 TPUv2 cores) | 36.6M |
 | Dropout | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | - | 1.1 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - | - | 1.1 (32 TPUv2 cores) | 146M |
-| Variational inference | 2e-3 / 1.03 | 99.9% / 77.3% | 2e-3 / 0.111 | - | 5.5 (8 TPUv2 cores) | 73M |
+| Variational inference | 3e-3 / 0.944 | 99.9% / 77.8% | 2e-3 / 0.097 | 3.18 / 48.2% / 0.271 | 5.5 (8 TPUv2 cores) | 73M |
 
 ## Metrics
 
