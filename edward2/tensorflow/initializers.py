@@ -39,9 +39,43 @@ import math
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import regularizers
+
+import numpy as np
 import six
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
+
+
+def get_condconv_initializer(initializer, num_experts, expert_shape):
+  """Wraps the initializer to correctly initialize CondConv variables.
+
+  CondConv initializes biases and kernels in a num_experts x num_params
+  matrix for efficient computation. This wrapper ensures that each expert
+  is correctly initialized with the given initializer before being flattened
+  into the correctly shaped CondConv variable.
+
+  Arguments:
+    initializer: The initializer to apply for each individual expert.
+    num_experts: The number of experts to be initialized.
+    expert_shape: The original shape of each individual expert.
+
+  Returns:
+    The initializer for the num_experts x num_params CondConv variable.
+  """
+  def condconv_initializer(expected_shape, dtype=None, partition=None):
+    """CondConv initializer function."""
+    num_params = np.prod(expert_shape)
+    if (len(expected_shape) != 2 or expected_shape[0] != num_experts or
+        expected_shape[1] != num_params):
+      raise (ValueError(
+          'CondConv variables must have shape [num_experts, num_params]'))
+    flattened_kernels = []
+    for _ in range(num_experts):
+      kernel = initializer(expert_shape, dtype, partition)
+      flattened_kernels.append(tf.reshape(kernel, [-1]))
+    return tf.stack(flattened_kernels)
+
+  return condconv_initializer
 
 
 # From `tensorflow/python/ops/init_ops.py`

@@ -29,6 +29,10 @@ import tensorflow_datasets as tfds
 IMAGE_SIZE = 224
 CROP_PADDING = 32
 
+# ImageNet statistics. Used to normalize the input to Efficientnet.
+IMAGENET_MEAN = np.array([[[0.485, 0.456, 0.406]]], np.float32) * 255.
+IMAGENET_STDDEV = np.array([[[0.229, 0.224, 0.225]]], np.float32) * 255.
+
 
 # TODO(trandustin): Refactor similar to CIFAR code.
 class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -63,6 +67,43 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         'num_epochs': self.num_epochs,
         'schedule': self.schedule,
     }
+
+
+class WarmupDecaySchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+  """A wrapper for LearningRateSchedule that includes warmup steps."""
+
+  def __init__(self, lr_schedule, warmup_steps):
+    """Add warmup decay to a learning rate schedule.
+
+    Args:
+      lr_schedule: base learning rate scheduler
+      warmup_steps: number of warmup steps
+
+    """
+    super(WarmupDecaySchedule, self).__init__()
+    self._lr_schedule = lr_schedule
+    self._warmup_steps = warmup_steps
+
+  def __call__(self, step):
+    lr = self._lr_schedule(step)
+    if self._warmup_steps:
+      initial_learning_rate = tf.convert_to_tensor(
+          self._lr_schedule.initial_learning_rate, name='initial_learning_rate')
+      dtype = initial_learning_rate.dtype
+      global_step_recomp = tf.cast(step, dtype)
+      warmup_steps = tf.cast(self._warmup_steps, dtype)
+      warmup_lr = initial_learning_rate * global_step_recomp / warmup_steps
+      lr = tf.cond(global_step_recomp < warmup_steps,
+                   lambda: warmup_lr,
+                   lambda: lr)
+    return lr
+
+  def get_config(self):
+    config = self._lr_schedule.get_config()
+    config.update({
+        'warmup_steps': self._warmup_steps,
+    })
+    return config
 
 
 def distorted_bounding_box_crop(image_bytes,
@@ -124,8 +165,14 @@ def _at_least_x_are_equal(a, b, x):
   return tf.greater_equal(tf.reduce_sum(match), x)
 
 
-def _decode_and_random_crop(image_bytes):
-  """Make a random crop of IMAGE_SIZE."""
+def _resize_image(image, image_size, method=None):
+  if method is not None:
+    return tf.image.resize([image], [image_size, image_size], method)[0]
+  return tf.image.resize_bicubic([image], [image_size, image_size])[0]
+
+
+def _decode_and_random_crop(image_bytes, image_size, resize_method=None):
+  """Make a random crop of image_size."""
   bbox = tf.constant([0.0, 0.0, 1.0, 1.0], dtype=tf.float32, shape=[1, 1, 4])
   image = distorted_bounding_box_crop(
       image_bytes,
@@ -140,21 +187,20 @@ def _decode_and_random_crop(image_bytes):
 
   image = tf.cond(
       bad,
-      lambda: _decode_and_center_crop(image_bytes),
-      lambda: tf.image.resize_bicubic([image],  # pylint: disable=g-long-lambda
-                                      [IMAGE_SIZE, IMAGE_SIZE])[0])
+      lambda: _decode_and_center_crop(image_bytes, image_size),
+      lambda: _resize_image(image, image_size, resize_method))
 
   return image
 
 
-def _decode_and_center_crop(image_bytes):
-  """Crops to center of image with padding then scales IMAGE_SIZE."""
+def _decode_and_center_crop(image_bytes, image_size, resize_method=None):
+  """Crops to center of image with padding then scales by image_size."""
   shape = tf.image.extract_jpeg_shape(image_bytes)
   image_height = shape[0]
   image_width = shape[1]
 
   padded_center_crop_size = tf.cast(
-      ((IMAGE_SIZE / (IMAGE_SIZE + CROP_PADDING)) *
+      ((image_size / (image_size + CROP_PADDING)) *
        tf.cast(tf.minimum(image_height, image_width), tf.float32)),
       tf.int32)
 
@@ -163,62 +209,79 @@ def _decode_and_center_crop(image_bytes):
   crop_window = tf.stack([offset_height, offset_width,
                           padded_center_crop_size, padded_center_crop_size])
   image = tf.image.decode_and_crop_jpeg(image_bytes, crop_window, channels=3)
-  image = tf.image.resize_bicubic([image], [IMAGE_SIZE, IMAGE_SIZE])[0]
+  image = _resize_image(image, image_size, resize_method)
 
   return image
 
 
-def preprocess_for_train(image_bytes, use_bfloat16):
+def preprocess_for_train(image_bytes,
+                         use_bfloat16,
+                         image_size=IMAGE_SIZE,
+                         resize_method=None):
   """Preprocesses the given image for evaluation.
 
   Args:
     image_bytes: `Tensor` representing an image binary of arbitrary size.
     use_bfloat16: `bool` for whether to use bfloat16.
+    image_size: image size/resolution in Efficientnet.
+    resize_method: resize method. If none, use bicubic.
 
   Returns:
     A preprocessed image `Tensor`.
   """
-  image = _decode_and_random_crop(image_bytes)
+  image = _decode_and_random_crop(image_bytes, image_size, resize_method)
   image = tf.image.random_flip_left_right(image)
-  image = tf.reshape(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
+  image = tf.reshape(image, [image_size, image_size, 3])
   image = tf.image.convert_image_dtype(
       image, dtype=tf.bfloat16 if use_bfloat16 else tf.float32)
   return image
 
 
-def preprocess_for_eval(image_bytes, use_bfloat16):
+def preprocess_for_eval(image_bytes,
+                        use_bfloat16,
+                        image_size=IMAGE_SIZE,
+                        resize_method=None):
   """Preprocesses the given image for evaluation.
 
   Args:
     image_bytes: `Tensor` representing an image binary of arbitrary size.
     use_bfloat16: `bool` for whether to use bfloat16.
+    image_size: image size.
+    resize_method: if None, use bicubic.
 
   Returns:
     A preprocessed image `Tensor`.
   """
-  image = _decode_and_center_crop(image_bytes)
-  image = tf.reshape(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
+  image = _decode_and_center_crop(image_bytes, image_size, resize_method)
+  image = tf.reshape(image, [image_size, image_size, 3])
   image = tf.image.convert_image_dtype(
       image, dtype=tf.bfloat16 if use_bfloat16 else tf.float32)
   return image
 
 
-def preprocess_image(image_bytes, is_training=False,
-                     use_bfloat16=False):
+def preprocess_image(image_bytes,
+                     is_training=False,
+                     use_bfloat16=False,
+                     image_size=IMAGE_SIZE,
+                     resize_method=None):
   """Preprocesses the given image.
 
   Args:
     image_bytes: `Tensor` representing an image binary of arbitrary size.
     is_training: `bool` for whether the preprocessing is for training.
     use_bfloat16: `bool` for whether to use bfloat16.
+    image_size: image size.
+    resize_method: if None, use bicubic.
 
   Returns:
     A preprocessed image `Tensor`.
   """
   if is_training:
-    return preprocess_for_train(image_bytes, use_bfloat16)
+    return preprocess_for_train(image_bytes, use_bfloat16,
+                                image_size, resize_method)
   else:
-    return preprocess_for_eval(image_bytes, use_bfloat16)
+    return preprocess_for_eval(image_bytes, use_bfloat16,
+                               image_size, resize_method)
 
 
 class ImageNetInput(object):
@@ -240,23 +303,35 @@ class ImageNetInput(object):
     is_training: `bool` for whether the input is for training.
     data_dir: `str` for the directory of the training and validation data.
     use_bfloat16: If True, use bfloat16 precision; else use float32.
+    image_size: `int` for image size (both width and height).
+    normalize_input: `bool` for normalizing the input. Enable in Efficientnet.
+    one_hot: `bool` for using one-hot label. Enable in Efficientnet.
     drop_remainder: `bool` for dropping the remainder when batching.
     batch_size: The global batch size to use.
     image_preprocessing_fn: Image preprocessing function.
+    resize_method: If None, use bicubic in default.
   """
 
   def __init__(self,
                is_training,
                data_dir,
                batch_size,
+               image_size=224,
+               normalize_input=False,
+               one_hot=False,
                drop_remainder=True,
-               use_bfloat16=False):
+               use_bfloat16=False,
+               resize_method=None):
     self.image_preprocessing_fn = preprocess_image
     self.is_training = is_training
     self.use_bfloat16 = use_bfloat16
     self.drop_remainder = drop_remainder
     self.data_dir = data_dir
     self.batch_size = batch_size
+    self.image_size = image_size
+    self.normalize_input = normalize_input
+    self.one_hot = one_hot
+    self.resize_method = resize_method
 
   def dataset_parser(self, value):
     """Parse an ImageNet record from a serialized string Tensor."""
@@ -287,14 +362,27 @@ class ImageNetInput(object):
     image = self.image_preprocessing_fn(
         image_bytes=image_bytes,
         is_training=self.is_training,
-        use_bfloat16=self.use_bfloat16)
+        use_bfloat16=self.use_bfloat16,
+        image_size=self.image_size,
+        resize_method=self.resize_method)
 
     # Subtract one so that labels are in [0, 1000), and cast to float32 for
     # Keras model.
-    label = tf.cast(tf.cast(
-        tf.reshape(parsed['image/class/label'], shape=[1]), dtype=tf.int32) - 1,
-                    dtype=tf.float32)
+    if self.one_hot:
+      # TODO(ywenxu): The number of classes is hard coded for now.
+      label = tf.cast(parsed['image/class/label'], tf.int32) - 1
+      label = tf.one_hot(label, 1000, dtype=tf.float32)
+    else:
+      label = tf.cast(tf.reshape(
+          parsed['image/class/label'], shape=[1]), dtype=tf.int32) - 1
+      label = tf.cast(label, tf.float32)
 
+    if self.normalize_input:
+      mean = np.reshape(IMAGENET_MEAN, [1, 1, 3])
+      stddev = np.reshape(IMAGENET_STDDEV, [1, 1, 3])
+      image = (tf.cast(image, tf.float32) - mean) / stddev
+      if self.use_bfloat16:
+        image = tf.cast(image, tf.bfloat16)
     return image, label
 
   def input_fn(self, ctx=None):
@@ -314,8 +402,8 @@ class ImageNetInput(object):
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
 
-    if self.is_training:
-      dataset = dataset.repeat()
+    # Evaluation dataset can also be repeat as long as steps_per_eval is set.
+    dataset = dataset.repeat()
 
     def fetch_dataset(filename):
       buffer_size = 8 * 1024 * 1024     # 8 MiB per file
@@ -330,21 +418,19 @@ class ImageNetInput(object):
     if self.is_training:
       dataset = dataset.shuffle(1024)
 
-    # Parse, pre-process, and batch the data in parallel
-    dataset = dataset.apply(
-        tf.data.experimental.map_and_batch(
-            self.dataset_parser,
-            batch_size=self.batch_size,
-            num_parallel_batches=2,
-            drop_remainder=self.drop_remainder))
+    dataset = dataset.map(self.dataset_parser, tf.data.experimental.AUTOTUNE)
+    dataset = dataset.batch(batch_size=self.batch_size, drop_remainder=True)
 
-    # Prefetch overlaps in-feed with training
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    if self.is_training:
-      options = tf.data.Options()
-      options.experimental_deterministic = False
-      dataset = dataset.with_options(options)
+    # Optimize dataset performance.
+    options = tf.data.Options()
+    options.experimental_optimization.parallel_batch = True
+    options.experimental_optimization.map_fusion = True
+    options.experimental_optimization.map_vectorization.enabled = True
+    options.experimental_optimization.map_parallelization = True
+    dataset = dataset.with_options(options)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
 
