@@ -1,9 +1,19 @@
-# ResNet-50 on ImageNet
+# ImageNet
+
+## ResNet-50
 
 | Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | mCE | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | BatchEnsemble<sup>1</sup> | 0.847 / 0.951 | 79.2% / 76.5% | - | - | - | 17.5 (32 TPUv2 cores) | 25.8M |
 | Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | - | 5 (32 TPUv3 cores) | 25.6M |
+
+## EfficientNet
+
+| Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | mCE | Train Runtime (hours) | # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Deterministic (B0) | - / 1.04 | - / 75.6% | - | - | - | 5 (32 TPUv3 cores) | 5.3M |
+| Deterministic (B1) | - / 1.00 | - / 77.2% | - | - | - | 6.5 (32 TPUv3 cores) | 7.8M |
+| Deterministic (B2) | - / 0.973 | - / 78.0% | - | - | - | 9 (32 TPUv3 cores) | 9.2M |
 
 ## Metrics
 
