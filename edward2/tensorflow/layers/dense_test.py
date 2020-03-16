@@ -286,31 +286,30 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     percent_mismatches = num_mismatches / float(batch_size * units * units)
     self.assertLessEqual(percent_mismatches, 0.05)
 
-    # TODO(trandustin): Reapply test using proper reshape.
-#   def testDenseBatchEnsemble(self):
-#     tf.keras.backend.set_learning_phase(1)  # training time
-#     num_models = 3
-#     examples_per_model = 4
-#     input_dim = 5
-#     output_dim = 5
-#     inputs = tf.random.normal([examples_per_model, input_dim])
-#     batched_inputs = tf.tile(inputs, [num_models, 1])
-#     layer = ed.layers.DenseBatchEnsemble(
-#         output_dim,
-#         alpha_initializer="he_normal",
-#         gamma_initializer="he_normal",
-#         activation=None,
-#         num_models=num_models)
-#
-#     output = layer(batched_inputs)
-#     manual_output = [
-#         layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-#         for i in range(num_models)]
-#     manual_output = tf.concat(manual_output, axis=0)
-#
-#     expected_shape = (num_models*examples_per_model, output_dim)
-#     self.assertEqual(output.shape, expected_shape)
-#     self.assertAllClose(output, manual_output)
+  def testDenseBatchEnsemble(self):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    ensemble_size = 3
+    examples_per_model = 4
+    input_dim = 5
+    output_dim = 5
+    inputs = tf.random.normal([examples_per_model, input_dim])
+    batched_inputs = tf.tile(inputs, [ensemble_size, 1])
+    layer = ed.layers.DenseBatchEnsemble(
+        output_dim,
+        alpha_initializer="he_normal",
+        gamma_initializer="he_normal",
+        activation=None,
+        ensemble_size=ensemble_size)
+
+    output = layer(batched_inputs)
+    manual_output = [
+        layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
+        for i in range(ensemble_size)]
+    manual_output = tf.concat(manual_output, axis=0)
+
+    expected_shape = (ensemble_size*examples_per_model, output_dim)
+    self.assertEqual(output.shape, expected_shape)
+    self.assertAllClose(output, manual_output)
 
 
 if __name__ == "__main__":

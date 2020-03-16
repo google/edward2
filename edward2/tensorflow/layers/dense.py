@@ -534,17 +534,14 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
-    input_dim = tf.shape(inputs)[-1]
     examples_per_model = batch_size // self.ensemble_size
-    # TODO(trandustin): Reapply fix using proper reshape.
-    inputs = tf.reshape(inputs,
-                        [examples_per_model, self.ensemble_size, input_dim])
-    alpha = tf.expand_dims(self.alpha, 0)
-    gamma = tf.expand_dims(self.gamma, 0)
+    inputs = tf.reshape(inputs, [self.ensemble_size, examples_per_model, -1])
+    alpha = tf.expand_dims(self.alpha, 1)
+    gamma = tf.expand_dims(self.gamma, 1)
     outputs = self.dense(inputs * alpha) * gamma
 
     if self.use_bias:
-      bias = tf.expand_dims(self.bias, 0)
+      bias = tf.expand_dims(self.bias, 1)
       outputs += bias
 
     if self.activation is not None:
