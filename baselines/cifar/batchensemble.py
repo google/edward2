@@ -56,8 +56,12 @@ flags.DEFINE_float('l2', 3e-4, 'L2 coefficient.')
 flags.DEFINE_enum('dataset', 'cifar10',
                   enum_values=['cifar10', 'cifar100'],
                   help='Dataset.')
+flags.DEFINE_float('diversity_coeff', 0.1, 'Diversity loss coefficient.')
+flags.DEFINE_float('diversity_decay_epoch', 4, 'Diversity decay epoch.')
+flags.DEFINE_integer('diversity_start_epoch', 100,
+                     'Diversity loss starting epoch')
 # TODO(ghassen): consider adding CIFAR-100-C to TFDS.
-flags.DEFINE_string('cifar100_c_path', None,
+flags.DEFINE_string('cifar100_c_path',
                     'Path to the TFRecords files for CIFAR-100-C. Only valid '
                     '(and required) if dataset is cifar100 and corruptions.')
 flags.DEFINE_integer('corruptions_interval', 250,
@@ -176,10 +180,17 @@ def main(argv):
     optimizer = tf.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
+
+    diversity_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        FLAGS.diversity_coeff, FLAGS.diversity_decay_epoch * steps_per_epoch,
+        decay_rate=0.97, staircase=True)
+
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
+        'train/similarity': tf.keras.metrics.Mean(),
+        'train/l2': tf.keras.metrics.Mean(),
         'train/ece': ed.metrics.ExpectedCalibrationError(
             num_classes=num_classes, num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
@@ -223,6 +234,24 @@ def main(argv):
       images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
       labels = tf.tile(labels, [FLAGS.ensemble_size])
 
+      def _is_batch_norm(v):
+        """Decide whether a variable belongs to `batch_norm`."""
+        keywords = ['batchnorm', 'batch_norm', 'bn']
+        return any([k in v.name.lower() for k in keywords])
+
+      def _normalize(x):
+        """Normalize an input with l2 norm."""
+        l2 = tf.norm(x, ord=2, axis=-1)
+        return x / tf.expand_dims(l2, axis=-1)
+
+      # Taking the sum of upper triangular of XX^T and divided by ensemble size.
+      def pairwise_cosine_distance(x):
+        """Compute the pairwise distance in a matrix."""
+        normalized_x = _normalize(x)
+        return (tf.reduce_sum(
+            tf.matmul(normalized_x, normalized_x, transpose_b=True)) -
+                FLAGS.ensemble_size) / (2.0 * FLAGS.ensemble_size)
+
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
         if FLAGS.use_bfloat16:
@@ -232,7 +261,21 @@ def main(argv):
                                                             logits,
                                                             from_logits=True))
         l2_loss = sum(model.losses)
-        loss = negative_log_likelihood + l2_loss
+        fast_weights = [var for var in model.trainable_variables if
+                        not _is_batch_norm(var) and (
+                            'alpha' in var.name or 'gamma' in var.name)]
+
+        pairwise_distance_loss = tf.add_n(
+            [pairwise_cosine_distance(var) for var in fast_weights])
+
+        diversity_start_iter = steps_per_epoch * FLAGS.diversity_start_epoch
+        diversity_iterations = optimizer.iterations - diversity_start_iter
+        if diversity_iterations > 0:
+          diversity_coeff = diversity_schedule(diversity_iterations)
+          diversity_loss = diversity_coeff * pairwise_distance_loss
+          loss = negative_log_likelihood + l2_loss + diversity_loss
+        else:
+          loss = negative_log_likelihood + l2_loss
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
         scaled_loss = loss / strategy.num_replicas_in_sync
 
@@ -245,7 +288,7 @@ def main(argv):
           # Apply different learning rate on the fast weight approximate
           # posterior/prior parameters. This is excludes BN and slow weights,
           # but pay caution to the naming scheme.
-          if ('batch_norm' not in var.name and 'kernel' not in var.name):
+          if (not _is_batch_norm(var) and 'kernel' not in var.name):
             grads_and_vars.append((grad * FLAGS.fast_weight_lr_multiplier, var))
           else:
             grads_and_vars.append((grad, var))
@@ -255,6 +298,8 @@ def main(argv):
 
       probs = tf.nn.softmax(logits)
       metrics['train/ece'].update_state(labels, probs)
+      metrics['train/similarity'].update_state(pairwise_distance_loss)
+      metrics['train/l2'].update_state(l2_loss)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
