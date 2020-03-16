@@ -166,6 +166,24 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
     return super(LSTMCellReparameterization, self).get_initial_state(
         inputs=inputs, batch_size=batch_size, dtype=dtype)
 
+  def _compute_carry_and_output(self, x, h_tm1, c_tm1):
+    """Computes carry and output using split kernels."""
+    x_i, x_f, x_c, x_o = x
+    h_tm1_i, h_tm1_f, h_tm1_c, h_tm1_o = h_tm1
+    # Index the associated tensor as indexing does not work over the event shape
+    # of distributions.
+    recurrent_kernel = tf.convert_to_tensor(self.recurrent_kernel)
+    i = self.recurrent_activation(
+        x_i + tf.keras.backend.dot(h_tm1_i, recurrent_kernel[:, :self.units]))
+    f = self.recurrent_activation(x_f + tf.keras.backend.dot(
+        h_tm1_f, recurrent_kernel[:, self.units:self.units * 2]))
+    c = f * c_tm1 + i * self.activation(x_c + tf.keras.backend.dot(
+        h_tm1_c, recurrent_kernel[:, self.units * 2:self.units * 3]))
+    o = self.recurrent_activation(
+        x_o + tf.keras.backend.dot(
+            h_tm1_o, recurrent_kernel[:, self.units * 3:]))
+    return c, o
+
 
 class LSTMCellFlipout(LSTMCellReparameterization):
   """Bayesian LSTM cell class estimated via Flipout (Wen et al., 2018).
