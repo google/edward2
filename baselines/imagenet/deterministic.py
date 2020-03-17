@@ -222,7 +222,7 @@ def main(argv):
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, logits)
 
-    strategy.experimental_run_v2(step_fn, args=(next(iterator),))
+    strategy.run(step_fn, args=(next(iterator),))
 
   @tf.function
   def test_step(iterator, dataset_name):
@@ -252,7 +252,7 @@ def main(argv):
         corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
             labels, probs)
 
-    strategy.experimental_run_v2(step_fn, args=(next(iterator),))
+    strategy.run(step_fn, args=(next(iterator),))
 
   train_iterator = iter(train_dataset)
   start_time = time.time()

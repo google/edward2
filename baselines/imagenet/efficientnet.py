@@ -215,8 +215,7 @@ def main(argv):
   def epoch_fn(should_eval):
     """Build `epoch_fn` for training and potential eval."""
     for _ in tf.range(tf.cast(steps_per_epoch, tf.int32)):
-      info = strategy.experimental_run_v2(train_step,
-                                          args=(next(train_iterator),))
+      info = strategy.run(train_step, args=(next(train_iterator),))
 
       optim_step = optimizer.iterations
       if optim_step % tf.cast(100, optim_step.dtype) == 0:
@@ -228,7 +227,7 @@ def main(argv):
 
     if should_eval:
       for _ in tf.range(tf.cast(steps_per_eval, tf.int32)):
-        strategy.experimental_run_v2(eval_step, args=(next(test_iterator),))
+        strategy.run(eval_step, args=(next(test_iterator),))
 
   # Main training loop.
   start_time = time.time()
