@@ -4,9 +4,9 @@
 
 | Method | Train/Test NLL | Train/Test Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | Train Runtime (hours) | # Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Deterministic | 1e-3 / 0.159 | 99.9% / 96.0% | 1e-3 / 0.0231 | 1.29 / 69.8% / 0.173 | 1.2 (8 TPUv2 cores) | 36.5M |
-| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.24 / 69.4% / 0.143 | 5.4 (8 TPUv2 cores) | 36.6M |
-| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.35 / 67.8% / 0.178 | 1.2 (8 TPUv2 cores) | 36.5M |
+| Deterministic | 1e-3 / 0.159 | 99.9% / 96.0% | 1e-3 / 0.0231 | 1.05 / 76.1% / 0.153 | 1.2 (8 TPUv2 cores) | 36.5M |
+| BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.02 / 77.5% / 0.129 | 5.4 (8 TPUv2 cores) | 36.6M |
+| Dropout | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.27 / 68.8% / 0.166 | 1.2 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% | - / 0.010 | 0.81 / 77.9% / 0.087 | 1.2 (32 TPUv2 cores) | 146M |
 | Variational inference | 1e-3 / 0.211 | 99.9% / 94.7% | 1e-3 / 0.029 | 1.46 / 71.3% / 0.181 | 5.5 (8 TPUv2 cores) | 73M |
 
