@@ -295,10 +295,6 @@ def main(argv):
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
-      if FLAGS.ensemble_size > 1:
-        per_probs = tf.split(
-            probs, num_or_size_splits=FLAGS.ensemble_size, axis=0)
-        probs = tf.reduce_mean(per_probs, axis=0)
 
       if dataset_name == 'clean' and FLAGS.ensemble_size > 1:
         per_probs_tensor = tf.reshape(
@@ -307,6 +303,11 @@ def main(argv):
             per_probs_tensor, FLAGS.ensemble_size)
         for k, v in diversity_results.items():
           test_diversity['test/' + k].update_state(v)
+
+      if FLAGS.ensemble_size > 1:
+        per_probs = tf.split(
+            probs, num_or_size_splits=FLAGS.ensemble_size, axis=0)
+        probs = tf.reduce_mean(per_probs, axis=0)
 
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
