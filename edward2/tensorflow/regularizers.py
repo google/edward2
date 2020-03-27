@@ -382,7 +382,7 @@ def get(identifier, value=None):
   """Getter for loading from strings; falls back to Keras as needed."""
   if value is None:
     value = identifier
-  if identifier is None:
+  if identifier in (None, ''):
     return None
   elif isinstance(identifier, dict):
     try:
