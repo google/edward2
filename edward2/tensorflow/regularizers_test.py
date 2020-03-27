@@ -184,6 +184,7 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
     self.assertIsInstance(ed.regularizers.get('normal_kl_divergence'),
                           ed.regularizers.NormalKLDivergence)
     self.assertIsInstance(ed.regularizers.get('l2'), tf.keras.regularizers.L1L2)
+    self.assertIsNone(ed.regularizers.get(''))
 
 if __name__ == '__main__':
   tf.enable_v2_behavior()
