@@ -30,13 +30,17 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
   def testAddWeightWithTrainableInitializer(self):
     dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
     initializer = ed.initializers.get('trainable_normal')
-    layer = dense_wrapped(2, kernel_initializer=initializer)
+    layer = dense_wrapped(2, kernel_initializer=initializer, name='dense')
     inputs = tf.random.normal([1, 3])
     _ = layer(inputs)
     self.assertTrue(initializer.built, True)
     self.assertNotEmpty(initializer.weights)
     for weight in initializer.weights:
       self.assertTrue(np.any([weight is lweight for lweight in layer.weights]))
+    layer_weights_names = [weight.name for weight in layer.weights]
+    self.assertEqual(layer_weights_names[0], 'dense/bias:0')
+    self.assertEqual(layer_weights_names[1], 'dense/kernel/mean:0')
+    self.assertEqual(layer_weights_names[2], 'dense/kernel/stddev:0')
 
   def testAddWeightWithTrainableRegularizer(self):
     dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)

@@ -52,7 +52,8 @@ def add_weight(cls):
       if not regularizer.built:
         regularizer.build(shape)
     if isinstance(initializer, tf.keras.layers.Layer):
-      weight = initializer(shape, dtype)
+      with tf.name_scope(name):
+        weight = initializer(shape, dtype)
       if regularizer is not None:
         def loss_fn():
           """Creates a regularization loss `Tensor`."""
