@@ -207,7 +207,7 @@ def cosine_distance(x, y):
 
 
 # TODO(ghassen): we could extend this to take an arbitrary list of metric fns.
-def average_pairwise_diversity(probs, num_models):
+def average_pairwise_diversity(probs, num_models, error=None):
   """Average pairwise distance computation across models."""
   if probs.shape[0] != num_models:
     raise ValueError('The number of models {0} does not match '
@@ -226,6 +226,8 @@ def average_pairwise_diversity(probs, num_models):
 
   # TODO(ghassen): we could also return max and min pairwise metrics.
   average_disagreement = tf.reduce_mean(tf.stack(pairwise_disagreement))
+  if error is not None:
+    average_disagreement /= error
   average_kl_divergence = tf.reduce_mean(tf.stack(pairwise_kl_divergence))
   average_cosine_distance = tf.reduce_mean(tf.stack(pairwise_cosine_distance))
 
