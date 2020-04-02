@@ -227,7 +227,7 @@ def average_pairwise_diversity(probs, num_models, error=None):
   # TODO(ghassen): we could also return max and min pairwise metrics.
   average_disagreement = tf.reduce_mean(tf.stack(pairwise_disagreement))
   if error is not None:
-    average_disagreement /= error
+    average_disagreement /= (error + tf.keras.backend.epsilon())
   average_kl_divergence = tf.reduce_mean(tf.stack(pairwise_kl_divergence))
   average_cosine_distance = tf.reduce_mean(tf.stack(pairwise_cosine_distance))
 
