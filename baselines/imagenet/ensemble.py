@@ -33,15 +33,31 @@ from absl import logging
 import edward2 as ed
 import deterministic_model  # local file import
 import utils  # local file import
-
+import numpy as np
 import tensorflow.compat.v2 as tf
 
-# TODO(trandustin): We inherit
-# FLAGS.{dataset,per_core_batch_size,output_dir,seed} from deterministic. This
-# is not intuitive, which suggests we need to either refactor to avoid importing
-# from a binary or duplicate the model definition here.
-flags.mark_flag_as_required('output_dir')
+flags.DEFINE_integer('per_core_batch_size', 512, 'Batch size per TPU core/GPU.')
+flags.DEFINE_integer('seed', 0, 'Random seed.')
+flags.DEFINE_string('data_dir', None, 'Path to training and testing data.')
+flags.mark_flag_as_required('data_dir')
+flags.DEFINE_string('checkpoint_dir', None,
+                    'The directory where the model weights are stored.')
+flags.mark_flag_as_required('checkpoint_dir')
+flags.DEFINE_string('output_dir', '/tmp/imagenet',
+                    'The directory where to save predictions.')
+flags.DEFINE_string('alexnet_errors_path', None,
+                    'Path to AlexNet corruption errors file.')
+flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
+
+# Accelerator flags.
+flags.DEFINE_bool('use_gpu', True, 'Whether to run on GPU or otherwise TPU.')
+flags.DEFINE_integer('num_cores', 1, 'Number of TPU cores or number of GPUs.')
+flags.DEFINE_string('tpu', None,
+                    'Name of the TPU. Only used if use_gpu is False.')
 FLAGS = flags.FLAGS
+
+# Number of images in eval dataset.
+IMAGENET_VALIDATION_IMAGES = 50000
 NUM_CLASSES = 1000
 
 
@@ -100,10 +116,16 @@ def gibbs_cross_entropy(labels, logits):
 
 def main(argv):
   del argv  # unused arg
+  if not FLAGS.use_gpu:
+    raise ValueError('Only GPU is currently supported.')
   if FLAGS.num_cores > 1:
     raise ValueError('Only a single accelerator is currently supported.')
   tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
+  tf.io.gfile.makedirs(FLAGS.output_dir)
+
+  batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
+  steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
 
   dataset_test = utils.ImageNetInput(
       is_training=False,
@@ -111,6 +133,16 @@ def main(argv):
       batch_size=FLAGS.per_core_batch_size,
       use_bfloat16=False).input_fn()
   test_datasets = {'clean': dataset_test}
+  corruption_types, max_intensity = utils.load_corrupted_test_info()
+  for name in corruption_types:
+    for intensity in range(1, max_intensity + 1):
+      dataset_name = '{0}_{1}'.format(name, intensity)
+      test_datasets[dataset_name] = utils.load_corrupted_test_dataset(
+          name=name,
+          intensity=intensity,
+          batch_size=FLAGS.per_core_batch_size,
+          drop_remainder=True,
+          use_bfloat16=False)
 
   model = deterministic_model.resnet50(input_shape=(224, 224, 3),
                                        num_classes=NUM_CLASSES)
@@ -119,7 +151,7 @@ def main(argv):
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
   # Search for checkpoints from their index file; then remove the index suffix.
-  ensemble_filenames = tf.io.gfile.glob(os.path.join(FLAGS.output_dir,
+  ensemble_filenames = tf.io.gfile.glob(os.path.join(FLAGS.checkpoint_dir,
                                                      '**/*.index'))
   ensemble_filenames = [filename[:-6] for filename in ensemble_filenames]
   ensemble_size = len(ensemble_filenames)
@@ -129,81 +161,91 @@ def main(argv):
   logging.info('Ensemble filenames: %s', str(ensemble_filenames))
   checkpoint = tf.train.Checkpoint(model=model)
 
-  # Collect the logits output for each ensemble member and test data
-  # point. We also collect the labels.
-
-  logits_test = {'clean': []}
-  labels_test = {'clean': []}
-  corruption_types, max_intensity = utils.load_corrupted_test_info()
-  for name in corruption_types:
-    for intensity in range(1, max_intensity + 1):
-      dataset_name = '{0}_{1}'.format(name, intensity)
-      logits_test[dataset_name] = []
-      labels_test[dataset_name] = []
-
-      test_datasets[dataset_name] = utils.load_corrupted_test_dataset(
-          name=name,
-          intensity=intensity,
-          batch_size=FLAGS.per_core_batch_size,
-          drop_remainder=True,
-          use_bfloat16=False)
-
+  # Write model predictions to files.
+  num_datasets = len(test_datasets)
   for m, ensemble_filename in enumerate(ensemble_filenames):
     checkpoint.restore(ensemble_filename)
-    logging.info('Working on test data for ensemble member %s', m)
-    for name, test_dataset in test_datasets.items():
-      logits = []
-      for features, labels in test_dataset:
-        logits.append(model(features, training=False))
-        if m == 0:
-          labels_test[name].append(labels)
+    for n, (name, test_dataset) in enumerate(test_datasets.items()):
+      filename = '{dataset}_{member}.npy'.format(dataset=name, member=m)
+      filename = os.path.join(FLAGS.output_dir, filename)
+      if not tf.io.gfile.exists(filename):
+        logits = []
+        test_iterator = iter(test_dataset)
+        for _ in range(steps_per_eval):
+          features, labels = next(test_iterator)
+          logits.append(model(features, training=False))
 
-      logits = tf.concat(logits, axis=0)
-      logits_test[name].append(logits)
-      if m == 0:
-        labels_test[name] = tf.concat(labels_test[name], axis=0)
-      logging.info('Finished testing on %s', format(name))
+        logits = tf.concat(logits, axis=0)
+        with tf.io.gfile.GFile(filename, 'w') as f:
+          np.save(f, logits.numpy())
+      percent = (m * num_datasets + (n + 1)) / (ensemble_size * num_datasets)
+      message = ('{:.1%} completion for prediction: ensemble member {:d}/{:d}. '
+                 'Dataset {:d}/{:d}'.format(percent,
+                                            m + 1,
+                                            ensemble_size,
+                                            n + 1,
+                                            num_datasets))
+      logging.info(message)
 
   metrics = {
+      'test/negative_log_likelihood': tf.keras.metrics.Mean(),
+      'test/gibbs_cross_entropy': tf.keras.metrics.Mean(),
+      'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
       'test/ece': ed.metrics.ExpectedCalibrationError(num_classes=NUM_CLASSES,
-                                                      num_bins=15)
+                                                      num_bins=FLAGS.num_bins),
   }
   corrupt_metrics = {}
   for name in test_datasets:
+    corrupt_metrics['test/nll_{}'.format(name)] = tf.keras.metrics.Mean()
+    corrupt_metrics['test/accuracy_{}'.format(name)] = (
+        tf.keras.metrics.SparseCategoricalAccuracy())
     corrupt_metrics['test/ece_{}'.format(
         name)] = ed.metrics.ExpectedCalibrationError(
-            num_classes=NUM_CLASSES, num_bins=15)
-    corrupt_metrics['test/nll_{}'.format(name)] = tf.keras.metrics.Mean()
-    corrupt_metrics['test/accuracy_{}'.format(name)] = tf.keras.metrics.Mean()
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins)
 
-  for name, test_dataset in test_datasets.items():
-    labels = labels_test[name]
-    logits = logits_test[name]
-    nll_test = ensemble_negative_log_likelihood(labels, logits)
-    gibbs_ce_test = gibbs_cross_entropy(labels_test[name], logits_test[name])
-    labels = tf.cast(labels, tf.int32)
-    logits = tf.convert_to_tensor(logits)
-    per_probs = tf.nn.softmax(logits)
-    probs = tf.reduce_mean(per_probs, axis=0)
-    accuracy = tf.keras.metrics.sparse_categorical_accuracy(labels, probs)
-    if name == 'clean':
-      metrics['test/negative_log_likelihood'] = tf.reduce_mean(nll_test)
-      metrics['test/gibbs_cross_entropy'] = tf.reduce_mean(gibbs_ce_test)
-      metrics['test/accuracy'] = tf.reduce_mean(accuracy)
-      metrics['test/ece'].update_state(labels, probs)
-    else:
-      corrupt_metrics['test/nll_{}'.format(name)].update_state(
-          tf.reduce_mean(nll_test))
-      corrupt_metrics['test/accuracy_{}'.format(name)].update_state(
-          tf.reduce_mean(accuracy))
-      corrupt_metrics['test/ece_{}'.format(name)].update_state(labels, probs)
+  # Evaluate model predictions.
+  for n, (name, test_dataset) in enumerate(test_datasets.items()):
+    logits_dataset = []
+    for m in range(ensemble_size):
+      filename = '{dataset}_{member}.npy'.format(dataset=name, member=m)
+      filename = os.path.join(FLAGS.output_dir, filename)
+      with tf.io.gfile.GFile(filename, 'rb') as f:
+        logits_dataset.append(np.load(f))
 
-  corrupt_results = {}
+    logits_dataset = tf.convert_to_tensor(logits_dataset)
+    test_iterator = iter(test_dataset)
+    for step in range(steps_per_eval):
+      _, labels = next(test_iterator)
+      logits = logits_dataset[:, (step*batch_size):((step+1)*batch_size)]
+      labels = tf.cast(tf.reshape(labels, [-1]), tf.int32)
+      negative_log_likelihood = tf.reduce_mean(
+          ensemble_negative_log_likelihood(labels, logits))
+      per_probs = tf.nn.softmax(logits)
+      probs = tf.reduce_mean(per_probs, axis=0)
+      if name == 'clean':
+        gibbs_ce = tf.reduce_mean(gibbs_cross_entropy(labels, logits))
+        metrics['test/negative_log_likelihood'].update_state(
+            negative_log_likelihood)
+        metrics['test/gibbs_cross_entropy'].update_state(gibbs_ce)
+        metrics['test/accuracy'].update_state(labels, probs)
+        metrics['test/ece'].update_state(labels, probs)
+      else:
+        corrupt_metrics['test/nll_{}'.format(name)].update_state(
+            negative_log_likelihood)
+        corrupt_metrics['test/accuracy_{}'.format(name)].update_state(
+            labels, probs)
+        corrupt_metrics['test/ece_{}'.format(name)].update_state(
+            labels, probs)
+
+    message = ('{:.1%} completion for evaluation: dataset {:d}/{:d}'.format(
+        (n + 1) / num_datasets, n + 1, num_datasets))
+    logging.info(message)
+
   corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
                                                     corruption_types,
-                                                    max_intensity)
-  metrics['test/ece'] = metrics['test/ece'].result()
-  total_results = {name: metric for name, metric in metrics.items()}
+                                                    max_intensity,
+                                                    FLAGS.alexnet_errors_path)
+  total_results = {name: metric.result() for name, metric in metrics.items()}
   total_results.update(corrupt_results)
   logging.info('Metrics: %s', total_results)
 
