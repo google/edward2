@@ -53,6 +53,8 @@ flags.DEFINE_integer('checkpoint_interval', 15,
                      'Number of epochs between saving checkpoints. Use -1 to '
                      'never save checkpoints.')
 flags.DEFINE_integer('evaluation_interval', 5, 'How many epochs to run test.')
+flags.DEFINE_string('alexnet_errors_path', None,
+                    'Path to AlexNet corruption errors file.')
 flags.DEFINE_float('label_smoothing', 0.1, 'label smoothing constant.')
 
 # Accelerator flags.
