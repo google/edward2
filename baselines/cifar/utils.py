@@ -19,56 +19,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from absl import logging
-
 import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
-
-
-def load_dataset(split, name='cifar10', with_info=False,
-                 data_augmentation=True):
-  """Returns a tf.data.Dataset with <image, label> pairs.
-
-  Args:
-    split: tfds.Split.
-    name: cifar10 or cifar100.
-    with_info: bool.
-    data_augmentation: bool, if True perform simple data augmentation on the
-      TRAIN split with random left/right flips and random cropping.  If False,
-      do not perform any data augmentation.
-
-  Returns:
-    Tuple of (tf.data.Dataset, tf.data.DatasetInfo) if with_info else only
-    the dataset.
-  """
-  dataset, ds_info = tfds.load(name,
-                               split=split,
-                               with_info=True,
-                               batch_size=-1)
-  image_shape = ds_info.features['image'].shape
-  numpy_ds = tfds.as_numpy(dataset)
-  numpy_images, numpy_labels = numpy_ds['image'], numpy_ds['label']
-  dataset = tf.data.Dataset.from_tensor_slices((numpy_images, numpy_labels))
-
-  def preprocess(image, label):
-    """Image preprocessing function."""
-    if data_augmentation and split == tfds.Split.TRAIN:
-      image = tf.image.random_flip_left_right(image)
-      image = tf.pad(image, [[4, 4], [4, 4], [0, 0]])
-      image = tf.image.random_crop(image, image_shape)
-
-    image = tf.image.convert_image_dtype(image, tf.float32)
-    mean = tf.constant([0.4914, 0.4822, 0.4465])
-    std = tf.constant([0.2023, 0.1994, 0.2010])
-    image = (image - mean) / std
-    label = tf.cast(label, tf.float32)
-    return image, label
-
-  dataset = dataset.map(preprocess)
-  if with_info:
-    return dataset, ds_info
-  return dataset
 
 
 def load_cifar100_c_input_fn(corruption_name,
@@ -199,7 +152,6 @@ def load_corrupted_test_info(dataset):
   return corruption_types, max_intensity
 
 
-# TODO(trandustin): Merge with load_dataset.
 def load_input_fn(split,
                   batch_size,
                   name,
@@ -269,26 +221,6 @@ def load_input_fn(split,
   return input_fn
 
 
-def make_lr_scheduler(init_lr):
-  """Builds a keras LearningRateScheduler."""
-
-  def schedule_fn(epoch):
-    """Learning rate schedule function."""
-    rate = init_lr
-    if epoch > 180:
-      rate *= 0.5e-3
-    elif epoch > 160:
-      rate *= 1e-3
-    elif epoch > 120:
-      rate *= 1e-2
-    elif epoch > 80:
-      rate *= 1e-1
-    logging.info('Learning rate=%f for epoch=%d ', rate, epoch)
-    return rate
-  return tf.keras.callbacks.LearningRateScheduler(schedule_fn)
-
-
-# TODO(trandustin): Merge with make_lr_scheduler.
 class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   """Learning rate schedule.
 
