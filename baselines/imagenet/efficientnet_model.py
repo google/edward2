@@ -40,7 +40,7 @@ GlobalParams = collections.namedtuple('GlobalParams', [
     'num_classes', 'width_coefficient', 'depth_coefficient', 'depth_divisor',
     'min_depth', 'survival_prob', 'relu_fn', 'batch_norm', 'use_se',
     'local_pooling', 'condconv_num_experts', 'clip_projection_output',
-    'blocks_args', 'fix_head_stem',
+    'fix_head_stem',
 ])
 GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
 
@@ -499,7 +499,7 @@ class Model(tf.keras.Model):
     Reference: https://arxiv.org/abs/1807.11626
   """
 
-  def __init__(self, blocks_args=None, global_params=None):
+  def __init__(self, blocks_args, global_params):
     """Initializes an `Model` instance.
 
     Args:

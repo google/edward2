@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ResNet-50 with rank-1 priors."""
+"""EfficientNet."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -96,8 +96,8 @@ def main(argv):
     tf.tpu.experimental.initialize_tpu_system(resolver)
     strategy = tf.distribute.experimental.TPUStrategy(resolver)
 
-  _, _, input_image_size, _ = efficientnet_builder.efficientnet_params(
-      FLAGS.model_name)
+  width_coefficient, depth_coefficient, input_image_size, dropout_rate = (
+      efficientnet_builder.efficientnet_params(FLAGS.model_name))
   imagenet_train = utils.ImageNetInput(
       is_training=True,
       use_bfloat16=FLAGS.use_bfloat16,
@@ -132,7 +132,9 @@ def main(argv):
 
   with strategy.scope():
     logging.info('Building %s model', FLAGS.model_name)
-    model = efficientnet_builder.build_model(FLAGS.model_name)
+    model = efficientnet_builder.build_model(width_coefficient,
+                                             depth_coefficient,
+                                             dropout_rate)
 
     scaled_lr = FLAGS.base_learning_rate * (batch_size / 256.0)
     # Decay epoch is 2.4, warmup epoch is 5 according to the Efficientnet paper.
