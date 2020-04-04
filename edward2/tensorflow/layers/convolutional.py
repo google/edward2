@@ -410,11 +410,11 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
                filters,
                kernel_size,
                ensemble_size=4,
-               alpha_initializer=tf.keras.initializers.Ones(),
-               gamma_initializer=tf.keras.initializers.Ones(),
+               alpha_initializer='ones',
+               gamma_initializer='ones',
                strides=(1, 1),
                padding='valid',
-               data_format='channels_last',
+               data_format=None,
                activation=None,
                use_bias=True,
                kernel_initializer='glorot_uniform',
@@ -426,14 +426,14 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
                bias_constraint=None,
                **kwargs):
     super(Conv2DBatchEnsemble, self).__init__(**kwargs)
-    self.filters = filters
-    self.kernel_size = kernel_size
-    self.data_format = data_format
     self.ensemble_size = ensemble_size
-    self.alpha_initializer = alpha_initializer
-    self.gamma_initializer = gamma_initializer
-    self.use_bias = use_bias
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.bias_initializer = initializers.get(bias_initializer)
+    self.bias_regularizer = regularizers.get(bias_regularizer)
+    self.bias_constraint = constraints.get(bias_constraint)
     self.activation = tf.keras.activations.get(activation)
+    self.use_bias = use_bias
     self.conv2d = tf.keras.layers.Conv2D(
         filters=filters,
         kernel_size=kernel_size,
@@ -443,12 +443,15 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
         activation=None,
         use_bias=False,
         kernel_initializer=kernel_initializer,
-        bias_initializer=bias_initializer,
+        bias_initializer=None,
         kernel_regularizer=kernel_regularizer,
-        bias_regularizer=bias_regularizer,
+        bias_regularizer=None,
         activity_regularizer=activity_regularizer,
         kernel_constraint=kernel_constraint,
-        bias_constraint=bias_constraint)
+        bias_constraint=None)
+    self.filters = self.conv2d.filters
+    self.kernel_size = self.conv2d.kernel_size
+    self.data_format = self.conv2d.data_format
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
@@ -473,7 +476,9 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
       self.bias = self.add_weight(
           name='bias',
           shape=[self.ensemble_size, self.filters],
-          initializer=tf.keras.initializers.Zeros(),
+          initializer=self.bias_initializer,
+          regularizer=self.bias_regularizer,
+          constraint=self.bias_constraint,
           trainable=True,
           dtype=self.dtype)
     else:
@@ -506,23 +511,24 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
       outputs = self.activation(outputs)
     return outputs
 
+  def compute_output_shape(self, input_shape):
+    return self.conv2d.compute_output_shape(input_shape)
+
   def get_config(self):
     config = {
         'ensemble_size': self.ensemble_size,
-        'random_sign_init': self.random_sign_init,
-        'alpha_initializer': tf.keras.initializers.serialize(
-            self.alpha_initializer),
-        'gamma_initializer': tf.keras.initializers.serialize(
-            self.gamma_initializer),
-        'activation': tf.activations.serialize(self.activation),
+        'alpha_initializer': initializers.serialize(self.alpha_initializer),
+        'gamma_initializer': initializers.serialize(self.gamma_initializer),
+        'bias_initializer': initializers.serialize(self.bias_initializer),
+        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+        'bias_constraint': constraints.serialize(self.bias_constraint),
+        'activation': tf.keras.activations.serialize(self.activation),
         'use_bias': self.use_bias,
     }
-    base_config = super(Conv2DBatchEnsemble, self).get_config()
-    conv_config = self.conv2d.get_config()
-    return dict(
-        list(base_config.items()) +
-        list(conv_config.items()) +
-        list(config.items()))
+    new_config = super(Conv2DBatchEnsemble, self).get_config()
+    new_config.update(self.conv2d.get_config())
+    new_config.update(config)
+    return new_config
 
 
 @utils.add_weight
