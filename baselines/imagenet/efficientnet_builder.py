@@ -177,19 +177,12 @@ def build_model(width_coefficient,
       depth_divisor=8,
       min_depth=None,
       relu_fn=tf.nn.swish,
-      # The default is TPU-specific batch norm.
-      # The alternative is tf.layers.BatchNormalization.
       batch_norm=SyncBatchNorm,  # TPU-specific requirement.
       use_se=True,
       clip_projection_output=False)
   logging.info('global_params= %s', global_params)
   BlockArgs = functools.partial(efficientnet_model.BlockArgs,  # pylint: disable=invalid-name
-                                id_skip=True,
-                                se_ratio=0.25,
-                                conv_type=0,
-                                fused_conv=0,
-                                super_pixel=0,
-                                condconv=False)
+                                se_ratio=0.25)
   blocks_args = [
       BlockArgs(kernel_size=3,
                 num_repeat=1,
