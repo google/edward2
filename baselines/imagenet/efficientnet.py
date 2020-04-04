@@ -26,6 +26,7 @@ from absl import app
 from absl import flags
 from absl import logging
 
+import edward2 as ed
 import efficientnet_builder  # local file import
 import utils  # local file import
 import tensorflow.compat.v2 as tf
@@ -56,6 +57,7 @@ flags.DEFINE_integer('evaluation_interval', 5, 'How many epochs to run test.')
 flags.DEFINE_string('alexnet_errors_path', None,
                     'Path to AlexNet corruption errors file.')
 flags.DEFINE_float('label_smoothing', 0.1, 'label smoothing constant.')
+flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -68,6 +70,7 @@ FLAGS = flags.FLAGS
 # Number of images in ImageNet-1k train dataset.
 APPROX_IMAGENET_TRAIN_IMAGES = 1281167
 IMAGENET_VALIDATION_IMAGES = 50000
+NUM_CLASSES = 1000
 
 
 def main(argv):
@@ -144,9 +147,13 @@ def main(argv):
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.CategoricalAccuracy(),
+        'train/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
         'train/loss': tf.keras.metrics.Mean(),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.CategoricalAccuracy(),
+        'test/ece': ed.metrics.ExpectedCalibrationError(
+            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
     }
     logging.info('Finished building %s model', FLAGS.model_name)
 
@@ -170,12 +177,12 @@ def main(argv):
     with tf.GradientTape() as tape:
       logits = model(images, training=True)
       logits = tf.cast(logits, tf.float32)
-      # TODO(ywenxu): For better numerical stability, use logits to calculate
-      # the loss without softmax layer.
-      probs = tf.nn.softmax(logits)
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.categorical_crossentropy(
-              labels, probs, label_smoothing=FLAGS.label_smoothing))
+              labels,
+              logits,
+              from_logits=True,
+              label_smoothing=FLAGS.label_smoothing))
 
       def _is_batch_norm(v):
         """Decide whether a variable belongs to `batch_norm`."""
@@ -190,10 +197,14 @@ def main(argv):
     gradients = tape.gradient(scaled_loss, model.trainable_weights)
     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
 
+    sparse_labels = tf.cast(
+        tf.math.argmax(labels, axis=-1, output_type=tf.int32), tf.float32)
+    probs = tf.nn.softmax(logits)
     metrics['train/loss'].update_state(loss)
     metrics['train/negative_log_likelihood'].update_state(
         negative_log_likelihood)
-    metrics['train/accuracy'].update_state(labels, probs)
+    metrics['train/accuracy'].update_state(labels, logits)
+    metrics['train/ece'].update_state(sparse_labels, probs)
 
     step_info = {
         'loss/negative_log_likelihood': negative_log_likelihood / num_replicas,
@@ -206,12 +217,16 @@ def main(argv):
     images, labels = inputs
     logits = model(images, training=False)
     logits = tf.cast(logits, tf.float32)
-    probs = tf.nn.softmax(logits)
     negative_log_likelihood = tf.reduce_mean(
-        tf.keras.losses.categorical_crossentropy(labels, probs))
+        tf.keras.losses.categorical_crossentropy(
+            labels, logits, from_logits=True))
+    sparse_labels = tf.cast(
+        tf.math.argmax(labels, axis=-1, output_type=tf.int32), tf.float32)
+    probs = tf.nn.softmax(logits)
     metrics['test/negative_log_likelihood'].update_state(
         negative_log_likelihood)
-    metrics['test/accuracy'].update_state(labels, probs)
+    metrics['test/accuracy'].update_state(labels, logits)
+    metrics['test/ece'].update_state(sparse_labels, probs)
 
   @tf.function
   def epoch_fn(should_eval):
