@@ -287,13 +287,13 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertLessEqual(percent_mismatches, 0.05)
 
   def testDenseBatchEnsemble(self):
+    """Tests that vectorized implementation is same as for loop."""
     tf.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 3
     examples_per_model = 4
     input_dim = 5
     output_dim = 5
     inputs = tf.random.normal([examples_per_model, input_dim])
-    batched_inputs = tf.tile(inputs, [ensemble_size, 1])
     layer = ed.layers.DenseBatchEnsemble(
         output_dim,
         alpha_initializer="he_normal",
@@ -301,15 +301,16 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
         activation=None,
         ensemble_size=ensemble_size)
 
-    output = layer(batched_inputs)
-    manual_output = [
+    batch_inputs = tf.tile(inputs, [ensemble_size, 1])
+    batch_outputs = layer(batch_inputs)
+    loop_outputs = [
         layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
         for i in range(ensemble_size)]
-    manual_output = tf.concat(manual_output, axis=0)
+    loop_outputs = tf.concat(loop_outputs, axis=0)
 
-    expected_shape = (ensemble_size*examples_per_model, output_dim)
-    self.assertEqual(output.shape, expected_shape)
-    self.assertAllClose(output, manual_output)
+    expected_shape = (ensemble_size * examples_per_model, output_dim)
+    self.assertEqual(batch_outputs.shape, expected_shape)
+    self.assertAllClose(batch_outputs, loop_outputs)
 
 
 if __name__ == "__main__":
