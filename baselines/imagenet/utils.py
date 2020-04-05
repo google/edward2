@@ -567,3 +567,173 @@ def aggregate_corrupt_metrics(metrics,
           corruption)] = 100 * corrupt_error[corruption]
     results['test/mCE'] = 100 * np.mean(list(corrupt_error.values()))
   return results
+
+
+# TODO(ywenxu): Check out `tf.keras.layers.experimental.SyncBatchNormalization.
+# SyncBatchNorm on TPU. Orginal authored by hyhieu.
+class SyncBatchNorm(tf.keras.layers.Layer):
+  """BatchNorm that averages over ALL replicas. Only works for `NHWC` inputs."""
+
+  def __init__(self, axis=3, momentum=0.99, epsilon=0.001,
+               trainable=True, name='batch_norm', **kwargs):
+    super(SyncBatchNorm, self).__init__(
+        trainable=trainable, name=name, **kwargs)
+    self.axis = axis
+    self.momentum = momentum
+    self.epsilon = epsilon
+
+  def build(self, input_shape):
+    """Build function."""
+    dim = input_shape[-1]
+    shape = [dim]
+
+    self.gamma = self.add_weight(
+        name='gamma',
+        shape=shape,
+        dtype=self.dtype,
+        initializer='ones',
+        trainable=True)
+
+    self.beta = self.add_weight(
+        name='beta',
+        shape=shape,
+        dtype=self.dtype,
+        initializer='zeros',
+        trainable=True)
+
+    self.moving_mean = self.add_weight(
+        name='moving_mean',
+        shape=shape,
+        dtype=self.dtype,
+        initializer='zeros',
+        synchronization=tf.VariableSynchronization.ON_READ,
+        trainable=False,
+        aggregation=tf.VariableAggregation.MEAN)
+
+    self.moving_variance = self.add_weight(
+        name='moving_variance',
+        shape=shape,
+        dtype=self.dtype,
+        initializer='ones',
+        synchronization=tf.VariableSynchronization.ON_READ,
+        trainable=False,
+        aggregation=tf.VariableAggregation.MEAN)
+
+  def _get_mean_and_variance(self, x):
+    """Cross-replica mean and variance."""
+    replica_context = tf.distribute.get_replica_context()
+    num_replicas_in_sync = replica_context.num_replicas_in_sync
+    if num_replicas_in_sync <= 8:
+      group_assignment = None
+      num_replicas_per_group = tf.cast(num_replicas_in_sync, tf.float32)
+    else:
+      num_replicas_per_group = max(8, num_replicas_in_sync // 8)
+      group_assignment = np.arange(num_replicas_in_sync, dtype=np.int32)
+      group_assignment = group_assignment.reshape([-1, num_replicas_per_group])
+      group_assignment = group_assignment.tolist()
+      num_replicas_per_group = tf.cast(num_replicas_per_group, tf.float32)
+
+    mean = tf.reduce_mean(x, axis=[0, 1, 2])
+    mean = tf.cast(mean, tf.float32)
+    mean = tf.tpu.cross_replica_sum(mean, group_assignment)
+    mean = mean / num_replicas_per_group
+
+    # Var[x] = E[x^2] - E[x]^2
+    mean_sq = tf.reduce_mean(tf.square(x), axis=[0, 1, 2])
+    mean_sq = tf.cast(mean_sq, tf.float32)
+    mean_sq = tf.tpu.cross_replica_sum(mean_sq, group_assignment)
+    mean_sq = mean_sq / num_replicas_per_group
+    variance = mean_sq - tf.square(mean)
+
+    def _assign(moving, normal):
+      decay = tf.cast(1. - self.momentum, tf.float32)
+      diff = tf.cast(moving, tf.float32) - tf.cast(normal, tf.float32)
+      return moving.assign_sub(decay * diff)
+
+    self.add_update(_assign(self.moving_mean, mean))
+    self.add_update(_assign(self.moving_variance, variance))
+
+    # TODO(ywenxu): Assuming bfloat16. Fix for non bfloat16 case.
+    mean = tf.cast(mean, tf.bfloat16)
+    variance = tf.cast(variance, tf.bfloat16)
+
+    return mean, variance
+
+  def call(self, inputs, training):
+    """Call function."""
+    if training:
+      mean, variance = self._get_mean_and_variance(inputs)
+    else:
+      mean, variance = self.moving_mean, self.moving_variance
+    x = tf.nn.batch_normalization(
+        inputs,
+        mean=mean,
+        variance=variance,
+        offset=self.beta,
+        scale=self.gamma,
+        variance_epsilon=tf.cast(self.epsilon, variance.dtype),
+    )
+    return x
+
+
+def drop_connect(inputs, is_training, survival_prob):
+  """Drop the entire conv with given survival probability."""
+  # "Deep Networks with Stochastic Depth", https://arxiv.org/pdf/1603.09382.pdf
+  if not is_training:
+    return inputs
+
+  # Compute tensor.
+  batch_size = tf.shape(inputs)[0]
+  random_tensor = survival_prob
+  random_tensor += tf.random.uniform([batch_size, 1, 1, 1], dtype=inputs.dtype)
+  binary_tensor = tf.floor(random_tensor)
+  # Unlike conventional way that multiply survival_prob at test time, here we
+  # divide survival_prob at training time, such that no addition compute is
+  # needed at test time.
+  output = tf.math.divide(inputs, survival_prob) * binary_tensor
+  return output
+
+
+def conv_kernel_initializer(shape, dtype=None, partition_info=None):
+  """Initialization for convolutional kernels.
+
+  The main difference with tf.variance_scaling_initializer is that
+  tf.variance_scaling_initializer uses a truncated normal with an uncorrected
+  standard deviation, whereas here we use a normal distribution. Similarly,
+  tf.initializers.variance_scaling uses a truncated normal with
+  a corrected standard deviation.
+
+  Args:
+    shape: shape of variable
+    dtype: dtype of variable
+    partition_info: unused
+
+  Returns:
+    an initialization for the variable
+  """
+  del partition_info
+  kernel_height, kernel_width, _, out_filters = shape
+  fan_out = int(kernel_height * kernel_width * out_filters)
+  return tf.random.normal(
+      shape, mean=0.0, stddev=np.sqrt(2.0 / fan_out), dtype=dtype)
+
+
+def dense_kernel_initializer(shape, dtype=None, partition_info=None):
+  """Initialization for dense kernels.
+
+  This initialization is equal to
+    tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_out',
+                                    distribution='uniform').
+  It is written out explicitly here for clarity.
+
+  Args:
+    shape: shape of variable
+    dtype: dtype of variable
+    partition_info: unused
+
+  Returns:
+    an initialization for the variable
+  """
+  del partition_info
+  init_range = 1.0 / np.sqrt(shape[1])
+  return tf.random.uniform(shape, -init_range, init_range, dtype=dtype)

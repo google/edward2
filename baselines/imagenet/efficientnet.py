@@ -27,7 +27,7 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-import efficientnet_builder  # local file import
+import efficientnet_model  # local file import
 import utils  # local file import
 import tensorflow.compat.v2 as tf
 
@@ -97,7 +97,7 @@ def main(argv):
     strategy = tf.distribute.experimental.TPUStrategy(resolver)
 
   width_coefficient, depth_coefficient, input_image_size, dropout_rate = (
-      efficientnet_builder.efficientnet_params(FLAGS.model_name))
+      efficientnet_model.efficientnet_params(FLAGS.model_name))
   imagenet_train = utils.ImageNetInput(
       is_training=True,
       use_bfloat16=FLAGS.use_bfloat16,
@@ -132,9 +132,9 @@ def main(argv):
 
   with strategy.scope():
     logging.info('Building %s model', FLAGS.model_name)
-    model = efficientnet_builder.build_model(width_coefficient,
-                                             depth_coefficient,
-                                             dropout_rate)
+    model = efficientnet_model.Model(width_coefficient,
+                                     depth_coefficient,
+                                     dropout_rate)
 
     scaled_lr = FLAGS.base_learning_rate * (batch_size / 256.0)
     # Decay epoch is 2.4, warmup epoch is 5 according to the Efficientnet paper.
