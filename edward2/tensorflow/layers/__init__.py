@@ -39,6 +39,7 @@ from edward2.tensorflow.layers.discrete_flows import DiscreteAutoregressiveFlow
 from edward2.tensorflow.layers.discrete_flows import DiscreteBipartiteFlow
 from edward2.tensorflow.layers.discrete_flows import Reverse
 from edward2.tensorflow.layers.discrete_flows import SinkhornAutoregressiveFlow
+from edward2.tensorflow.layers.embeddings import EmbeddingReparameterization
 from edward2.tensorflow.layers.gaussian_process import ExponentiatedQuadratic
 from edward2.tensorflow.layers.gaussian_process import GaussianProcess
 from edward2.tensorflow.layers.gaussian_process import LinearKernel
@@ -79,6 +80,7 @@ _allowed_symbols = [
     "DiscreteAutoregressiveFlow",
     "DiscreteBipartiteFlow",
     "ExponentiatedQuadratic",
+    "EmbeddingReparameterization",
     "GaussianProcess",
     "LinearKernel",
     "LSTMCellFlipout",
