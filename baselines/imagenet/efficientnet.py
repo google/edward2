@@ -58,6 +58,7 @@ flags.DEFINE_string('alexnet_errors_path', None,
                     'Path to AlexNet corruption errors file.')
 flags.DEFINE_float('label_smoothing', 0.1, 'label smoothing constant.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
+flags.DEFINE_float('moving_average_decay', 0., 'moving average decay.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -145,6 +146,11 @@ def main(argv):
     learning_rate = utils.WarmupDecaySchedule(lr_schedule, warmup_step)
     optimizer = tf.keras.optimizers.RMSprop(
         learning_rate, rho=0.9, momentum=0.9, epsilon=0.001)
+    if FLAGS.moving_average_decay > 0:
+      optimizer = utils.MovingAverage(
+          optimizer,
+          average_decay=FLAGS.moving_average_decay)
+      optimizer.shadow_copy(model)
 
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
@@ -197,6 +203,7 @@ def main(argv):
       scaled_loss = loss / num_replicas
 
     gradients = tape.gradient(scaled_loss, model.trainable_weights)
+    # MovingAverage optimizer automatically updates avg when applying gradients.
     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
 
     sparse_labels = tf.cast(
@@ -245,8 +252,12 @@ def main(argv):
         summary_writer.flush()
 
     if should_eval:
+      if isinstance(optimizer, utils.MovingAverage):
+        optimizer.swap_weights(strategy)
       for _ in tf.range(tf.cast(steps_per_eval, tf.int32)):
         strategy.run(eval_step, args=(next(test_iterator),))
+      if isinstance(optimizer, utils.MovingAverage):
+        optimizer.swap_weights(strategy)
 
   # Main training loop.
   start_time = time.time()
@@ -254,8 +265,15 @@ def main(argv):
     for epoch in range(initial_epoch, FLAGS.train_epochs):
       logging.info('Starting to run epoch: %s', epoch)
       should_eval = (epoch % FLAGS.evaluation_interval == 0)
+      epoch_start_time = time.time()
       # Pass tf constant to avoid re-tracing.
       epoch_fn(tf.constant(should_eval))
+      epoch_time = time.time() - epoch_start_time
+      example_per_secs = (steps_per_epoch * batch_size) / epoch_time
+      if not should_eval:
+        tf.summary.scalar(
+            'examples_per_secs', example_per_secs, optimizer.iterations)
+        summary_writer.flush()
 
       current_step = (epoch + 1) * steps_per_epoch
       max_steps = steps_per_epoch * FLAGS.train_epochs
