@@ -267,24 +267,53 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def aggregate_corrupt_metrics(metrics,
                               corruption_types,
                               max_intensity,
-                              fine_metrics=False):
+                              fine_metrics=False,
+                              corrupt_diversity=None):
   """Aggregates metrics across intensities and corruption types."""
+  diversity_keys = ['disagreement', 'cosine_similarity', 'average_kl']
   results = {'test/nll_mean_corrupted': 0.,
              'test/accuracy_mean_corrupted': 0.,
              'test/ece_mean_corrupted': 0.}
+  if corrupt_diversity is not None:
+    for key in diversity_keys:
+      results['corrupt_diversity/{}_mean_corrupted'.format(key)] = 0.
+
   for intensity in range(1, max_intensity + 1):
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
     acc = np.zeros(len(corruption_types))
+    disagreement = np.zeros(len(corruption_types))
+    cosine_similarity = np.zeros(len(corruption_types))
+    average_kl = np.zeros(len(corruption_types))
+
     for i in range(len(corruption_types)):
       dataset_name = '{0}_{1}'.format(corruption_types[i], intensity)
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      if corrupt_diversity is not None:
+        disagreement[i] = (
+            corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
+                dataset_name)].result())
+        # Normalize the corrupt disagreement by its error rate.
+        error = 1 - acc[i] + tf.keras.backend.epsilon()
+        cosine_similarity[i] = (
+            corrupt_diversity['corrupt_diversity/cosine_similarity_{}'.format(
+                dataset_name)].result()) / error
+        average_kl[i] = (
+            corrupt_diversity['corrupt_diversity/average_kl_{}'.format(
+                dataset_name)].result())
       if fine_metrics:
         results['test/nll_{}'.format(dataset_name)] = nll[i]
         results['test/accuracy_{}'.format(dataset_name)] = acc[i]
         results['test/ece_{}'.format(dataset_name)] = ece[i]
+        if corrupt_diversity is not None:
+          results['corrupt_diversity/disagreement_{}'.format(
+              dataset_name)] = disagreement[i]
+          results['corrupt_diversity/cosine_similarity_{}'.format(
+              dataset_name)] = cosine_similarity[i]
+          results['corrupt_diversity/average_kl_{}'.format(
+              dataset_name)] = average_kl[i]
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)
@@ -297,10 +326,21 @@ def aggregate_corrupt_metrics(metrics,
     results['test/nll_mean_corrupted'] += avg_nll
     results['test/accuracy_mean_corrupted'] += avg_accuracy
     results['test/ece_mean_corrupted'] += avg_ece
+    if corrupt_diversity is not None:
+      avg_diversity_metrics = [np.mean(disagreement), np.mean(
+          cosine_similarity), np.mean(average_kl)]
+      for key, avg in zip(diversity_keys, avg_diversity_metrics):
+        results['corrupt_diversity/{}_mean_{}'.format(
+            key, intensity)] = avg
+        results['corrupt_diversity/{}_mean_corrupted'.format(key)] += avg
 
   results['test/nll_mean_corrupted'] /= max_intensity
   results['test/accuracy_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
+  if corrupt_diversity is not None:
+    for key in diversity_keys:
+      results['corrupt_diversity/{}_mean_corrupted'.format(
+          key)] /= max_intensity
   return results
 
 
