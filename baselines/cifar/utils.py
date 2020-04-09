@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
@@ -267,13 +268,28 @@ class LearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def aggregate_corrupt_metrics(metrics,
                               corruption_types,
                               max_intensity,
-                              fine_metrics=False,
-                              corrupt_diversity=None):
-  """Aggregates metrics across intensities and corruption types."""
+                              log_fine_metrics=False,
+                              corrupt_diversity=None,
+                              output_dir=None):
+  """Aggregates metrics across intensities and corruption types.
+
+  Args:
+    metrics: Dictionary of tf.keras.metrics to be aggregated.
+    corruption_types: List of corruption types.
+    max_intensity: Int, of maximum intensity.
+    log_fine_metrics: Bool, whether log fine metrics to main training script.
+    corrupt_diversity: Dictionary of diversity metrics on corrupted datasets.
+    output_dir: Str, the path to save the aggregated results.
+
+  Returns:
+    Dictionary of aggregated results.
+
+  """
   diversity_keys = ['disagreement', 'cosine_similarity', 'average_kl']
   results = {'test/nll_mean_corrupted': 0.,
              'test/accuracy_mean_corrupted': 0.,
              'test/ece_mean_corrupted': 0.}
+  fine_metrics_results = {}
   if corrupt_diversity is not None:
     for key in diversity_keys:
       results['corrupt_diversity/{}_mean_corrupted'.format(key)] = 0.
@@ -303,16 +319,16 @@ def aggregate_corrupt_metrics(metrics,
         average_kl[i] = (
             corrupt_diversity['corrupt_diversity/average_kl_{}'.format(
                 dataset_name)].result())
-      if fine_metrics:
-        results['test/nll_{}'.format(dataset_name)] = nll[i]
-        results['test/accuracy_{}'.format(dataset_name)] = acc[i]
-        results['test/ece_{}'.format(dataset_name)] = ece[i]
+      if log_fine_metrics or output_dir is not None:
+        fine_metrics_results['test/nll_{}'.format(dataset_name)] = nll[i]
+        fine_metrics_results['test/accuracy_{}'.format(dataset_name)] = acc[i]
+        fine_metrics_results['test/ece_{}'.format(dataset_name)] = ece[i]
         if corrupt_diversity is not None:
-          results['corrupt_diversity/disagreement_{}'.format(
+          fine_metrics_results['corrupt_diversity/disagreement_{}'.format(
               dataset_name)] = disagreement[i]
-          results['corrupt_diversity/cosine_similarity_{}'.format(
+          fine_metrics_results['corrupt_diversity/cosine_similarity_{}'.format(
               dataset_name)] = cosine_similarity[i]
-          results['corrupt_diversity/average_kl_{}'.format(
+          fine_metrics_results['corrupt_diversity/average_kl_{}'.format(
               dataset_name)] = average_kl[i]
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
@@ -341,7 +357,17 @@ def aggregate_corrupt_metrics(metrics,
     for key in diversity_keys:
       results['corrupt_diversity/{}_mean_corrupted'.format(
           key)] /= max_intensity
-  return results
+
+  fine_metrics_results.update(results)
+  if output_dir is not None:
+    save_file_name = os.path.join(output_dir, 'corrupt_metrics.npz')
+    with tf.io.gfile.GFile(save_file_name, 'w') as f:
+      np.save(f, fine_metrics_results)
+
+  if log_fine_metrics:
+    return fine_metrics_results
+  else:
+    return results
 
 
 def double_fault(logits_1, logits_2, labels):
