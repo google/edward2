@@ -17,7 +17,7 @@
 
 This script only performs evaluation, not training. We recommend training
 ensembles by launching independent runs of `deterministic.py` over different
-seeds. Set `output_dir` to the directory containing these checkpoints.
+seeds.
 """
 
 from __future__ import absolute_import
@@ -172,7 +172,7 @@ def main(argv):
         logits = []
         test_iterator = iter(test_dataset)
         for _ in range(steps_per_eval):
-          features, labels = next(test_iterator)
+          features, _ = next(test_iterator)
           logits.append(model(features, training=False))
 
         logits = tf.concat(logits, axis=0)
