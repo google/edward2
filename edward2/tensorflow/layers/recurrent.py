@@ -221,7 +221,7 @@ class LSTMCellFlipout(LSTMCellReparameterization):
     if inputs is not None:
       batch_size = tf.shape(inputs)[0]
       dtype = inputs.dtype
-    input_dim = tf.shape(self.kernel)[0]
+    input_dim = self.kernel.shape[0]
     self.sign_input = 2 * tf.random.uniform(
         [batch_size, input_dim], minval=0, maxval=2, dtype=tf.int32) - 1
     self.sign_output = 2 * tf.random.uniform(
