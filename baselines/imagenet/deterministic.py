@@ -75,13 +75,13 @@ _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
 def main(argv):
   del argv  # unused arg
   tf.enable_v2_behavior()
+  tf.io.gfile.makedirs(FLAGS.output_dir)
+  logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
   batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
   steps_per_epoch = APPROX_IMAGENET_TRAIN_IMAGES // batch_size
   steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
-
-  logging.info('Saving checkpoints at %s', FLAGS.output_dir)
 
   if FLAGS.use_gpu:
     logging.info('Use GPU')

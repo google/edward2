@@ -38,7 +38,6 @@ flags.DEFINE_float('random_sign_init', -0.5,
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when train batch size is 256.')
-flags.DEFINE_bool('version2', True, 'Use ensemble version2.')
 flags.DEFINE_float('l2', 1e-4, 'L2 coefficient.')
 flags.DEFINE_float('fast_weight_lr_multiplier', 0.5,
                    'fast weights lr multiplier.')
@@ -80,17 +79,14 @@ _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
 def main(argv):
   del argv  # unused arg
   tf.enable_v2_behavior()
+  tf.io.gfile.makedirs(FLAGS.output_dir)
+  logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
-  per_core_batch_size = FLAGS.per_core_batch_size
-  if FLAGS.version2:
-    per_core_batch_size = per_core_batch_size // FLAGS.ensemble_size
-
+  per_core_batch_size = FLAGS.per_core_batch_size // FLAGS.ensemble_size
   batch_size = per_core_batch_size * FLAGS.num_cores
   steps_per_epoch = APPROX_IMAGENET_TRAIN_IMAGES // batch_size
   steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
-
-  logging.info('Saving checkpoints at %s', FLAGS.output_dir)
 
   if FLAGS.use_gpu:
     logging.info('Use GPU')
@@ -187,21 +183,20 @@ def main(argv):
 
     test_diversity = {}
     training_diversity = {}
-    if FLAGS.ensemble_size > 1:
-      for i in range(FLAGS.ensemble_size):
-        metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
-        metrics['test/accuracy_member_{}'.format(i)] = (
-            tf.keras.metrics.SparseCategoricalAccuracy())
-      test_diversity = {
-          'test/disagreement': tf.keras.metrics.Mean(),
-          'test/average_kl': tf.keras.metrics.Mean(),
-          'test/cosine_similarity': tf.keras.metrics.Mean(),
-      }
-      training_diversity = {
-          'train/disagreement': tf.keras.metrics.Mean(),
-          'train/average_kl': tf.keras.metrics.Mean(),
-          'train/cosine_similarity': tf.keras.metrics.Mean(),
-      }
+    for i in range(FLAGS.ensemble_size):
+      metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
+      metrics['test/accuracy_member_{}'.format(i)] = (
+          tf.keras.metrics.SparseCategoricalAccuracy())
+    test_diversity = {
+        'test/disagreement': tf.keras.metrics.Mean(),
+        'test/average_kl': tf.keras.metrics.Mean(),
+        'test/cosine_similarity': tf.keras.metrics.Mean(),
+    }
+    training_diversity = {
+        'train/disagreement': tf.keras.metrics.Mean(),
+        'train/average_kl': tf.keras.metrics.Mean(),
+        'train/cosine_similarity': tf.keras.metrics.Mean(),
+    }
 
     logging.info('Finished building Keras ResNet-50 model')
 
@@ -221,10 +216,8 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-
-      if FLAGS.version2:
-        images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
-        labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
+      images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
+      labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
@@ -232,11 +225,10 @@ def main(argv):
           logits = tf.cast(logits, tf.float32)
 
         probs = tf.nn.softmax(logits)
-        if FLAGS.version2 and FLAGS.ensemble_size > 1:
-          per_probs = tf.reshape(
-              probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-          diversity_results = ed.metrics.average_pairwise_diversity(
-              per_probs, FLAGS.ensemble_size)
+        per_probs = tf.reshape(
+            probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
+        diversity_results = ed.metrics.average_pairwise_diversity(
+            per_probs, FLAGS.ensemble_size)
 
         negative_log_likelihood = tf.reduce_mean(
             tf.keras.losses.sparse_categorical_crossentropy(labels,
@@ -278,9 +270,8 @@ def main(argv):
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, logits)
-      if FLAGS.version2 and FLAGS.ensemble_size > 1:
-        for k, v in diversity_results.items():
-          training_diversity['train/' + k].update_state(v)
+      for k, v in diversity_results.items():
+        training_diversity['train/' + k].update_state(v)
 
     strategy.run(step_fn, args=(next(iterator),))
 
@@ -296,7 +287,7 @@ def main(argv):
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
 
-      if dataset_name == 'clean' and FLAGS.ensemble_size > 1:
+      if dataset_name == 'clean':
         per_probs_tensor = tf.reshape(
             probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
         diversity_results = ed.metrics.average_pairwise_diversity(
@@ -304,23 +295,21 @@ def main(argv):
         for k, v in diversity_results.items():
           test_diversity['test/' + k].update_state(v)
 
-      if FLAGS.ensemble_size > 1:
-        per_probs = tf.split(
-            probs, num_or_size_splits=FLAGS.ensemble_size, axis=0)
-        probs = tf.reduce_mean(per_probs, axis=0)
+      per_probs = tf.split(
+          probs, num_or_size_splits=FLAGS.ensemble_size, axis=0)
+      probs = tf.reduce_mean(per_probs, axis=0)
 
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
 
       if dataset_name == 'clean':
-        if FLAGS.ensemble_size > 1:
-          for i in range(FLAGS.ensemble_size):
-            member_probs = per_probs[i]
-            member_loss = tf.keras.losses.sparse_categorical_crossentropy(
-                labels, member_probs)
-            metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
-            metrics['test/accuracy_member_{}'.format(i)].update_state(
-                labels, member_probs)
+        for i in range(FLAGS.ensemble_size):
+          member_probs = per_probs[i]
+          member_loss = tf.keras.losses.sparse_categorical_crossentropy(
+              labels, member_probs)
+          metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
+          metrics['test/accuracy_member_{}'.format(i)].update_state(
+              labels, member_probs)
 
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)

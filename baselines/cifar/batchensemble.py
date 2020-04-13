@@ -88,6 +88,15 @@ def main(argv):
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)
 
+  ds_info = tfds.builder(FLAGS.dataset).info
+  per_core_batch_size = FLAGS.per_core_batch_size // FLAGS.ensemble_size
+  batch_size = per_core_batch_size * FLAGS.num_cores
+  # Train_proportion is a float so need to convert steps_per_epoch to int.
+  steps_per_epoch = int((ds_info.splits['train'].num_examples *
+                         FLAGS.train_proportion) // batch_size)
+  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
+  num_classes = ds_info.features['label'].num_classes
+
   if FLAGS.use_gpu:
     logging.info('Use GPU')
     strategy = tf.distribute.MirroredStrategy()
@@ -102,13 +111,13 @@ def main(argv):
   train_input_fn = utils.load_input_fn(
       split=tfds.Split.TRAIN,
       name=FLAGS.dataset,
-      batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
+      batch_size=per_core_batch_size,
       use_bfloat16=FLAGS.use_bfloat16,
       proportion=FLAGS.train_proportion)
   clean_test_input_fn = utils.load_input_fn(
       split=tfds.Split.TEST,
       name=FLAGS.dataset,
-      batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
+      batch_size=per_core_batch_size,
       use_bfloat16=FLAGS.use_bfloat16)
   train_dataset = strategy.experimental_distribute_datasets_from_function(
       train_input_fn)
@@ -129,19 +138,10 @@ def main(argv):
         input_fn = load_c_input_fn(
             corruption_name=corruption,
             corruption_intensity=intensity,
-            batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
+            batch_size=per_core_batch_size,
             use_bfloat16=FLAGS.use_bfloat16)
         test_datasets['{0}_{1}'.format(corruption, intensity)] = (
             strategy.experimental_distribute_datasets_from_function(input_fn))
-
-  ds_info = tfds.builder(FLAGS.dataset).info
-  batch_size = ((FLAGS.per_core_batch_size // FLAGS.ensemble_size) *
-                FLAGS.num_cores)
-  # Train_proportion is a float so need to convert steps_per_epoch to int.
-  steps_per_epoch = int((ds_info.splits['train'].num_examples *
-                         FLAGS.train_proportion) // batch_size)
-  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
-  num_classes = ds_info.features['label'].num_classes
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
