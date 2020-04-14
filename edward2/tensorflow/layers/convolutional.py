@@ -1043,7 +1043,7 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.Layer):
     axis_change = -1 if self.data_format == 'channels_first' else 1
     batch_size = tf.shape(inputs)[0]
     input_dim = self.alpha.shape[-1]
-    filters = self.bias.shape[-1]
+    filters = self.gamma.shape[-1]
     examples_per_model = batch_size // self.ensemble_size
     alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
                        [batch_size, input_dim])
