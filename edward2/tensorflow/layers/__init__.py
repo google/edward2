@@ -53,6 +53,7 @@ from edward2.tensorflow.layers.noise import NCPNormalOutput
 from edward2.tensorflow.layers.noise import NCPNormalPerturb
 from edward2.tensorflow.layers.normalization import ActNorm
 from edward2.tensorflow.layers.normalization import ensemble_batchnorm
+from edward2.tensorflow.layers.normalization import EnsembleSyncBatchNorm
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
@@ -81,6 +82,7 @@ _allowed_symbols = [
     "DiscreteBipartiteFlow",
     "ExponentiatedQuadratic",
     "EmbeddingReparameterization",
+    "EnsembleSyncBatchNorm",
     "GaussianProcess",
     "LinearKernel",
     "LSTMCellFlipout",
