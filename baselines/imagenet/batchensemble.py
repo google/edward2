@@ -56,6 +56,7 @@ flags.DEFINE_integer('checkpoint_interval', 27,
 flags.DEFINE_string('alexnet_errors_path', None,
                     'Path to AlexNet corruption errors file.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
+flags.DEFINE_bool('use_ensemble_bn', False, 'Whether to use ensemble bn.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -102,16 +103,17 @@ def main(argv):
   imagenet_train = utils.ImageNetInput(
       is_training=True,
       data_dir=FLAGS.data_dir,
-      batch_size=batch_size,
+      batch_size=per_core_batch_size,
       use_bfloat16=FLAGS.use_bfloat16)
   imagenet_eval = utils.ImageNetInput(
       is_training=False,
       data_dir=FLAGS.data_dir,
-      batch_size=batch_size,
+      batch_size=per_core_batch_size,
       use_bfloat16=FLAGS.use_bfloat16)
   test_datasets = {
       'clean':
-          strategy.experimental_distribute_dataset(imagenet_eval.input_fn()),
+          strategy.experimental_distribute_datasets_from_function(
+              imagenet_eval.input_fn),
   }
   if FLAGS.corruptions_interval > 0:
     corruption_types, max_intensity = utils.load_corrupted_test_info()
@@ -127,8 +129,8 @@ def main(argv):
             strategy.experimental_distribute_datasets_from_function(
                 corrupt_input_fn))
 
-  train_dataset = strategy.experimental_distribute_dataset(
-      imagenet_train.input_fn())
+  train_dataset = strategy.experimental_distribute_datasets_from_function(
+      imagenet_train.input_fn)
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
@@ -144,7 +146,7 @@ def main(argv):
         num_classes=NUM_CLASSES,
         ensemble_size=FLAGS.ensemble_size,
         random_sign_init=FLAGS.random_sign_init,
-        use_tpu=not FLAGS.use_gpu)
+        use_ensemble_bn=FLAGS.use_ensemble_bn)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
