@@ -51,8 +51,8 @@ def load_cifar100_c_input_fn(corruption_name,
     image = tf.image.convert_image_dtype(image, dtype)
     image = image / 255  # to convert into the [0, 1) range
     if normalize:
-      mean = tf.constant([0.4914, 0.4822, 0.4465])
-      std = tf.constant([0.2023, 0.1994, 0.2010])
+      mean = tf.constant([0.4914, 0.4822, 0.4465], dtype=dtype)
+      std = tf.constant([0.2023, 0.1994, 0.2010], dtype=dtype)
       image = (image - mean) / std
     else:
       # Normalize per-image using mean/stddev computed across pixels.
@@ -87,8 +87,8 @@ def load_cifar10_c_input_fn(corruption_name,
   def preprocess(image, label):
     image = tf.image.convert_image_dtype(image, dtype)
     if normalize:
-      mean = tf.constant([0.4914, 0.4822, 0.4465])
-      std = tf.constant([0.2023, 0.1994, 0.2010])
+      mean = tf.constant([0.4914, 0.4822, 0.4465], dtype=dtype)
+      std = tf.constant([0.2023, 0.1994, 0.2010], dtype=dtype)
       image = (image - mean) / std
     label = tf.cast(label, dtype)
     return image, label
@@ -192,8 +192,8 @@ def load_input_fn(split,
 
     image = tf.image.convert_image_dtype(image, dtype)
     if normalize:
-      mean = tf.constant([0.4914, 0.4822, 0.4465])
-      std = tf.constant([0.2023, 0.1994, 0.2010])
+      mean = tf.constant([0.4914, 0.4822, 0.4465], dtype=dtype)
+      std = tf.constant([0.2023, 0.1994, 0.2010], dtype=dtype)
       image = (image - mean) / std
     label = tf.cast(label, dtype)
     return image, label
