@@ -403,7 +403,8 @@ class ImageNetInput(object):
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
 
     # Evaluation dataset can also be repeat as long as steps_per_eval is set.
-    dataset = dataset.repeat()
+    if self.is_training:
+      dataset = dataset.repeat()
 
     def fetch_dataset(filename):
       buffer_size = 8 * 1024 * 1024     # 8 MiB per file
