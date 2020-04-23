@@ -530,5 +530,9 @@ def main(argv):
           os.path.join(FLAGS.output_dir, 'checkpoint'))
       logging.info('Saved checkpoint to %s', checkpoint_name)
 
+  final_checkpoint_name = checkpoint.save(
+      os.path.join(FLAGS.output_dir, 'checkpoint'))
+  logging.info('Saved last checkpoint to %s', final_checkpoint_name)
+
 if __name__ == '__main__':
   app.run(main)
