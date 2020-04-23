@@ -30,6 +30,7 @@ def load_cifar100_c_input_fn(corruption_name,
                              batch_size,
                              use_bfloat16,
                              path,
+                             drop_remainder=True,
                              normalize=True):
   """Loads CIFAR-100-C dataset."""
   if use_bfloat16:
@@ -65,7 +66,7 @@ def load_cifar100_c_input_fn(corruption_name,
     dataset = tf.data.TFRecordDataset(filename, buffer_size=16 * 1000 * 1000)
     dataset = dataset.map(
         preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)
@@ -77,6 +78,7 @@ def load_cifar10_c_input_fn(corruption_name,
                             corruption_intensity,
                             batch_size,
                             use_bfloat16,
+                            drop_remainder=True,
                             normalize=True):
   """Loads CIFAR-10-C dataset."""
   if use_bfloat16:
@@ -100,7 +102,7 @@ def load_cifar10_c_input_fn(corruption_name,
                         as_supervised=True)
     dataset = dataset.map(
         preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
     dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     if ctx and ctx.num_input_pipelines > 1:
       dataset = dataset.shard(ctx.num_input_pipelines, ctx.input_pipeline_id)

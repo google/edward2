@@ -419,7 +419,8 @@ class ImageNetInput(object):
       dataset = dataset.shuffle(1024)
 
     dataset = dataset.map(self.dataset_parser, tf.data.experimental.AUTOTUNE)
-    dataset = dataset.batch(batch_size=self.batch_size, drop_remainder=True)
+    dataset = dataset.batch(
+        batch_size=self.batch_size, drop_remainder=self.drop_remainder)
 
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
