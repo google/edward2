@@ -27,10 +27,6 @@ import tensorflow.compat.v2 as tf
 
 class ExpectedCalibrationErrorTest(tf.test.TestCase):
 
-  def testOneClassFailure(self):
-    with self.assertRaises(ValueError):
-      ed.metrics.ExpectedCalibrationError(1)
-
   def testBinaryClassification(self):
     num_bins = 10
     pred_probs = np.array([0.51, 0.45, 0.39, 0.66, 0.68, 0.29, 0.81, 0.85])
@@ -56,14 +52,29 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
         correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
 
     metric = ed.metrics.ExpectedCalibrationError(
-        2, num_bins, name='ECE', dtype=tf.float64)
+        num_bins, name='ECE', dtype=tf.float64)
     self.assertEqual(len(metric.variables), 3)
 
-    metric.update_state(labels[:4], pred_probs[:4])
-    ece1 = metric(labels[4:], pred_probs[4:])
-    ece2 = metric.result()
-    self.assertAllClose(ece1, ece2)
-    self.assertAllClose(ece2, correct_ece)
+    ece1 = metric(labels, pred_probs)
+    self.assertAllClose(ece1, correct_ece)
+
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
+    self.assertAllEqual(bin_counts, actual_bin_counts)
+    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
+    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+
+    # Test various types of input shapes.
+    metric.reset_states()
+    metric.update_state(labels[:2], pred_probs[:2])
+    metric.update_state(labels[2:6].reshape(2, 2),
+                        pred_probs[2:6].reshape(2, 2))
+    metric.update_state(labels[6:7], pred_probs[6:7])
+    ece2 = metric(labels[7:, np.newaxis], pred_probs[7:, np.newaxis])
+    ece3 = metric.result()
+    self.assertAllClose(ece2, ece3)
+    self.assertAllClose(ece3, correct_ece)
 
     actual_bin_counts = tf.convert_to_tensor(metric.counts)
     actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
@@ -96,7 +107,7 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
         bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
         correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
 
-    metric = ed.metrics.ExpectedCalibrationError(2, num_bins, name='ECE')
+    metric = ed.metrics.ExpectedCalibrationError(num_bins, name='ECE')
     self.assertEqual(len(metric.variables), 3)
 
     model = tf.keras.models.Sequential([tf.keras.layers.Lambda(lambda x: 1*x)])
@@ -114,7 +125,6 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
 
   def testMulticlassClassification(self):
-    num_classes = 3
     num_bins = 10
     pred_probs = [
         [0.31, 0.32, 0.27],
@@ -145,7 +155,7 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
         correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
 
     metric = ed.metrics.ExpectedCalibrationError(
-        num_classes, num_bins, name='ECE', dtype=tf.float64)
+        num_bins, name='ECE', dtype=tf.float64)
     self.assertEqual(len(metric.variables), 3)
 
     metric.update_state(labels[:4], pred_probs[:4])

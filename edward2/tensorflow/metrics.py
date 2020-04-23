@@ -64,20 +64,15 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
 
   _setattr_tracking = False  # Automatic tracking breaks some unit tests
 
-  def __init__(self, num_classes, num_bins=15, name=None, dtype=None):
+  def __init__(self, num_bins=15, name=None, dtype=None):
     """Constructs an expected calibration error metric.
 
     Args:
-      num_classes: Total number of classes.
       num_bins: Number of bins to maintain over the interval [0, 1].
       name: Name of this metric.
       dtype: Data type.
     """
     super(ExpectedCalibrationError, self).__init__(name, dtype)
-    if num_classes < 2:
-      raise ValueError(
-          'Num classes must be >= 2. Given: {}.'.format(num_classes))
-    self.num_classes = num_classes
     self.num_bins = num_bins
 
     self.correct_sums = self.add_weight(
@@ -87,32 +82,44 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
     self.counts = self.add_weight(
         'counts', shape=(num_bins,), initializer=tf.zeros_initializer)
 
+  @tf.function
   def update_state(self, labels, probabilities, **kwargs):
     """Updates this metric.
 
+    This will flatten the labels and probabilities, and then compute the ECE
+    over all predictions.
+
     Args:
-      labels: Tensor of shape (N,) of class labels, one per example.
-      probabilities: Tensor of shape (N,) or (N, k) of normalized probabilities
-        associated with the True class in the binary case or with each of k
-        classes in the multiclass case.
+      labels: Tensor of shape [..., ] of class labels in [0, k-1].
+      probabilities: Tensor of shape [..., ], [..., 1] or [..., k] of normalized
+        probabilities associated with the True class in the binary case, or with
+        each of k classes in the multiclass case.
       **kwargs: Other potential keywords, which will be ignored by this method.
     """
     del kwargs  # unused
-    labels = tf.squeeze(tf.convert_to_tensor(labels))
-    probabilities = tf.convert_to_tensor(probabilities, self.dtype)
+    labels = tf.convert_to_tensor(labels)
+    probabilities = tf.cast(probabilities, self.dtype)
 
-    if self.num_classes == 2:
-      # Explicitly ensure probs have shape [n, 2] instead of [n, 1] or [n,].
-      n = tf.shape(probabilities)[0]
-      k = tf.size(probabilities) // n
-      probabilities = tf.reshape(probabilities, [n, k])
-      probabilities = tf.cond(
-          k < 2, lambda: tf.concat([1. - probabilities, probabilities], axis=1),
-          lambda: probabilities)
+    # Flatten labels to [N, ] and probabilities to [N, 1] or [N, k].
+    if tf.rank(labels) != 1:
+      labels = tf.reshape(labels, [-1])
+    if tf.rank(probabilities) != 2 or (tf.shape(probabilities)[0] !=
+                                       tf.shape(labels)[0]):
+      probabilities = tf.reshape(probabilities, [tf.shape(labels)[0], -1])
+    # Extend any probabilities of shape [N, 1] to shape [N, 2].
+    # NOTE: XLA does not allow for different shapes in the branches of a
+    # conditional statement. Therefore, explicit indexing is used.
+    given_k = tf.shape(probabilities)[-1]
+    k = tf.math.maximum(2, given_k)
+    probabilities = tf.cond(
+        given_k < 2,
+        lambda: tf.concat([1. - probabilities, probabilities], axis=-1)[:, -k:],
+        lambda: probabilities)
 
-    pred_labels = tf.argmax(probabilities, axis=1)
-    pred_probs = tf.reduce_max(probabilities, axis=1)
-    correct_preds = tf.equal(pred_labels, tf.cast(labels, pred_labels.dtype))
+    pred_labels = tf.math.argmax(probabilities, axis=-1)
+    pred_probs = tf.math.reduce_max(probabilities, axis=-1)
+    correct_preds = tf.math.equal(pred_labels,
+                                  tf.cast(labels, pred_labels.dtype))
     correct_preds = tf.cast(correct_preds, self.dtype)
 
     bin_indices = tf.histogram_fixed_width_bins(

@@ -297,11 +297,11 @@ def main(argv):
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
         'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_classes=num_classes, num_bins=FLAGS.num_bins),
+            num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': ed.metrics.ExpectedCalibrationError(
-            num_classes=num_classes, num_bins=FLAGS.num_bins),
+            num_bins=FLAGS.num_bins),
     }
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
@@ -313,8 +313,7 @@ def main(argv):
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
-              ed.metrics.ExpectedCalibrationError(
-                  num_classes=num_classes, num_bins=FLAGS.num_bins))
+              ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
