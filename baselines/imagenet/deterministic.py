@@ -106,7 +106,8 @@ def main(argv):
       use_bfloat16=FLAGS.use_bfloat16)
   test_datasets = {
       'clean':
-          strategy.experimental_distribute_dataset(imagenet_eval.input_fn()),
+          strategy.experimental_distribute_datasets_from_function(
+              imagenet_eval.input_fn),
   }
   if FLAGS.corruptions_interval > 0:
     corruption_types, max_intensity = utils.load_corrupted_test_info()
@@ -123,7 +124,7 @@ def main(argv):
                 corrupt_input_fn))
 
   train_dataset = strategy.experimental_distribute_dataset(
-      imagenet_train.input_fn())
+      imagenet_train.input_fn)
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
