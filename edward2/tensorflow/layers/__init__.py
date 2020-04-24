@@ -22,6 +22,7 @@ from __future__ import print_function
 from edward2.tensorflow.layers import utils
 from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
 from edward2.tensorflow.layers.convolutional import CondConv2D
+from edward2.tensorflow.layers.convolutional import Conv1DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
 from edward2.tensorflow.layers.convolutional import Conv2DHierarchical
@@ -65,6 +66,7 @@ _allowed_symbols = [
     "Attention",
     "BayesianLinearModel",
     "CondConv2D",
+    "Conv1DBatchEnsemble",
     "Conv2DBatchEnsemble",
     "Conv2DFlipout",
     "Conv2DHierarchical",

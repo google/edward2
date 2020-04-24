@@ -531,6 +531,131 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     return new_config
 
 
+class Conv1DBatchEnsemble(tf.keras.layers.Layer):
+  """A batch ensemble convolutional layer."""
+
+  def __init__(self,
+               filters,
+               kernel_size,
+               ensemble_size=4,
+               alpha_initializer='ones',
+               gamma_initializer='ones',
+               strides=1,
+               padding='valid',
+               data_format='channels_last',
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+    super(Conv1DBatchEnsemble, self).__init__(**kwargs)
+    self.ensemble_size = ensemble_size
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.bias_initializer = initializers.get(bias_initializer)
+    self.bias_regularizer = regularizers.get(bias_regularizer)
+    self.bias_constraint = constraints.get(bias_constraint)
+    self.activation = tf.keras.activations.get(activation)
+    self.use_bias = use_bias
+    self.conv1d = tf.keras.layers.Conv1D(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=None,
+        use_bias=False,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=None,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=None,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=None)
+    self.filters = self.conv1d.filters
+    self.kernel_size = self.conv1d.kernel_size
+    self.data_format = self.conv1d.data_format
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    if self.data_format == 'channels_first':
+      input_channel = input_shape[1]
+    elif self.data_format == 'channels_last':
+      input_channel = input_shape[-1]
+
+    self.alpha = self.add_weight(
+        'alpha',
+        shape=[self.ensemble_size, input_channel],
+        initializer=self.alpha_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    self.gamma = self.add_weight(
+        'gamma',
+        shape=[self.ensemble_size, self.filters],
+        initializer=self.gamma_initializer,
+        trainable=True,
+        dtype=self.dtype)
+    if self.use_bias:
+      self.bias = self.add_weight(
+          name='bias',
+          shape=[self.ensemble_size, self.filters],
+          initializer=self.bias_initializer,
+          regularizer=self.bias_regularizer,
+          constraint=self.bias_constraint,
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.bias = None
+    self.built = True
+
+  def call(self, inputs):
+    axis_change = -1 if self.data_format == 'channels_first' else 1
+    batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha.shape[-1]
+    examples_per_model = batch_size // self.ensemble_size
+    alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
+                       [batch_size, input_dim])
+    gamma = tf.reshape(tf.tile(self.gamma, [1, examples_per_model]),
+                       [batch_size, self.filters])
+    alpha = tf.expand_dims(alpha, axis=axis_change)
+    gamma = tf.expand_dims(gamma, axis=axis_change)
+    outputs = self.conv1d(inputs*alpha) * gamma
+
+    if self.use_bias:
+      bias = tf.reshape(tf.tile(self.bias, [1, examples_per_model]),
+                        [batch_size, self.filters])
+      bias = tf.expand_dims(bias, axis=axis_change)
+      outputs += bias
+
+    if self.activation is not None:
+      outputs = self.activation(outputs)
+    return outputs
+
+  def compute_output_shape(self, input_shape):
+    return self.conv1d.compute_output_shape(input_shape)
+
+  def get_config(self):
+    config = {
+        'ensemble_size': self.ensemble_size,
+        'alpha_initializer': initializers.serialize(self.alpha_initializer),
+        'gamma_initializer': initializers.serialize(self.gamma_initializer),
+        'bias_initializer': initializers.serialize(self.bias_initializer),
+        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+        'bias_constraint': constraints.serialize(self.bias_constraint),
+        'activation': tf.keras.activations.serialize(self.activation),
+        'use_bias': self.use_bias,
+    }
+    new_config = super(Conv1DBatchEnsemble, self).get_config()
+    new_config.update(self.conv1d.get_config())
+    new_config.update(config)
+    return new_config
+
+
 @utils.add_weight
 class CondConv2D(tf.keras.layers.Conv2D):
   """2D conditional convolution layer (e.g. spatial convolution over images).

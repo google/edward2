@@ -148,6 +148,28 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(batch_outputs.shape, expected_shape)
     self.assertAllClose(batch_outputs, loop_outputs)
 
+  def testConv1DBatchEnsemble(self):
+    """Tests that vectorized implementation is same as for loop."""
+    ensemble_size = 2
+    examples_per_model = 3
+    channels = 5
+    inputs = tf.random.normal([examples_per_model, 4, channels])
+    layer = ed.layers.Conv1DBatchEnsemble(
+        filters=channels,
+        kernel_size=2,
+        ensemble_size=ensemble_size,
+        activation=None)
+    batch_inputs = tf.tile(inputs, [ensemble_size, 1, 1])
+    batch_outputs = layer(batch_inputs)
+    loop_outputs = [
+        layer.conv1d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
+        for i in range(ensemble_size)]
+    loop_outputs = tf.concat(loop_outputs, axis=0)
+
+    expected_shape = (ensemble_size * examples_per_model, 3, channels)
+    self.assertEqual(batch_outputs.shape, expected_shape)
+    self.assertAllClose(batch_outputs, loop_outputs)
+
 if __name__ == "__main__":
   tf.enable_v2_behavior()
   tf.test.main()
