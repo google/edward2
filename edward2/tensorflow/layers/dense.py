@@ -474,6 +474,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def __init__(self,
                units,
+               rank=1,
                ensemble_size=4,
                activation=None,
                use_bias=True,
@@ -488,6 +489,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
                bias_constraint=None,
                **kwargs):
     super(DenseBatchEnsemble, self).__init__(**kwargs)
+    self.rank = rank
     self.ensemble_size = ensemble_size
     self.activation = tf.keras.activations.get(activation)
     self.use_bias = use_bias
@@ -512,15 +514,22 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     input_dim = input_shape[-1]
+    if self.rank > 1:
+      alpha_shape = [self.rank, self.ensemble_size, input_dim]
+      gamma_shape = [self.rank, self.ensemble_size, self.units]
+    else:
+      alpha_shape = [self.ensemble_size, input_dim]
+      gamma_shape = [self.ensemble_size, self.units]
+
     self.alpha = self.add_weight(
         name='alpha',
-        shape=[self.ensemble_size, input_dim],
+        shape=alpha_shape,
         initializer=self.alpha_initializer,
         trainable=True,
         dtype=self.dtype)
     self.gamma = self.add_weight(
         name='gamma',
-        shape=[self.ensemble_size, self.units],
+        shape=gamma_shape,
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
@@ -540,10 +549,24 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
     examples_per_model = batch_size // self.ensemble_size
-    inputs = tf.reshape(inputs, [self.ensemble_size, examples_per_model, -1])
-    alpha = tf.expand_dims(self.alpha, 1)
-    gamma = tf.expand_dims(self.gamma, 1)
-    outputs = self.dense(inputs * alpha) * gamma
+
+    # TODO(ywenxu): Merge the following two cases.
+    if self.rank > 1:
+      input_dim = self.alpha.shape[-1]
+      alpha = tf.reshape(tf.tile(self.alpha, [1, 1, examples_per_model]),
+                         [self.rank, batch_size, input_dim])
+      gamma = tf.reshape(tf.tile(self.gamma, [1, 1, examples_per_model]),
+                         [self.rank, batch_size, self.units])
+      perturb_inputs = tf.expand_dims(inputs, 0) * alpha
+      outputs = self.dense(perturb_inputs)
+      outputs = tf.reduce_sum(outputs * gamma, axis=0)
+      outputs = tf.reshape(
+          outputs, [self.ensemble_size, examples_per_model, -1])
+    else:
+      inputs = tf.reshape(inputs, [self.ensemble_size, examples_per_model, -1])
+      alpha = tf.expand_dims(self.alpha, 1)
+      gamma = tf.expand_dims(self.gamma, 1)
+      outputs = self.dense(inputs * alpha) * gamma
 
     if self.use_bias:
       bias = tf.expand_dims(self.bias, 1)

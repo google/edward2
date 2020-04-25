@@ -409,6 +409,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
   def __init__(self,
                filters,
                kernel_size,
+               rank=1,
                ensemble_size=4,
                alpha_initializer='ones',
                gamma_initializer='ones',
@@ -426,6 +427,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
                bias_constraint=None,
                **kwargs):
     super(Conv2DBatchEnsemble, self).__init__(**kwargs)
+    self.rank = rank
     self.ensemble_size = ensemble_size
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
@@ -460,15 +462,21 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     elif self.data_format == 'channels_last':
       input_channel = input_shape[-1]
 
+    if self.rank > 1:
+      alpha_shape = [self.rank, self.ensemble_size, input_channel]
+      gamma_shape = [self.rank, self.ensemble_size, self.filters]
+    else:
+      alpha_shape = [self.ensemble_size, input_channel]
+      gamma_shape = [self.ensemble_size, self.filters]
     self.alpha = self.add_weight(
         'alpha',
-        shape=[self.ensemble_size, input_channel],
+        shape=alpha_shape,
         initializer=self.alpha_initializer,
         trainable=True,
         dtype=self.dtype)
     self.gamma = self.add_weight(
         'gamma',
-        shape=[self.ensemble_size, self.filters],
+        shape=gamma_shape,
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
@@ -486,19 +494,42 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
     self.built = True
 
   def call(self, inputs):
-    axis_change = -1 if self.data_format == 'channels_first' else 1
-    batch_size = tf.shape(inputs)[0]
     input_dim = self.alpha.shape[-1]
+    batch_size = tf.shape(inputs)[0]
     examples_per_model = batch_size // self.ensemble_size
-    alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
-                       [batch_size, input_dim])
-    gamma = tf.reshape(tf.tile(self.gamma, [1, examples_per_model]),
-                       [batch_size, self.filters])
-    alpha = tf.expand_dims(alpha, axis=axis_change)
-    alpha = tf.expand_dims(alpha, axis=axis_change)
-    gamma = tf.expand_dims(gamma, axis=axis_change)
-    gamma = tf.expand_dims(gamma, axis=axis_change)
-    outputs = self.conv2d(inputs*alpha) * gamma
+    # TODO(ywenxu): Merge the following two cases.
+    if self.rank > 1:
+      # TODO(ywenxu): Check whether the following works in channels_last case.
+      axis_change = -1 if self.data_format == 'channels_first' else 2
+      alpha = tf.reshape(tf.tile(self.alpha, [1, 1, examples_per_model]),
+                         [self.rank, batch_size, input_dim])
+      gamma = tf.reshape(tf.tile(self.gamma, [1, 1, examples_per_model]),
+                         [self.rank, batch_size, self.filters])
+
+      alpha = tf.expand_dims(alpha, axis=axis_change)
+      alpha = tf.expand_dims(alpha, axis=axis_change)
+      gamma = tf.expand_dims(gamma, axis=axis_change)
+      gamma = tf.expand_dims(gamma, axis=axis_change)
+
+      perturb_inputs = tf.expand_dims(inputs, 0) * alpha
+      perturb_inputs = tf.reshape(perturb_inputs, tf.concat(
+          [[-1], perturb_inputs.shape[2:]], 0))
+      outputs = self.conv2d(perturb_inputs)
+
+      outputs = tf.reshape(outputs, tf.concat(
+          [[self.rank, -1], outputs.shape[1:]], 0))
+      outputs = tf.reduce_sum(outputs * gamma, axis=0)
+    else:
+      axis_change = -1 if self.data_format == 'channels_first' else 1
+      alpha = tf.reshape(tf.tile(self.alpha, [1, examples_per_model]),
+                         [batch_size, input_dim])
+      gamma = tf.reshape(tf.tile(self.gamma, [1, examples_per_model]),
+                         [batch_size, self.filters])
+      alpha = tf.expand_dims(alpha, axis=axis_change)
+      alpha = tf.expand_dims(alpha, axis=axis_change)
+      gamma = tf.expand_dims(gamma, axis=axis_change)
+      gamma = tf.expand_dims(gamma, axis=axis_change)
+      outputs = self.conv2d(inputs*alpha) * gamma
 
     if self.use_bias:
       bias = tf.reshape(tf.tile(self.bias, [1, examples_per_model]),
