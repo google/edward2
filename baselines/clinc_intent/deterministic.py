@@ -22,13 +22,18 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-import deterministic_model  # local file import
+import deterministic_model as cnn_model  # local file import
+import deterministic_model_bert as bert_model  # local file import
 
 import numpy as np
 import tensorflow.compat.v2 as tf
 import uncertainty_baselines as ub
 
 # Model flags
+flags.DEFINE_string('model_family', 'textcnn',
+                    'Types of model to use. Can be either TextCNN or BERT.')
+
+# Model flags, TextCNN
 flags.DEFINE_list('filter_sizes', [3, 4, 5], 'Comma-separated filter sizes.')
 flags.DEFINE_integer('num_filters', 64, 'Number of filters per filter size.')
 flags.DEFINE_integer('embedding_size', 300,
@@ -37,9 +42,19 @@ flags.DEFINE_float('dropout_rate', 0.2,
                    'Fraction of units to drop in the convolutional layers.')
 flags.DEFINE_float('l2', 1e-4,
                    'L2 regularization coefficient for the output layer.')
-
 flags.DEFINE_string('word_embedding_dir', None,
                     'Directory to word embedding npy file.')
+
+# Model flags, BERT.
+flags.DEFINE_string(
+    'bert_dir', None,
+    'Directory to BERT pre-trained checkpoints and config files.')
+flags.DEFINE_string(
+    'bert_ckpt_dir', None, 'Directory to BERT pre-trained checkpoints. '
+    'If None then then default to {bert_dir}/bert_model.ckpt.')
+flags.DEFINE_string(
+    'bert_config_dir', None, 'Directory to BERT config files. '
+    'If None then then default to {bert_dir}/bert_config.json.')
 
 # Optimization and evaluation flags
 flags.DEFINE_integer('seed', 42, 'Random seed.')
@@ -52,9 +67,15 @@ flags.DEFINE_integer(
     'checkpoint_interval', 25,
     'Number of epochs between saving checkpoints. Use -1 to '
     'never save checkpoints.')
+flags.DEFINE_integer('evaluation_interval', 50,
+                     'Number of epochs between evaluation.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE.')
 flags.DEFINE_string('output_dir', '/tmp/clinc_intent', 'Output directory.')
 flags.DEFINE_integer('train_epochs', 1000, 'Number of training epochs.')
+flags.DEFINE_float(
+    'warmup_proportion', 0.1,
+    'Proportion of training to perform linear learning rate warmup for. '
+    'E.g., 0.1 = 10% of training.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -64,6 +85,32 @@ flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
 
 FLAGS = flags.FLAGS
+
+
+def resolve_bert_ckpt_and_config_dir(bert_dir, bert_config_dir, bert_ckpt_dir):
+  """Resolves BERT checkpoint and config file directories."""
+
+  missing_ckpt_or_config_dir = not (bert_ckpt_dir and bert_config_dir)
+  if missing_ckpt_or_config_dir:
+    if not bert_dir:
+      raise ValueError('bert_dir cannot be empty.')
+
+    if not bert_config_dir:
+      bert_config_dir = os.path.join(bert_dir, 'bert_config.json')
+
+    if not bert_ckpt_dir:
+      bert_ckpt_dir = os.path.join(bert_dir, 'bert_model.ckpt')
+  return bert_config_dir, bert_ckpt_dir
+
+
+def create_feature_and_label(inputs, feature_size, model_family):
+  """Creates features and labels from model inputs."""
+  if model_family.lower() == 'bert':
+    features, labels = bert_model.create_feature_and_label(inputs, feature_size)
+  else:
+    features = inputs['features']
+    labels = inputs['labels']
+  return features, labels
 
 
 def main(argv):
@@ -129,23 +176,40 @@ def main(argv):
       premade_embedding_array = np.load(embedding_file)
 
   with strategy.scope():
-    logging.info('Building TextCNN model')
-    model = deterministic_model.textcnn(
-        filter_sizes=FLAGS.filter_sizes,
-        num_filters=FLAGS.num_filters,
-        num_classes=num_classes,
-        feature_size=feature_size,
-        vocab_size=vocab_size,
-        embed_size=FLAGS.embedding_size,
-        dropout_rate=FLAGS.dropout_rate,
-        l2=FLAGS.l2,
-        premade_embedding_arr=premade_embedding_array,
-    )
+    logging.info('Building %s model', FLAGS.model_family)
+    if FLAGS.model_family.lower() == 'textcnn':
+      model = cnn_model.textcnn(
+          filter_sizes=FLAGS.filter_sizes,
+          num_filters=FLAGS.num_filters,
+          num_classes=num_classes,
+          feature_size=feature_size,
+          vocab_size=vocab_size,
+          embed_size=FLAGS.embedding_size,
+          dropout_rate=FLAGS.dropout_rate,
+          l2=FLAGS.l2,
+          premade_embedding_arr=premade_embedding_array)
+      optimizer = tf.keras.optimizers.Adam(FLAGS.base_learning_rate)
+    elif FLAGS.model_family.lower() == 'bert':
+      bert_config_dir, bert_ckpt_dir = resolve_bert_ckpt_and_config_dir(
+          FLAGS.bert_dir, FLAGS.bert_config_dir, FLAGS.bert_ckpt_dir)
+      bert_config = bert_model.create_config(bert_config_dir)
+      model, bert_encoder = bert_model.create_model(
+          num_classes=num_classes,
+          feature_size=feature_size,
+          bert_config=bert_config)
+      optimizer = bert_model.create_optimizer(
+          FLAGS.base_learning_rate,
+          steps_per_epoch=steps_per_epoch,
+          epochs=FLAGS.train_epochs,
+          warmup_proportion=FLAGS.warmup_proportion)
+    else:
+      raise ValueError('model_family ({}) can only be TextCNN or BERT.'.format(
+          FLAGS.model_family))
+
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
 
-    optimizer = tf.keras.optimizers.Adam(FLAGS.base_learning_rate)
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
@@ -178,6 +242,12 @@ def main(argv):
       checkpoint.restore(latest_checkpoint)
       logging.info('Loaded checkpoint %s', latest_checkpoint)
       initial_epoch = optimizer.iterations.numpy() // steps_per_epoch
+    elif FLAGS.model_family.lower() == 'bert':
+      # load BERT from initial checkpoint
+      bert_checkpoint = tf.train.Checkpoint(model=bert_encoder)
+      bert_checkpoint.restore(
+          bert_ckpt_dir).assert_existing_objects_matched()
+      logging.info('Loaded BERT checkpoint %s', bert_ckpt_dir)
 
   @tf.function
   def train_step(iterator):
@@ -185,8 +255,9 @@ def main(argv):
 
     def step_fn(inputs):
       """Per-Replica StepFn."""
-      features = inputs['features']
-      labels = inputs['labels']
+      features, labels = create_feature_and_label(
+          inputs, feature_size, model_family=FLAGS.model_family)
+
       with tf.GradientTape() as tape:
         # Set learning phase to enable dropout etc during training.
         logits = model(features, training=True)
@@ -218,8 +289,9 @@ def main(argv):
 
     def step_fn(inputs):
       """Per-Replica StepFn."""
-      features = inputs['features']
-      labels = inputs['labels']
+      features, labels = create_feature_and_label(
+          inputs, feature_size, model_family=FLAGS.model_family)
+
       # Set learning phase to disable dropout etc during eval.
       logits = model(features, training=False)
       if FLAGS.use_bfloat16:
@@ -261,25 +333,29 @@ def main(argv):
       if step % 20 == 0:
         logging.info(message)
 
-    for dataset_name, test_dataset in test_datasets.items():
-      test_iterator = iter(test_dataset)
-      logging.info('Testing on dataset %s', dataset_name)
-      for step in range(steps_per_eval[dataset_name]):
-        if step % 20 == 0:
-          logging.info('Starting to run eval step %s of epoch: %s', step, epoch)
-        test_step(test_iterator, dataset_name)
-      logging.info('Done with testing on %s', dataset_name)
+    if epoch % FLAGS.evaluation_interval == 0:
+      for dataset_name, test_dataset in test_datasets.items():
+        test_iterator = iter(test_dataset)
+        logging.info('Testing on dataset %s', dataset_name)
+        for step in range(steps_per_eval[dataset_name]):
+          if step % 20 == 0:
+            logging.info('Starting to run eval step %s of epoch: %s', step,
+                         epoch)
+          test_step(test_iterator, dataset_name)
+        logging.info('Done with testing on %s', dataset_name)
 
-    logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
-                 metrics['train/loss'].result(),
-                 metrics['train/accuracy'].result() * 100)
-    logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
-                 metrics['test/negative_log_likelihood'].result(),
-                 metrics['test/accuracy'].result() * 100)
-    total_results = {name: metric.result() for name, metric in metrics.items()}
-    with summary_writer.as_default():
-      for name, result in total_results.items():
-        tf.summary.scalar(name, result, step=epoch + 1)
+      logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
+                   metrics['train/loss'].result(),
+                   metrics['train/accuracy'].result() * 100)
+      logging.info('Test NLL: %.4f, Accuracy: %.2f%%',
+                   metrics['test/negative_log_likelihood'].result(),
+                   metrics['test/accuracy'].result() * 100)
+      total_results = {
+          name: metric.result() for name, metric in metrics.items()
+      }
+      with summary_writer.as_default():
+        for name, result in total_results.items():
+          tf.summary.scalar(name, result, step=epoch + 1)
 
     for metric in metrics.values():
       metric.reset_states()
