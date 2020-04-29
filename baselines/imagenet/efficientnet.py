@@ -156,12 +156,12 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.CategoricalAccuracy(),
         'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
+            num_bins=FLAGS.num_bins),
         'train/loss': tf.keras.metrics.Mean(),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.CategoricalAccuracy(),
         'test/ece': ed.metrics.ExpectedCalibrationError(
-            num_classes=NUM_CLASSES, num_bins=FLAGS.num_bins),
+            num_bins=FLAGS.num_bins),
     }
     logging.info('Finished building %s model', FLAGS.model_name)
 

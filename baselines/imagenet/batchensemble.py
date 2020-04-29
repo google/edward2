@@ -217,7 +217,7 @@ def main(argv):
       """Per-Replica StepFn."""
       images, labels = inputs
       images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
-      labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
+      labels = tf.tile(labels, [FLAGS.ensemble_size])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)

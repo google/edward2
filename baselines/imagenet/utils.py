@@ -373,8 +373,7 @@ class ImageNetInput(object):
       label = tf.cast(parsed['image/class/label'], tf.int32) - 1
       label = tf.one_hot(label, 1000, dtype=tf.float32)
     else:
-      label = tf.cast(tf.reshape(
-          parsed['image/class/label'], shape=[1]), dtype=tf.int32) - 1
+      label = tf.cast(parsed['image/class/label'], dtype=tf.int32) - 1
       label = tf.cast(label, tf.float32)
 
     if self.normalize_input:
@@ -456,7 +455,7 @@ def load_corrupted_test_dataset(batch_size,
   def preprocess(image, label):
     image = tf.reshape(image, shape=[])
     image = preprocess_for_eval(image, use_bfloat16)
-    label = tf.cast(tf.reshape(label, shape=[1]), dtype=tf.float32)
+    label = tf.cast(label, dtype=tf.float32)
     return image, label
 
   dataset = dataset.map(
