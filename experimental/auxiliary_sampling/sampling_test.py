@@ -19,7 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2.experimental.auxiliary_sampling import sampling
+from experimental.auxiliary_sampling import sampling  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp

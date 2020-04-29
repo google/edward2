@@ -23,7 +23,7 @@ import functools
 
 from absl import logging
 import edward2 as ed
-from edward2.experimental.auxiliary_sampling.sampling import mean_field_fn
+from experimental.auxiliary_sampling.sampling import mean_field_fn  # local file import
 
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp

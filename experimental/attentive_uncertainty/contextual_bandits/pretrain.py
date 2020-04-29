@@ -20,8 +20,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from edward2.experimental.attentive_uncertainty import regressor
-from edward2.experimental.attentive_uncertainty import utils
+from experimental.attentive_uncertainty import regressor  # local file import
+from experimental.attentive_uncertainty import utils  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf
 

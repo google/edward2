@@ -26,9 +26,9 @@ import time
 
 from absl import app
 from absl import flags
-from edward2.experimental.attentive_uncertainty import attention
-from edward2.experimental.attentive_uncertainty.contextual_bandits import offline_contextual_bandits
-from edward2.experimental.attentive_uncertainty.contextual_bandits import utils
+from experimental.attentive_uncertainty import attention  # local file import
+from experimental.attentive_uncertainty.contextual_bandits import offline_contextual_bandits  # local file import
+from experimental.attentive_uncertainty.contextual_bandits import utils  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf
 

@@ -25,10 +25,10 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from edward2.experimental.auxiliary_sampling import datasets
-from edward2.experimental.auxiliary_sampling.compute_metrics import ensemble_metrics
-from edward2.experimental.auxiliary_sampling.deterministic_baseline.lenet5 import lenet5
-from edward2.experimental.auxiliary_sampling.res_net import res_net
+from experimental.auxiliary_sampling import datasets  # local file import
+from experimental.auxiliary_sampling.compute_metrics import ensemble_metrics  # local file import
+from experimental.auxiliary_sampling.deterministic_baseline.lenet5 import lenet5  # local file import
+from experimental.auxiliary_sampling.res_net import res_net  # local file import
 import numpy as np
 import tensorflow.compat.v1 as tf1
 import tensorflow.compat.v2 as tf
