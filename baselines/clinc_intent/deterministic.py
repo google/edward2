@@ -84,6 +84,14 @@ flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
 
+# Loss function
+flags.DEFINE_bool('distance_logits', False,
+                  'Whether to use a distance-based last layer.')
+flags.DEFINE_enum(
+    'loss_name',
+    'crossentropy',
+    enum_values=['crossentropy', 'dm_loss', 'one_vs_all'],
+    help='Loss function')
 FLAGS = flags.FLAGS
 
 
@@ -111,6 +119,83 @@ def create_feature_and_label(inputs, feature_size, model_family):
     features = inputs['features']
     labels = inputs['labels']
   return features, labels
+
+
+def one_vs_rest_dm_loss_fn(dm_alpha=1., from_logits=True):
+  """Requires from_logits=True to calculate correctly."""
+  if not from_logits:
+    raise ValueError('Distinction Maximization loss requires inputs to the '
+                     'loss function to be logits, not probabilities.')
+
+  def one_vs_rest_dm_loss(labels, logits):
+    r"""Implements the one-vs-all distance-based loss function.
+
+    As implemented in https://arxiv.org/abs/1709.08716, multiplies the output
+    logits by dm_alpha before taking K independent sigmoid operations of each
+    class logit, and then calculating the sum of the log-loss across classes.
+    The loss function is calculated from the K sigmoided logits as follows -
+
+    \mathcal{L} = \sum_{i=1}^{K} -\mathbb{I}(y = i) \log p(\hat{y}^{(i)} | x)
+    -\mathbb{I} (y \neq i) \log (1 - p(\hat{y}^{(i)} | x))
+
+    Args:
+      labels: Integer Tensor of dense labels, shape [batch_size].
+      logits: Tensor of shape [batch_size, num_classes].
+
+    Returns:
+      A scalar containing the mean over the batch for one-vs-all loss.
+    """
+    eps = 1e-6
+    logits = logits * dm_alpha
+    n_classes = tf.cast(logits.shape[1], tf.float32)
+
+    one_vs_rest_probs = tf.math.sigmoid(logits)
+    labels = tf.cast(tf.squeeze(labels), tf.int32)
+    row_ids = tf.range(tf.shape(one_vs_rest_probs)[0], dtype=tf.int32)
+    idx = tf.stack([row_ids, labels], axis=1)
+
+    # Shape of class_probs is [batch_size,].
+    class_probs = tf.gather_nd(one_vs_rest_probs, idx)
+
+    pos_case_loss = (
+        tf.reduce_mean(tf.math.log(class_probs + eps)) +
+        n_classes * tf.reduce_mean(tf.math.log(1. - one_vs_rest_probs + eps)))
+    neg_case_loss = -tf.reduce_mean(tf.math.log(1. - class_probs + eps))
+
+    # scale down negative loss
+    loss = pos_case_loss + 1e-3 * neg_case_loss
+
+    return -loss
+
+  return one_vs_rest_dm_loss
+
+
+def dm_loss_fn(dm_alpha=10., from_logits=True):
+  """Requires from_logits=True to calculate correctly."""
+  if not from_logits:
+    raise ValueError('Distinction Maximization loss requires inputs to the '
+                     'loss function to be logits, not probabilities.')
+
+  def dm_loss(labels, logits):
+    """Implements the distinction maximization loss function.
+
+    As implemented in https://arxiv.org/abs/1908.05569, multiplies the output
+    logits by dm_alpha before taking the softmax and calculating cross_entropy
+    loss. The prediction output of DM Loss does not have the alpha factor.
+    Args:
+      labels: Integer Tensor of dense labels, shape [batch_size].
+      logits: Tensor of shape [batch_size, num_classes].
+
+    Returns:
+      Either binary_crossentropy or SparseCategoricalCrossentropy depending
+        on whether binary or multiclass classification is being performed.
+    """
+    # For the loss function, multiply the logits by alpha before crossentropy.
+    logits *= dm_alpha
+    return tf.keras.losses.sparse_categorical_crossentropy(
+        labels, logits, from_logits=True)
+
+  return dm_loss
 
 
 def main(argv):
@@ -187,8 +272,11 @@ def main(argv):
           embed_size=FLAGS.embedding_size,
           dropout_rate=FLAGS.dropout_rate,
           l2=FLAGS.l2,
-          premade_embedding_arr=premade_embedding_array)
+          premade_embedding_arr=premade_embedding_array,
+          distance_logits=FLAGS.distance_logits)
       optimizer = tf.keras.optimizers.Adam(FLAGS.base_learning_rate)
+      if FLAGS.distance_logits:
+        logging.info('Using distance-based logits')
     elif FLAGS.model_family.lower() == 'bert':
       bert_config_dir, bert_ckpt_dir = resolve_bert_ckpt_and_config_dir(
           FLAGS.bert_dir, FLAGS.bert_config_dir, FLAGS.bert_ckpt_dir)
@@ -263,9 +351,21 @@ def main(argv):
         logits = model(features, training=True)
         if FLAGS.use_bfloat16:
           logits = tf.cast(logits, tf.float32)
-        negative_log_likelihood = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(
-                labels, logits, from_logits=True))
+
+        if FLAGS.loss_name == 'crossentropy':
+          logging.info('Using crossentropy loss.')
+          negative_log_likelihood = tf.reduce_mean(
+              tf.keras.losses.sparse_categorical_crossentropy(
+                  labels, logits, from_logits=True))
+        elif FLAGS.loss_name == 'dm_loss':
+          logging.info('Using DM loss.')
+          negative_log_likelihood = tf.reduce_mean(
+              dm_loss_fn(dm_alpha=1.0)(labels, logits))
+        elif FLAGS.loss_name == 'one_vs_all':
+          logging.info('Using one-vs-all loss.')
+          negative_log_likelihood = tf.reduce_mean(
+              one_vs_rest_dm_loss_fn(dm_alpha=1.0)(labels, logits))
+
         l2_loss = sum(model.losses)
         loss = negative_log_likelihood + l2_loss
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
@@ -274,7 +374,14 @@ def main(argv):
       grads = tape.gradient(scaled_loss, model.trainable_variables)
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-      probs = tf.nn.softmax(logits)
+      if FLAGS.loss_name == 'one_vs_all':
+        if FLAGS.distance_logits:
+          probs = 2 * tf.nn.sigmoid(logits)
+        else:
+          probs = tf.nn.sigmoid(logits)
+      else:
+        probs = tf.nn.softmax(logits)
+
       metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
@@ -296,9 +403,28 @@ def main(argv):
       logits = model(features, training=False)
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
-      probs = tf.nn.softmax(logits)
-      negative_log_likelihood = tf.reduce_mean(
-          tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+
+      if FLAGS.loss_name == 'one_vs_all':
+        if FLAGS.distance_logits:
+          probs = 2 * tf.nn.sigmoid(logits)
+        else:
+          probs = tf.nn.sigmoid(logits)
+      else:
+        probs = tf.nn.softmax(logits)
+
+      if FLAGS.loss_name == 'crossentropy':
+        logging.info('Using crossentropy loss.')
+        negative_log_likelihood = tf.reduce_mean(
+            tf.keras.losses.sparse_categorical_crossentropy(
+                labels, logits, from_logits=True))
+      elif FLAGS.loss_name == 'dm_loss':
+        logging.info('Using DM loss.')
+        negative_log_likelihood = tf.reduce_mean(
+            dm_loss_fn(dm_alpha=1.0)(labels, logits))
+      elif FLAGS.loss_name == 'one_vs_all':
+        logging.info('Using one-vs-all loss.')
+        negative_log_likelihood = tf.reduce_mean(
+            one_vs_rest_dm_loss_fn(dm_alpha=1.0)(labels, logits))
 
       if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(
