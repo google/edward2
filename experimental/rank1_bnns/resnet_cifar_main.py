@@ -205,12 +205,6 @@ def main(argv):
         dropout_rate=FLAGS.dropout_rate)
     logging.info(model.summary())
     base_lr = FLAGS.base_learning_rate * batch_size_train / 128
-    global_step = tf.Variable(
-        0,
-        trainable=False,
-        name='global_step',
-        dtype=tf.int64,
-        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
     lr_decay_epochs = [(start_epoch * FLAGS.train_epochs) // 200
                        for start_epoch in FLAGS.lr_decay_epochs]
     lr_schedule = utils.LearningRateSchedule(
@@ -263,8 +257,7 @@ def main(argv):
           'train/cosine_similarity': tf.keras.metrics.Mean(),
       }
 
-    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer,
-                                     global_step=global_step)
+    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
     initial_epoch = 0
     if latest_checkpoint:
@@ -335,9 +328,10 @@ def main(argv):
         l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
             tf.concat(filtered_variables, axis=0))
         kl = sum(model.losses) / train_dataset_size
-        kl_loss = kl * tf.minimum(
-            1.,
-            tf.cast(global_step + 1, tf.float32) / FLAGS.kl_annealing_steps)
+        kl_scale = tf.cast(optimizer.iterations + 1, kl.dtype)
+        kl_scale /= FLAGS.kl_annealing_steps
+        kl_scale = tf.minimum(1., kl_scale)
+        kl_loss = kl_scale * kl
 
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
         loss = negative_log_likelihood + l2_loss + kl_loss
@@ -369,8 +363,6 @@ def main(argv):
       if FLAGS.version2 and FLAGS.ensemble_size > 1:
         for k, v in diversity_results.items():
           training_diversity['train/' + k].update_state(v)
-
-      global_step.assign_add(1)
 
     strategy.run(step_fn, args=(next(iterator),))
 

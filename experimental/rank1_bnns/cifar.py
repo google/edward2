@@ -230,15 +230,7 @@ def main(argv):
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
               ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
-    global_step = tf.Variable(
-        0,
-        trainable=False,
-        name='global_step',
-        dtype=tf.int64,
-        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
-    checkpoint = tf.train.Checkpoint(model=model,
-                                     optimizer=optimizer,
-                                     global_step=global_step)
+    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
     initial_epoch = 0
     if latest_checkpoint:
@@ -279,7 +271,7 @@ def main(argv):
         l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
             tf.concat(filtered_variables, axis=0))
         kl = sum(model.losses) / train_dataset_size
-        kl_scale = tf.cast(global_step + 1, tf.float32)
+        kl_scale = tf.cast(optimizer.iterations + 1, kl.dtype)
         kl_scale /= steps_per_epoch * FLAGS.kl_annealing_epochs
         kl_scale = tf.minimum(1., kl_scale)
         kl_loss = kl_scale * kl
@@ -315,8 +307,6 @@ def main(argv):
       metrics['train/kl'].update_state(kl)
       metrics['train/kl_scale'].update_state(kl_scale)
       metrics['train/accuracy'].update_state(labels, logits)
-
-      global_step.assign_add(1)
 
     strategy.run(step_fn, args=(next(iterator),))
 

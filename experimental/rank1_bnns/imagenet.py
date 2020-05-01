@@ -185,12 +185,6 @@ def main(argv):
     optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate,
                                         momentum=0.9,
                                         nesterov=True)
-    global_step = tf.Variable(
-        0,
-        trainable=False,
-        name='global_step',
-        dtype=tf.int64,
-        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
@@ -236,8 +230,7 @@ def main(argv):
 
     logging.info('Finished building Keras ResNet-50 model')
 
-    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer,
-                                     global_step=global_step)
+    checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
     initial_epoch = 0
     if latest_checkpoint:
@@ -286,7 +279,7 @@ def main(argv):
         l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
             tf.concat(filtered_variables, axis=0))
         kl = sum(model.losses) / APPROX_IMAGENET_TRAIN_IMAGES
-        kl_scale = tf.cast(global_step + 1, tf.float32)
+        kl_scale = tf.cast(optimizer.iterations + 1, kl.dtype)
         kl_scale /= steps_per_epoch * FLAGS.kl_annealing_epochs
         kl_scale = tf.minimum(1., kl_scale)
         kl_loss = kl_scale * kl
@@ -321,7 +314,6 @@ def main(argv):
       if FLAGS.ensemble_size > 1:
         for k, v in diversity_results.items():
           training_diversity['train/' + k].update_state(v)
-      global_step.assign_add(1)
 
     strategy.run(step_fn, args=(next(iterator),))
 
