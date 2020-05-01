@@ -389,7 +389,8 @@ def main(argv):
     logging.info('Starting to run epoch: %s', epoch)
     if epoch in np.linspace(FLAGS.train_epochs,
                             FLAGS.train_epochs + FLAGS.refining_epochs,
-                            FLAGS.n_auxiliary_variables):
+                            FLAGS.n_auxiliary_variables,
+                            dtype=int):
         logging.info('Sampling auxiliary variables with ratio %f',
                      FLAGS.auxiliary_variance_ratio)
         sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
