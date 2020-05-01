@@ -548,6 +548,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
 
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha.shape[-1]
     examples_per_model = batch_size // self.ensemble_size
 
     # TODO(ywenxu): Merge the following two cases.
@@ -563,7 +564,8 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
       outputs = tf.reshape(
           outputs, [self.ensemble_size, examples_per_model, -1])
     else:
-      inputs = tf.reshape(inputs, [self.ensemble_size, examples_per_model, -1])
+      inputs = tf.reshape(
+          inputs, [self.ensemble_size, examples_per_model, input_dim])
       alpha = tf.expand_dims(self.alpha, 1)
       gamma = tf.expand_dims(self.gamma, 1)
       outputs = self.dense(inputs * alpha) * gamma
