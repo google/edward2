@@ -26,7 +26,7 @@ import edward2 as ed
 import numpy as np
 from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import cifar_model  # local file import
-from experimental.rank1_bnns.refining import sample_rank1_auxiliaries
+from experimental.rank1_bnns import refining
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -96,7 +96,7 @@ flags.DEFINE_integer('num_eval_samples', 1,
 flags.DEFINE_integer('refining_epochs', 0,
                      'Number of refining epochs. At the default 0 epochs,'
                      'no refining takes place.')
-flags.DEFINE_integer('n_auxiliary_variables', 10, 'Number of auxiliary variables.')
+flags.DEFINE_integer('num_auxiliary_variables', 10, 'Number of auxiliary variables.')
 flags.DEFINE_float('auxiliary_variance_ratio', 0.5,
                    'The variance ratio of each auxiliary variable and the prior.'
                    'The prior variance is reduced by this ratio after sampling each'
@@ -389,11 +389,11 @@ def main(argv):
     logging.info('Starting to run epoch: %s', epoch)
     if epoch in np.linspace(FLAGS.train_epochs,
                             FLAGS.train_epochs + FLAGS.refining_epochs,
-                            FLAGS.n_auxiliary_variables,
+                            FLAGS.num_auxiliary_variables,
                             dtype=int):
-        logging.info('Sampling auxiliary variables with ratio %f',
-                     FLAGS.auxiliary_variance_ratio)
-        sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
+      logging.info('Sampling auxiliary variables with ratio %f',
+                   FLAGS.auxiliary_variance_ratio)
+      refining.sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
 
     for step in range(steps_per_epoch):
       train_step(train_iterator)

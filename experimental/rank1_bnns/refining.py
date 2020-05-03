@@ -19,7 +19,7 @@ import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
-from experimental.rank1_bnns.rank1_bnn_layers import DenseRank1, Conv2DRank1
+from experimental.rank1_bnns import rank1_bnn_layers
 
 
 def get_auxiliary_posterior(posterior_mean,
@@ -27,16 +27,17 @@ def get_auxiliary_posterior(posterior_mean,
                             prior_mean,
                             prior_scale,
                             auxiliary_scale):
-  """ Calculate the posterior distribution of an additive Gaussian """
-  """ auxiliary variable. q(a)=\int p(a|w)q(w)dw. """
+  """Calculates the posterior of an additive Gaussian auxiliary variable.
+   q(a)=\int p(a|w)q(w)dw.
+  """
   prior_var = tf.math.pow(prior_scale, 2)
   posterior_var = tf.math.pow(posterior_scale, 2)
   auxiliary_var = tf.math.pow(auxiliary_scale, 2)
-  auxiliary_posterior_mean = (posterior_mean - prior_mean) \
-      * auxiliary_var / prior_var
-  auxiliary_posterior_var = posterior_var * tf.math.pow(auxiliary_var, 2) \
-      / tf.math.pow(prior_var, 2) + auxiliary_var * \
-      (prior_var - auxiliary_var) / prior_var
+  aux_div_prior_var = auxiliary_var / prior_var
+  auxiliary_posterior_mean = (posterior_mean - prior_mean) * aux_div_prior_var
+  auxiliary_posterior_var = (posterior_var * tf.math.pow(auxiliary_var, 2)
+                             / tf.math.pow(prior_var, 2)
+                             + aux_div_prior_var * (prior_var - auxiliary_var))
   return auxiliary_posterior_mean, tf.sqrt(auxiliary_posterior_var)
 
 
@@ -44,8 +45,9 @@ def get_conditional_prior(prior_mean,
                           prior_scale,
                           auxiliary_scale,
                           auxiliary_sample):
-  """ Calculate the conditional prior given the value of an additive """
-  """ Gaussian auxiliary variable. p(w|a). """
+  """Calculates the conditional prior given an auxiliary variable.
+  p(w|a).
+  """
   prior_var = tf.math.pow(prior_scale, 2)
   auxiliary_var = tf.math.pow(auxiliary_scale, 2)
   return prior_mean + auxiliary_sample, tf.sqrt(prior_var - auxiliary_var)
@@ -57,32 +59,46 @@ def get_conditional_posterior(posterior_mean,
                               prior_scale,
                               auxiliary_scale,
                               auxiliary_sample):
-  """ Calculate the conditional posterior given the value of an additive """
-  """ Gaussian auxiliary variable. q(w|a)\propto p(a|w)q(w). """
+  """Calculates the conditional posterior given an additive auxiliary variable.
+  q(w|a)\propto p(a|w)q(w).
+  """
   prior_var = tf.math.pow(prior_scale, 2)
   posterior_var = tf.math.pow(posterior_scale, 2)
-  auxiliary_var = tf.math.pow(auxiliary_scale, 2)
+  auxiliary_var = tf.math.pow(auxiliary_scale, 2)\
+
+  cond_x_prior_var = (prior_var - auxiliary_var) * prior_var
+  aux_x_post_var = auxiliary_var * posterior_var
+  denom = cond_x_prior_var + aux_x_post_var
   conditional_mean = (prior_mean + (auxiliary_sample * posterior_var *
                                     prior_var + (posterior_mean - prior_mean)
-                                    * (prior_var - auxiliary_var)
-                                    * prior_var)
-                      / (posterior_var * auxiliary_var + prior_var *
-                         (prior_var - auxiliary_var)))
-  conditional_var = posterior_var * prior_var * (prior_var - auxiliary_var) / \
-                    (auxiliary_var * posterior_var + prior_var *
-                     (prior_var - auxiliary_var))
+                                    * cond_x_prior_var) / denom)
+  conditional_var = posterior_var * cond_x_prior_var / denom
   return conditional_mean, tf.sqrt(conditional_var)
 
 
 def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
+  """Samples additive Gaussian auxiliary variables for the layer.
+  For every rank1 BNN layer, then it samples additive Gaussian auxiliary
+  variables for alpha and gamma. It is assumed that the priors and posteriors
+  of alpha and gamma are both Gaussians.
+
+  Args:
+      model: Keras model.
+      auxiliary_var_ratio: The ratio of the variance of the auxiliary variable
+      to the variance of the prior. (0 < auxiliary_var_ratio < 1)
+  """
   for layer in model.layers:
-    if isinstance(layer, DenseRank1) or isinstance(layer, Conv2DRank1):
-      for rv_name, rv, regularizer in [('alpha', layer.alpha,
+    if (isinstance(layer, rank1_bnn_layers.DenseRank1) or
+        isinstance(layer, rank1_bnn_layers.Conv2DRank1)):
+      for initializer, regularizer in [(layer.alpha_initializer,
                                         layer.alpha_regularizer),
-                                       ('gamma', layer.gamma,
+                                       (layer.gamma_initializer,
                                         layer.gamma_regularizer)]:
-        posterior_mean = rv.distribution.distribution.loc
-        posterior_scale = rv.distribution.distribution.scale
+        posterior_mean = initializer.mean
+        unconstrained_posterior_scale = initializer.stddev
+        print(unconstrained_posterior_scale)
+        posterior_scale = initializer.stddev_constraint(
+          unconstrained_posterior_scale)
         prior_mean = regularizer.mean
         prior_scale = regularizer.stddev
         auxiliary_scale_ratio = np.sqrt(auxiliary_var_ratio)
@@ -96,24 +112,19 @@ def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
         auxiliary_sample = tfp.distributions.Normal(loc=a_mean,
                                                     scale=a_scale).sample()
         new_posterior_mean, new_posterior_scale = get_conditional_posterior(
-            posterior_mean,
-            posterior_scale,
-            prior_mean,
-            prior_scale,
-            auxiliary_scale,
-            auxiliary_sample)
+          posterior_mean,
+          posterior_scale,
+          prior_mean,
+          prior_scale,
+          auxiliary_scale,
+          auxiliary_sample)
         new_prior_mean, new_prior_scale = get_conditional_prior(
-            prior_mean,
-            prior_scale,
-            auxiliary_scale,
-            auxiliary_sample)
-        for v in layer.variables:
-          if rv_name + '/mean' in v.name:
-            posterior_mean_variable = v
-            posterior_mean_variable.assign(new_posterior_mean)
-          if rv_name + '/stddev' in v.name:
-            posterior_scale_untransformed = v
-            posterior_scale_untransformed.assign(
-                tfp.math.softplus_inverse(new_posterior_scale))
-          regularizer.mean = new_prior_mean.numpy()
-          regularizer.stddev = new_prior_scale.numpy()
+          prior_mean,
+          prior_scale,
+          auxiliary_scale,
+          auxiliary_sample)
+        posterior_mean.assign(new_posterior_mean)
+        unconstrained_posterior_scale.assign(
+          tfp.math.softplus_inverse(new_posterior_scale))
+        regularizer.mean = new_prior_mean.numpy()
+        regularizer.stddev = new_prior_scale.numpy()
