@@ -397,6 +397,7 @@ def main(argv):
 
     for step in range(steps_per_epoch):
       train_step(train_iterator)
+
       current_step = epoch * steps_per_epoch + (step + 1)
       max_steps = steps_per_epoch * (FLAGS.train_epochs + FLAGS.refining_epochs)
       time_elapsed = time.time() - start_time

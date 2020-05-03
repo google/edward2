@@ -28,7 +28,7 @@ def get_auxiliary_posterior(posterior_mean,
                             prior_scale,
                             auxiliary_scale):
   """Calculates the posterior of an additive Gaussian auxiliary variable.
-   q(a)=\int p(a|w)q(w)dw.
+  q(a)=\int p(a|w)q(w)dw.
   """
   prior_var = tf.math.pow(prior_scale, 2)
   posterior_var = tf.math.pow(posterior_scale, 2)
