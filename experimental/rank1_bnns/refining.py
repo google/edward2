@@ -77,11 +77,11 @@ def get_conditional_posterior(posterior_mean,
 
 
 def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
-  """Samples additive Gaussian auxiliary variables for the layer.
+  """Samples additive Gaussian auxiliary variables for the model.
   For every rank1 BNN layer, then it samples additive Gaussian auxiliary
   variables for alpha and gamma. It is assumed that the priors and posteriors
   of alpha and gamma are both Gaussians.
-
+  
   Args:
       model: Keras model.
       auxiliary_var_ratio: The ratio of the variance of the auxiliary variable
