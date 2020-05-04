@@ -29,6 +29,12 @@ import numpy as np
 import tensorflow.compat.v2 as tf
 import uncertainty_baselines as ub
 
+# Data flags
+flags.DEFINE_string(
+    'dataset_dir', None,
+    'Directory containing the TFRecord datasets and the tokenizer for Clinc '
+    'Intent Detection Data.')
+
 # Model flags
 flags.DEFINE_string('model_family', 'textcnn',
                     'Types of model to use. Can be either TextCNN or BERT.')
@@ -134,10 +140,12 @@ def main(argv):
   ind_dataset_builder = ub.datasets.ClincIntentDetectionDataset(
       batch_size=FLAGS.per_core_batch_size,
       eval_batch_size=FLAGS.per_core_batch_size,
+      dataset_dir=FLAGS.dataset_dir,
       data_mode='ind')
   ood_dataset_builder = ub.datasets.ClincIntentDetectionDataset(
       batch_size=FLAGS.per_core_batch_size,
       eval_batch_size=FLAGS.per_core_batch_size,
+      dataset_dir=FLAGS.dataset_dir,
       data_mode='ood')
 
   dataset_builders = {'clean': ind_dataset_builder,
