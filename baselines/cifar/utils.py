@@ -288,9 +288,13 @@ def aggregate_corrupt_metrics(metrics,
 
   """
   diversity_keys = ['disagreement', 'cosine_similarity', 'average_kl']
-  results = {'test/nll_mean_corrupted': 0.,
-             'test/accuracy_mean_corrupted': 0.,
-             'test/ece_mean_corrupted': 0.}
+  results = {
+      'test/nll_mean_corrupted': 0.,
+      'test/accuracy_mean_corrupted': 0.,
+      'test/ece_mean_corrupted': 0.,
+      'test/member_acc_mean_corrupted': 0.,
+      'test/member_ece_mean_corrupted': 0.
+  }
   fine_metrics_results = {}
   if corrupt_diversity is not None:
     for key in diversity_keys:
@@ -300,6 +304,8 @@ def aggregate_corrupt_metrics(metrics,
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
     acc = np.zeros(len(corruption_types))
+    member_acc = np.zeros(len(corruption_types))
+    member_ece = np.zeros(len(corruption_types))
     disagreement = np.zeros(len(corruption_types))
     cosine_similarity = np.zeros(len(corruption_types))
     average_kl = np.zeros(len(corruption_types))
@@ -309,6 +315,10 @@ def aggregate_corrupt_metrics(metrics,
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      member_acc[i] = metrics['test/member_acc_mean_{}'.format(
+          dataset_name)].result()
+      member_ece[i] = metrics['test/member_ece_mean_{}'.format(
+          dataset_name)].result()
       if corrupt_diversity is not None:
         disagreement[i] = (
             corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
@@ -335,15 +345,21 @@ def aggregate_corrupt_metrics(metrics,
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)
+    avg_member_acc = np.mean(member_acc)
+    avg_member_ece = np.mean(member_ece)
     results['test/nll_mean_{}'.format(intensity)] = avg_nll
     results['test/accuracy_mean_{}'.format(intensity)] = avg_accuracy
     results['test/ece_mean_{}'.format(intensity)] = avg_ece
     results['test/nll_median_{}'.format(intensity)] = np.median(nll)
     results['test/accuracy_median_{}'.format(intensity)] = np.median(acc)
     results['test/ece_median_{}'.format(intensity)] = np.median(ece)
+    results['test/member_acc_mean_{}'.format(intensity)] = avg_member_acc
+    results['test/member_ece_mean_{}'.format(intensity)] = avg_member_ece
     results['test/nll_mean_corrupted'] += avg_nll
     results['test/accuracy_mean_corrupted'] += avg_accuracy
     results['test/ece_mean_corrupted'] += avg_ece
+    results['test/member_acc_mean_corrupted'] += avg_member_acc
+    results['test/member_ece_mean_corrupted'] += avg_member_ece
     if corrupt_diversity is not None:
       avg_diversity_metrics = [np.mean(disagreement), np.mean(
           cosine_similarity), np.mean(average_kl)]
@@ -355,6 +371,8 @@ def aggregate_corrupt_metrics(metrics,
   results['test/nll_mean_corrupted'] /= max_intensity
   results['test/accuracy_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
+  results['test/member_acc_mean_corrupted'] /= max_intensity
+  results['test/member_ece_mean_corrupted'] /= max_intensity
   if corrupt_diversity is not None:
     for key in diversity_keys:
       results['corrupt_diversity/{}_mean_corrupted'.format(
