@@ -98,6 +98,74 @@ class Conv2DReparameterization(tf.keras.layers.Conv2D):
     return super(Conv2DReparameterization, self).call(*args, **kwargs)
 
 
+@utils.add_weight
+class Conv1DReparameterization(tf.keras.layers.Conv1D):
+  """1D convolution layer (e.g. temporal convolution over sequences).
+
+  The layer computes a variational Bayesian approximation to the distribution
+  over convolutional layers,
+
+  ```
+  p(outputs | inputs) = int conv1d(inputs; weights, bias) p(weights, bias)
+    dweights dbias.
+  ```
+
+  It does this with a stochastic forward pass, sampling from learnable
+  distributions on the kernel and bias. Gradients with respect to the
+  distributions' learnable parameters backpropagate via reparameterization.
+  Minimizing cross-entropy plus the layer's losses performs variational
+  minimum description length, i.e., it minimizes an upper bound to the negative
+  marginal likelihood.
+  """
+
+  def __init__(self,
+               filters,
+               kernel_size,
+               strides=1,
+               padding='valid',
+               data_format=None,
+               dilation_rate=1,
+               activation=None,
+               use_bias=True,
+               kernel_initializer='trainable_normal',
+               bias_initializer='zeros',
+               kernel_regularizer='normal_kl_divergence',
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+    super(Conv1DReparameterization, self).__init__(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        dilation_rate=dilation_rate,
+        activation=activation,
+        use_bias=use_bias,
+        kernel_initializer=initializers.get(kernel_initializer),
+        bias_initializer=initializers.get(bias_initializer),
+        kernel_regularizer=regularizers.get(kernel_regularizer),
+        bias_regularizer=regularizers.get(bias_regularizer),
+        activity_regularizer=regularizers.get(activity_regularizer),
+        kernel_constraint=constraints.get(kernel_constraint),
+        bias_constraint=constraints.get(bias_constraint),
+        **kwargs)
+
+  def call_weights(self):
+    """Calls any weights if the initializer is itself a layer."""
+    if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
+    if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+
+  def call(self, *args, **kwargs):
+    self.call_weights()
+    kwargs.pop('training', None)
+    return super(Conv1DReparameterization, self).call(*args, **kwargs)
+
+
 class Conv2DFlipout(Conv2DReparameterization):
   """2D convolution layer (e.g. spatial convolution over images).
 
@@ -174,6 +242,88 @@ class Conv2DFlipout(Conv2DReparameterization):
                                                 maxval=2,
                                                 dtype=tf.int32) - 1,
                           inputs.dtype)
+    kernel_mean = self.kernel.distribution.mean()
+    perturbation = self.kernel - kernel_mean
+    outputs = self._convolution_op(inputs, kernel_mean)
+    outputs += self._convolution_op(inputs * sign_input,
+                                    perturbation) * sign_output
+    return outputs
+
+
+class Conv1DFlipout(Conv1DReparameterization):
+  """1D convolution layer (e.g. temporal convolution over sequences).
+
+  The layer computes a variational Bayesian approximation to the distribution
+  over convolutional layers,
+
+  ```
+  p(outputs | inputs) = int conv1d(inputs; weights, bias) p(weights, bias)
+    dweights dbias.
+  ```
+
+  It does this with a stochastic forward pass, sampling from learnable
+  distributions on the kernel and bias. Gradients with respect to the
+  distributions' learnable parameters backpropagate via reparameterization.
+  Minimizing cross-entropy plus the layer's losses performs variational
+  minimum description length, i.e., it minimizes an upper bound to the negative
+  marginal likelihood.
+
+  This layer uses the Flipout estimator (Wen et al., 2018) for integrating with
+  respect to the `kernel`. Namely, it applies
+  pseudo-independent weight perturbations via independent sign flips for each
+  example, enabling variance reduction over independent weight perturbations.
+  For this estimator to work, the `kernel` random variable must be able
+  to decompose as a sum of its mean and a perturbation distribution; the
+  perturbation distribution must be independent across weight elements and
+  symmetric around zero (for example, a fully factorized Gaussian).
+  """
+
+  def call(self, inputs):
+    if not isinstance(self.kernel, random_variable.RandomVariable):
+      return super(Conv1DFlipout, self).call(inputs)
+    self.call_weights()
+    outputs = self._apply_kernel(inputs)
+    if self.use_bias:
+      if self.data_format == 'channels_first':
+        outputs = tf.nn.bias_add(outputs, self.bias, data_format='NCW')
+      else:
+        outputs = tf.nn.bias_add(outputs, self.bias, data_format='NWC')
+    if self.activation is not None:
+      outputs = self.activation(outputs)
+    return outputs
+
+  def _apply_kernel(self, inputs):
+    input_shape = tf.shape(inputs)
+    batch_dim = input_shape[0]
+    if self._convolution_op is None:
+      padding = self.padding
+      if self.padding == 'causal':
+        padding = 'valid'
+      if not isinstance(padding, (list, tuple)):
+        padding = padding.upper()
+      self._convolution_op = functools.partial(
+          tf.nn.convolution,
+          strides=self.strides,
+          padding=padding,
+          data_format='NWC' if self.data_format == 'channels_last' else 'NCW',
+          dilations=self.dilation_rate)
+
+    if self.data_format == 'channels_first':
+      channels = input_shape[1]
+      sign_input_shape = [batch_dim, channels, 1]
+      sign_output_shape = [batch_dim, self.filters, 1]
+    else:
+      channels = input_shape[-1]
+      sign_input_shape = [batch_dim, 1, channels]
+      sign_output_shape = [batch_dim, 1, self.filters]
+    sign_input = tf.cast(
+        2 * tf.random.uniform(
+            sign_input_shape, minval=0, maxval=2, dtype=tf.int32) - 1,
+        inputs.dtype)
+    sign_output = tf.cast(
+        2 * tf.random.uniform(
+            sign_output_shape, minval=0, maxval=2, dtype=tf.int32) - 1,
+        inputs.dtype)
     kernel_mean = self.kernel.distribution.mean()
     perturbation = self.kernel - kernel_mean
     outputs = self._convolution_op(inputs, kernel_mean)

@@ -89,7 +89,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
                   kernel_size=2,
                   kernel_initializer=kernel_initializer,
                   bias_initializer=bias_initializer,
-                  activation=tf.nn.relu)
+                  activation="relu")
     outputs1 = model(inputs)
     outputs2 = model(inputs)
     self.assertEqual(outputs1.shape, (5, 3, 3, 4))
@@ -109,7 +109,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
   def testConv2DModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
     model = tf.keras.Sequential([
-        layer(3, kernel_size=2, padding="SAME", activation=tf.nn.relu),
+        layer(3, kernel_size=2, padding="SAME", activation="relu"),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(2, activation=None),
     ])
@@ -119,6 +119,67 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
       self.assertLen(model.losses, 3)
     else:
       self.assertLen(model.losses, 1)
+
+  @parameterized.parameters(
+      {"layer": ed.layers.Conv1DFlipout,
+       "kernel_initializer": "zeros",
+       "bias_initializer": "zeros",
+       "all_close": True},
+      {"layer": ed.layers.Conv1DFlipout,
+       "kernel_initializer": "trainable_normal",
+       "bias_initializer": "zeros",
+       "all_close": False},
+      {"layer": ed.layers.Conv1DFlipout,
+       "kernel_initializer": "zeros",
+       "bias_initializer": "trainable_normal",
+       "all_close": False},
+      {"layer": ed.layers.Conv1DReparameterization,
+       "kernel_initializer": "zeros",
+       "bias_initializer": "zeros",
+       "all_close": True},
+      {"layer": ed.layers.Conv1DReparameterization,
+       "kernel_initializer": "trainable_normal",
+       "bias_initializer": "zeros",
+       "all_close": False},
+      {"layer": ed.layers.Conv1DReparameterization,
+       "kernel_initializer": "zeros",
+       "bias_initializer": "trainable_normal",
+       "all_close": False},
+  )
+  def testConv1DKernel(self, layer, kernel_initializer, bias_initializer,
+                       all_close):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    inputs = np.random.rand(5, 4, 12).astype(np.float32)
+    model = layer(
+        4,
+        kernel_size=2,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        activation="relu")
+    outputs1 = model(inputs)
+    outputs2 = model(inputs)
+    self.assertEqual(outputs1.shape, (5, 3, 4))
+    self.assertAllGreaterEqual(outputs1, 0.)
+    if all_close:
+      self.assertAllClose(outputs1, outputs2)
+    else:
+      self.assertNotAllClose(outputs1, outputs2)
+    model.get_config()
+
+  @parameterized.parameters(
+      {"layer": ed.layers.Conv1DFlipout},
+      {"layer": ed.layers.Conv1DReparameterization},
+  )
+  def testConv1DModel(self, layer):
+    inputs = np.random.rand(3, 4, 1).astype(np.float32)
+    model = tf.keras.Sequential([
+        layer(3, kernel_size=2, padding="SAME", activation="relu"),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(2, activation=None),
+    ])
+    outputs = model(inputs, training=True)
+    self.assertEqual(outputs.shape, (3, 2))
+    self.assertLen(model.losses, 1)
 
   @parameterized.parameters(
       {"layer_cls": ed.layers.Conv2DBatchEnsemble},
