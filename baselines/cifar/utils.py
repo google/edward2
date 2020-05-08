@@ -315,10 +315,15 @@ def aggregate_corrupt_metrics(metrics,
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
-      member_acc[i] = metrics.get('test/member_acc_mean_{}'.format(
-          dataset_name), 0.)
-      member_ece[i] = metrics.get('test/member_ece_mean_{}'.format(
-          dataset_name), 0.)
+      if 'test/member_acc_mean_{}'.format(dataset_name) in metrics.keys():
+        member_acc[i] = metrics['test/member_acc_mean_{}'.format(
+            dataset_name)].result()
+      else:
+        member_acc[i] = 0.
+      if 'test/member_ece_mean_{}'.format(dataset_name) in metrics.keys():
+        member_ece[i] = metrics['test/member_ece_mean_{}'.format(
+            dataset_name)].result()
+        member_ece[i] = 0.
       if corrupt_diversity is not None:
         disagreement[i] = (
             corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
