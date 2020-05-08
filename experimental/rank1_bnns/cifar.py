@@ -25,6 +25,8 @@ from absl import logging
 import edward2 as ed
 from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import cifar_model  # local file import
+from experimental.rank1_bnns import refining  # local file import
+import numpy as np
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
@@ -90,6 +92,16 @@ flags.DEFINE_integer('train_epochs', 250, 'Number of training epochs.')
 flags.DEFINE_integer('num_eval_samples', 1,
                      'Number of model predictions to sample per example at '
                      'eval time.')
+# Refinement flags.
+flags.DEFINE_integer('refining_epochs', 0,
+                     'Number of refining epochs. At the default 0 epochs,'
+                     'no refining takes place.')
+flags.DEFINE_integer('num_auxiliary_variables', 10,
+                     'Number of auxiliary variables.')
+flags.DEFINE_float('auxiliary_variance_ratio', 0.5,
+                   'The variance ratio of each auxiliary variable and the '
+                   'prior. The prior variance is reduced by this ratio after '
+                   'sampling each auxiliary variable.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -364,13 +376,21 @@ def main(argv):
 
   train_iterator = iter(train_dataset)
   start_time = time.time()
-  for epoch in range(initial_epoch, FLAGS.train_epochs):
+  for epoch in range(initial_epoch, FLAGS.train_epochs + FLAGS.refining_epochs):
     logging.info('Starting to run epoch: %s', epoch)
+    if epoch in np.linspace(FLAGS.train_epochs,
+                            FLAGS.train_epochs + FLAGS.refining_epochs,
+                            FLAGS.num_auxiliary_variables,
+                            dtype=int):
+      logging.info('Sampling auxiliary variables with ratio %f',
+                   FLAGS.auxiliary_variance_ratio)
+      refining.sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
+
     for step in range(steps_per_epoch):
       train_step(train_iterator)
 
       current_step = epoch * steps_per_epoch + (step + 1)
-      max_steps = steps_per_epoch * FLAGS.train_epochs
+      max_steps = steps_per_epoch * (FLAGS.train_epochs + FLAGS.refining_epochs)
       time_elapsed = time.time() - start_time
       steps_per_sec = float(current_step) / time_elapsed
       eta_seconds = (max_steps - current_step) / steps_per_sec
@@ -378,7 +398,7 @@ def main(argv):
                  'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
                      current_step / max_steps,
                      epoch + 1,
-                     FLAGS.train_epochs,
+                     FLAGS.train_epochs + FLAGS.refining_epochs,
                      steps_per_sec,
                      eta_seconds / 60,
                      time_elapsed / 60))
