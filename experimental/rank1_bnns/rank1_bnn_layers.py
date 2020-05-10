@@ -311,6 +311,7 @@ class Conv2DRank1(tf.keras.layers.Layer):
   def call(self, inputs):
     axis_change = -1 if self.data_format == 'channels_first' else 1
     batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha.shape[-1]
     examples_per_model = batch_size // self.ensemble_size
 
     # Sample parameters for each example.
@@ -335,10 +336,10 @@ class Conv2DRank1(tf.keras.layers.Layer):
     else:
       gamma = tf.tile(self.gamma, [1, examples_per_model])
 
-    alpha = tf.reshape(alpha, [batch_size, -1])
+    alpha = tf.reshape(alpha, [batch_size, input_dim])
     alpha = tf.expand_dims(alpha, axis=axis_change)
     alpha = tf.expand_dims(alpha, axis=axis_change)
-    gamma = tf.reshape(gamma, [batch_size, -1])
+    gamma = tf.reshape(gamma, [batch_size, self.filters])
     gamma = tf.expand_dims(gamma, axis=axis_change)
     gamma = tf.expand_dims(gamma, axis=axis_change)
 
@@ -409,7 +410,7 @@ class Conv1DRank1(tf.keras.layers.Layer):
                kernel_size,
                strides=1,
                padding='valid',
-               data_format=None,
+               data_format='channels_last',
                dilation_rate=1,
                activation=None,
                use_bias=True,
@@ -455,6 +456,7 @@ class Conv1DRank1(tf.keras.layers.Layer):
         strides=strides,
         padding=padding,
         data_format=data_format,
+        dilation_rate=dilation_rate,
         activation=None,
         use_bias=False,
         kernel_initializer=kernel_initializer,
@@ -506,6 +508,7 @@ class Conv1DRank1(tf.keras.layers.Layer):
   def call(self, inputs):
     axis_change = -1 if self.data_format == 'channels_first' else 1
     batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha_shape[-1]
     examples_per_model = batch_size // self.ensemble_size
 
     # Sample parameters for each example.
@@ -530,9 +533,9 @@ class Conv1DRank1(tf.keras.layers.Layer):
     else:
       gamma = tf.tile(self.gamma, [1, examples_per_model])
 
-    alpha = tf.reshape(alpha, [batch_size, -1])
+    alpha = tf.reshape(alpha, [batch_size, input_dim])
     alpha = tf.expand_dims(alpha, axis=axis_change)
-    gamma = tf.reshape(gamma, [batch_size, -1])
+    gamma = tf.reshape(gamma, [batch_size, self.filters])
     gamma = tf.expand_dims(gamma, axis=axis_change)
 
     if self.use_additive_perturbation:
@@ -547,10 +550,9 @@ class Conv1DRank1(tf.keras.layers.Layer):
         bias = tf.transpose(bias, [1, 0, 2])
       else:
         bias = tf.tile(self.bias, [1, examples_per_model])
-      bias = tf.reshape(bias, [batch_size, -1])
+      bias = tf.reshape(bias, [batch_size, self.filters])
       bias = tf.expand_dims(bias, axis=axis_change)
       outputs += bias
-
     if self.activation is not None:
       outputs = self.activation(outputs)
     return outputs
