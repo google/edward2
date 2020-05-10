@@ -138,7 +138,9 @@ def distorted_bounding_box_crop(image_bytes,
     (cropped image `Tensor`, distorted bbox `Tensor`).
   """
   with tf.name_scope(scope, 'distorted_bounding_box_crop', [image_bytes, bbox]):
-    shape = tf.image.extract_jpeg_shape(image_bytes)
+    decoded = image_bytes.dtype != tf.string
+    shape = (tf.shape(image_bytes) if decoded
+             else tf.image.extract_jpeg_shape(image_bytes))
     sample_distorted_bounding_box = tf.image.sample_distorted_bounding_box(
         shape,
         bounding_boxes=bbox,
@@ -152,9 +154,18 @@ def distorted_bounding_box_crop(image_bytes,
     # Crop the image to the specified bounding box.
     offset_y, offset_x, _ = tf.unstack(bbox_begin)
     target_height, target_width, _ = tf.unstack(bbox_size)
-    crop_window = tf.stack([offset_y, offset_x, target_height, target_width])
-    image = tf.image.decode_and_crop_jpeg(image_bytes, crop_window, channels=3)
-
+    if decoded:
+      image = tf.image.crop_to_bounding_box(
+          image_bytes,
+          offset_height=offset_y,
+          offset_width=offset_x,
+          target_height=target_height,
+          target_width=target_width)
+    else:
+      crop_window = tf.stack([offset_y, offset_x, target_height, target_width])
+      image = tf.image.decode_and_crop_jpeg(image_bytes,
+                                            crop_window,
+                                            channels=3)
     return image
 
 
@@ -194,8 +205,20 @@ def _decode_and_random_crop(image_bytes, image_size, resize_method=None):
 
 
 def _decode_and_center_crop(image_bytes, image_size, resize_method=None):
-  """Crops to center of image with padding then scales by image_size."""
-  shape = tf.image.extract_jpeg_shape(image_bytes)
+  """Crops to center of image with padding then scales by image_size.
+
+  Args:
+    image_bytes: `Tensor` representing an image binary of arbitrary size, or
+      an already decoded image.
+    image_size: Image height/width dimension.
+    resize_method: Resize method.
+
+  Returns:
+    A decoded and cropped image Tensor.
+  """
+  decoded = image_bytes.dtype != tf.string
+  shape = (tf.shape(image_bytes) if decoded
+           else tf.image.extract_jpeg_shape(image_bytes))
   image_height = shape[0]
   image_width = shape[1]
 
@@ -208,7 +231,16 @@ def _decode_and_center_crop(image_bytes, image_size, resize_method=None):
   offset_width = ((image_width - padded_center_crop_size) + 1) // 2
   crop_window = tf.stack([offset_height, offset_width,
                           padded_center_crop_size, padded_center_crop_size])
-  image = tf.image.decode_and_crop_jpeg(image_bytes, crop_window, channels=3)
+  if decoded:
+    image = tf.image.crop_to_bounding_box(
+        image_bytes,
+        offset_height=offset_height,
+        offset_width=offset_width,
+        target_height=padded_center_crop_size,
+        target_width=padded_center_crop_size)
+  else:
+    image = tf.image.decode_and_crop_jpeg(image_bytes, crop_window, channels=3)
+
   image = _resize_image(image, image_size, resize_method)
 
   return image
@@ -221,7 +253,8 @@ def preprocess_for_train(image_bytes,
   """Preprocesses the given image for evaluation.
 
   Args:
-    image_bytes: `Tensor` representing an image binary of arbitrary size.
+    image_bytes: `Tensor` representing an image binary of arbitrary size, or
+      an already decoded image.
     use_bfloat16: `bool` for whether to use bfloat16.
     image_size: image size/resolution in Efficientnet.
     resize_method: resize method. If none, use bicubic.
@@ -244,7 +277,8 @@ def preprocess_for_eval(image_bytes,
   """Preprocesses the given image for evaluation.
 
   Args:
-    image_bytes: `Tensor` representing an image binary of arbitrary size.
+    image_bytes: `Tensor` representing an image binary of arbitrary size, or
+      an already decoded image.
     use_bfloat16: `bool` for whether to use bfloat16.
     image_size: image size.
     resize_method: if None, use bicubic.
@@ -267,7 +301,8 @@ def preprocess_image(image_bytes,
   """Preprocesses the given image.
 
   Args:
-    image_bytes: `Tensor` representing an image binary of arbitrary size.
+    image_bytes: `Tensor` representing an image binary of arbitrary size, or
+      an already decoded image.
     is_training: `bool` for whether the preprocessing is for training.
     use_bfloat16: `bool` for whether to use bfloat16.
     image_size: image size.
