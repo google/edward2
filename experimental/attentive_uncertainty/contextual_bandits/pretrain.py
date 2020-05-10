@@ -169,7 +169,7 @@ def training_loop(train_dataset,
                       'max_grad_norm': hparams.max_grad_norm}
   num_context = hparams.num_context
   best_mse = np.inf
-  step = tf.function(utils.mse_step.python_function)
+  step = tf.function(utils.mse_step.python_function)  # pytype: disable=module-attr
 
   for it in range(hparams.num_iterations):
     batch_train_data = get_splits(

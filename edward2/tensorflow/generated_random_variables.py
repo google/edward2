@@ -26,7 +26,7 @@ import re
 from edward2.tensorflow.random_variable import RandomVariable
 from edward2.trace import traceable
 import six
-from tensorflow_probability import distributions
+import tensorflow_probability as tfp
 
 
 def expand_docstring(**kwargs):
@@ -85,11 +85,13 @@ def make_random_variable(distribution_cls):
 
 __all__ = ["make_random_variable"]
 _globals = globals()
-for candidate_name in sorted(dir(distributions)):
-  candidate = getattr(distributions, candidate_name)
+for candidate_name in sorted(dir(tfp.distributions)):
+  candidate = getattr(tfp.distributions, candidate_name)
   if (inspect.isclass(candidate) and
-      candidate != distributions.Distribution and
-      issubclass(candidate, distributions.Distribution)):
+      candidate != tfp.distributions.Distribution and
+      issubclass(candidate, tfp.distributions.Distribution)):
 
     _globals[candidate_name] = make_random_variable(candidate)
     __all__.append(candidate_name)
+
+_HAS_DYNAMIC_ATTRIBUTES = True
