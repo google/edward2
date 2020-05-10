@@ -262,7 +262,7 @@ def run_trial(trial_idx, delta, algo_names):
   t_init = time.time()
   print('started')
   print([algo.name for algo in algos])
-  _, h_rewards = contextual_bandit.run_contextual_bandit_new(  # pytype: disable=module-attr
+  _, h_rewards = contextual_bandit.run_contextual_bandit_new(
       context_dim,
       num_actions,
       dataset,

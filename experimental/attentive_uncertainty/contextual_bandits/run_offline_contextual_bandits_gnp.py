@@ -247,7 +247,7 @@ def run_trial(trial_idx, delta, algo_names):
       num_actions,
       dataset,
       algos,
-      num_contexts=FLAGS.num_contexts)  # pytype: disable=wrong-keyword-args
+      num_contexts=FLAGS.num_contexts)
   t_final = time.time()
 
   return h_rewards, t_final - t_init, opt_rewards[:FLAGS.num_contexts]

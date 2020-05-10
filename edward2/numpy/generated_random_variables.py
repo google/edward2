@@ -20,7 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 from edward2.trace import traceable
-import scipy.stats
+from scipy import stats
 
 # Note a vanilla Edward2-like PPL in SciPy would introduce a RandomVariable
 # abstraction: it wraps SciPy frozen distributions and calls `rvs` to associate
@@ -29,14 +29,12 @@ import scipy.stats
 # abstraction, we just wrap `rvs`. This enables the same manipulations.
 __all__ = []
 _globals = globals()
-for candidate_name in sorted(dir(scipy.stats)):
-  candidate = getattr(scipy.stats, candidate_name)
-  if isinstance(candidate, (scipy.stats._multivariate.multi_rv_generic,  # pylint: disable=protected-access
-                            scipy.stats.rv_continuous,
-                            scipy.stats.rv_discrete,
-                            scipy.stats.rv_histogram)):
+for candidate_name in sorted(dir(stats)):
+  candidate = getattr(stats, candidate_name)
+  if isinstance(candidate, (stats._multivariate.multi_rv_generic,  # pylint: disable=protected-access
+                            stats.rv_continuous,
+                            stats.rv_discrete,
+                            stats.rv_histogram)):
     candidate.rvs = traceable(candidate.rvs)
     _globals[candidate_name] = candidate
     __all__.append(candidate_name)
-
-_HAS_DYNAMIC_ATTRIBUTES = True

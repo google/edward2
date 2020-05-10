@@ -78,6 +78,7 @@ class ActNorm(tf.keras.layers.Layer):
 
   def log_det_jacobian(self, inputs):
     """Returns log det | dx / dy | = num_events * sum log | scale |."""
+    del inputs  # unused
     # Number of events is number of all elements excluding the batch and
     # channel dimensions.
     num_events = tf.reduce_prod(tf.shape(inputs)[1:-1])
