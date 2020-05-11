@@ -102,6 +102,11 @@ flags.DEFINE_float('auxiliary_variance_ratio', 0.5,
                    'The variance ratio of each auxiliary variable and the '
                    'prior. The prior variance is reduced by this ratio after '
                    'sampling each auxiliary variable.')
+flags.DEFINE_float('refining_learning_rate', 0.005,
+                   'Learning rate during the refining phase.')
+flags.DEFINE_bool('freeze_weights_during_refining', True,
+                  'Freeze the weight matrices during the refining phase.')
+
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -203,12 +208,14 @@ def main(argv):
     base_lr = FLAGS.base_learning_rate * batch_size / 128
     lr_decay_epochs = [(start_epoch * FLAGS.train_epochs) // 200
                        for start_epoch in FLAGS.lr_decay_epochs]
-    lr_schedule = utils.LearningRateSchedule(
+    lr_schedule = refining.LearningRateScheduleWithRefining(
         steps_per_epoch,
         base_lr,
         decay_ratio=FLAGS.lr_decay_ratio,
         decay_epochs=lr_decay_epochs,
-        warmup_epochs=FLAGS.lr_warmup_epochs)
+        warmup_epochs=FLAGS.lr_warmup_epochs,
+        train_epochs=FLAGS.train_epochs,
+        refining_learning_rate=FLAGS.refining_learning_rate)
     optimizer = tf.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
@@ -385,6 +392,8 @@ def main(argv):
       logging.info('Sampling auxiliary variables with ratio %f',
                    FLAGS.auxiliary_variance_ratio)
       refining.sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
+      if FLAGS.freeze_weights_during_refining:
+        refining.freeze_rank1_weights(model)
 
     for step in range(steps_per_epoch):
       train_step(train_iterator)
