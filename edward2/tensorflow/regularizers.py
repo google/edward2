@@ -40,7 +40,6 @@ from __future__ import print_function
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import random_variable
-import six
 import tensorflow.compat.v2 as tf
 
 
@@ -389,7 +388,7 @@ def get(identifier, value=None):
       return deserialize(identifier)
     except ValueError:
       pass
-  elif isinstance(identifier, six.string_types):
+  elif isinstance(identifier, str):
     config = {'class_name': str(identifier), 'config': {}}
     try:
       return deserialize(config)

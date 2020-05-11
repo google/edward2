@@ -28,9 +28,7 @@ setup(
     url='http://github.com/google/edward2',
     license='Apache 2.0',
     packages=find_packages(),
-    install_requires=[
-        'six',
-    ],
+    install_requires=[],
     extras_require={
         'numpy': ['numpy>=1.7',
                   'scipy>=1.0.0'],

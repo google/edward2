@@ -28,7 +28,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import six
 import tensorflow.compat.v2 as tf
 
 
@@ -105,7 +104,7 @@ def get(identifier, value=None):
       return deserialize(identifier)
     except ValueError:
       pass
-  elif isinstance(identifier, six.string_types):
+  elif isinstance(identifier, str):
     config = {'class_name': str(identifier), 'config': {}}
     try:
       return deserialize(config)

@@ -20,7 +20,6 @@ from __future__ import division
 from __future__ import print_function
 
 import edward2 as ed
-import six
 import tensorflow.compat.v2 as tf
 
 
@@ -48,7 +47,7 @@ class TracersTest(tf.test.TestCase):
     with ed.tape() as model_tape:
       output = model()
 
-    self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    self.assertEqual(list(model_tape.keys()), ["x", "y"])
     expected_value = model_tape["x"] + model_tape["y"]
     actual_value = output
     self.assertEqual(expected_value, actual_value)
@@ -62,7 +61,7 @@ class TracersTest(tf.test.TestCase):
     with ed.tape() as model_tape:
       _ = model()
 
-    self.assertEqual(list(six.iterkeys(model_tape)), ["x"])
+    self.assertEqual(list(model_tape.keys()), ["x"])
 
   def testTapeOuterForwarding(self):
     def double(f, *args, **kwargs):
@@ -77,7 +76,7 @@ class TracersTest(tf.test.TestCase):
       with ed.trace(double):
         output = model()
 
-    self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    self.assertEqual(list(model_tape.keys()), ["x", "y"])
     expected_value = 2. * model_tape["x"] + 2. * model_tape["y"]
     actual_value = output
     self.assertEqual(expected_value, actual_value)
@@ -95,7 +94,7 @@ class TracersTest(tf.test.TestCase):
       with ed.tape() as model_tape:
         output = model()
 
-    self.assertEqual(list(six.iterkeys(model_tape)), ["x", "y"])
+    self.assertEqual(list(model_tape.keys()), ["x", "y"])
     expected_value = model_tape["x"] + model_tape["y"]
     actual_value = output
     self.assertEqual(expected_value, actual_value)

@@ -25,7 +25,6 @@ import re
 
 from edward2.tensorflow.random_variable import RandomVariable
 from edward2.trace import traceable
-import six
 import tensorflow_probability as tfp
 
 
@@ -42,7 +41,7 @@ def expand_docstring(**kwargs):
   def _fn_wrapped(fn):
     """Original function with modified `__doc__` attribute."""
     doc = inspect.cleandoc(fn.__doc__)
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
       # Capture each ${k} reference to replace with v.
       # We wrap the replacement in a function so no backslash escapes
       # are processed.

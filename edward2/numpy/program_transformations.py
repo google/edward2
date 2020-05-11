@@ -23,7 +23,6 @@ import inspect
 import sys
 from edward2.trace import trace
 import numpy as np
-import six
 
 
 def make_log_joint_fn(model):
@@ -159,7 +158,7 @@ def _get_function_inputs(f, *args, **kwargs):
     argspec = inspect.getargspec(f)
 
   fkwargs = {}
-  for k, v in six.iteritems(kwargs):
+  for k, v in kwargs.items():
     if k in argspec.args:
       fkwargs[k] = v
       kwargs.pop(k)

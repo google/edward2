@@ -41,7 +41,6 @@ from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import regularizers
 
 import numpy as np
-import six
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
@@ -795,7 +794,7 @@ def get(identifier, value=None):
       return deserialize(identifier)
     except ValueError:
       pass
-  elif isinstance(identifier, six.string_types):
+  elif isinstance(identifier, str):
     config = {'class_name': str(identifier), 'config': {}}
     try:
       return deserialize(config)

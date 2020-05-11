@@ -21,7 +21,6 @@ from __future__ import print_function
 
 import inspect
 from edward2.trace import trace
-import six
 import tensorflow.compat.v2 as tf
 
 
@@ -127,5 +126,5 @@ def _get_function_inputs(f, src_kwargs):
   except AttributeError:
     argspec = inspect.getargspec(f)
 
-  fkwargs = {k: v for k, v in six.iteritems(src_kwargs) if k in argspec.args}
+  fkwargs = {k: v for k, v in src_kwargs.items() if k in argspec.args}
   return fkwargs
