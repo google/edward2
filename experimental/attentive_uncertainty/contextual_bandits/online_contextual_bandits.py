@@ -82,7 +82,7 @@ class OnlineContextualBandits(bandit_algorithm.BanditAlgorithm):
         local_variational=hparams.local_variational,
         model_path=hparams.model_path)
 
-    self._step = tf.function(utils.mse_step.python_function)
+    self._step = tf.function(utils.mse_step.python_function)  # pytype: disable=module-attr
 
     self._one_hot_vectors = tf.one_hot(
         indices=np.arange(hparams.num_actions),

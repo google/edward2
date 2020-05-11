@@ -79,8 +79,8 @@ def logistic_regression(features):
 def covertype():
   """Builds the Covertype data set."""
   data = sklearn.datasets.covtype.fetch_covtype()
-  features = data.data
-  labels = data.target
+  features = data.data  # pytype: disable=attribute-error
+  labels = data.target  # pytype: disable=attribute-error
 
   # Normalize features and append a column of ones for the intercept.
   features -= features.mean(0)
