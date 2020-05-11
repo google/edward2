@@ -59,6 +59,34 @@ flags.DEFINE_bool('use_bfloat16', True, 'Whether to use mixed precision.')
 flags.DEFINE_integer('num_cores', 32, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
+
+
+# flags for normalized Gaussian process layer
+flags.DEFINE_bool(
+    'use_ngp_layer', True,
+    'Whether to use Normalized Gaussian Process as output layer.')
+flags.DEFINE_integer('gp_units', 1024,
+                     'The number of hidden units in NGP layer.')
+flags.DEFINE_float('gp_bias', -3.5, 'The bias term for NGP layer.')
+flags.DEFINE_float('gp_scale', 2., 'The length-scale parameter for GP kernel.')
+flags.DEFINE_integer('gp_input_dim', 256, 'The input dimension to NGP layer.')
+flags.DEFINE_bool('gp_input_normalization', True,
+                  'Whether to perform input normalization for NGP layer.')
+flags.DEFINE_float(
+    'gp_normalization_scale', -1.,
+    'The scaling factor for gp stddev during normalization. '
+    'If negative then do not perform normalization.')
+
+# flags for Spectral Normalization
+flags.DEFINE_bool('use_spec_norm', True,
+                  'Whether to use spectral normalization.')
+flags.DEFINE_integer(
+    'iteration', 1, 'The number of power iterations to perform for '
+    'spectral normalization.')
+flags.DEFINE_float(
+    'norm_bound', 6., 'The target upperbound on Lipchitz constant of weight '
+    'matrices in spectral normalization.')
+
 FLAGS = flags.FLAGS
 
 # Number of images in ImageNet-1k train dataset.
@@ -70,6 +98,15 @@ NUM_CLASSES = 1000
 _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
     (1.0, 5), (0.1, 30), (0.01, 60), (0.001, 80)
 ]
+
+
+def DempsterShaferUncertainty(logits):  # pylint: disable=invalid-name
+  """Defines the Dempster-Shafer Uncertainty for output logits."""
+  num_classes = tf.shape(logits)[-1]
+
+  num_classes = tf.cast(num_classes, dtype=logits.dtype)
+  belief_mass = tf.reduce_sum(tf.exp(logits), axis=-1)
+  return num_classes / (belief_mass + num_classes)
 
 
 def main(argv):
@@ -132,8 +169,32 @@ def main(argv):
 
   with strategy.scope():
     logging.info('Building Keras ResNet-50 model')
-    model = deterministic_model.resnet50(input_shape=(224, 224, 3),
-                                         num_classes=NUM_CLASSES)
+    if FLAGS.use_spec_norm:
+      logging.info('Use Spectral Normalization with iteration %d and '
+                   'norm bound %.2f', FLAGS.iteration, FLAGS.norm_bound)
+
+    global_step = tf.Variable(
+        0,
+        trainable=False,
+        name='global_step',
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
+
+    model = deterministic_model.resnet50(
+        input_shape=(224, 224, 3),
+        num_classes=NUM_CLASSES,
+        batch_size=FLAGS.per_core_batch_size,
+        use_ngp_layer=FLAGS.use_ngp_layer,
+        use_spec_norm=FLAGS.use_spec_norm,
+        global_step=global_step,
+        sn_iteration=FLAGS.iteration,
+        sn_norm_bound=FLAGS.norm_bound,
+        gp_units=FLAGS.gp_units,
+        gp_bias=FLAGS.gp_bias,
+        gp_scale=FLAGS.gp_scale,
+        gp_input_dim=FLAGS.gp_input_dim,
+        gp_input_normalization=FLAGS.gp_input_normalization,
+        normalization_scale=FLAGS.gp_normalization_scale)
+
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -147,14 +208,30 @@ def main(argv):
                                         momentum=0.9,
                                         nesterov=True)
     metrics = {
-        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
-        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'test/ece': ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins)
+        'train/negative_log_likelihood':
+            tf.keras.metrics.Mean(),
+        'train/accuracy':
+            tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss':
+            tf.keras.metrics.Mean(),
+        'train/ece':
+            ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
+        'train/stddev':
+            tf.keras.metrics.Mean(),
+        'train/ds_uncertainty':
+            tf.keras.metrics.Mean(),
+        'train/global_step':
+            tf.keras.metrics.Mean(),
+        'test/negative_log_likelihood':
+            tf.keras.metrics.Mean(),
+        'test/accuracy':
+            tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/ece':
+            ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
+        'test/stddev':
+            tf.keras.metrics.Mean(),
+        'test/ds_uncertainty':
+            tf.keras.metrics.Mean(),
     }
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
@@ -167,6 +244,10 @@ def main(argv):
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
               ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+          corrupt_metrics['test/stddev_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/ds_uncertainty_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
 
     logging.info('Finished building Keras ResNet-50 model')
 
@@ -190,7 +271,8 @@ def main(argv):
       """Per-Replica StepFn."""
       images, labels = inputs
       with tf.GradientTape() as tape:
-        logits = model(images, training=True)
+        tf.keras.backend.set_learning_phase(True)
+        logits, stddev = model(images, training=True)
         if FLAGS.use_bfloat16:
           logits = tf.cast(logits, tf.float32)
 
@@ -215,11 +297,15 @@ def main(argv):
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
       probs = tf.nn.softmax(logits)
+      ds_uncertainty = DempsterShaferUncertainty(logits)
       metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, logits)
+      metrics['train/stddev'].update_state(stddev)
+      metrics['train/global_step'].update_state(global_step)
+      metrics['train/ds_uncertainty'].update_state(ds_uncertainty)
 
     strategy.run(step_fn, args=(next(iterator),))
 
@@ -229,7 +315,8 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      logits = model(images, training=False)
+      tf.keras.backend.set_learning_phase(False)
+      logits, stddev = model(images, training=False)
       if FLAGS.use_bfloat16:
         logits = tf.cast(logits, tf.float32)
 
@@ -238,11 +325,14 @@ def main(argv):
                                                           logits,
                                                           from_logits=True))
       probs = tf.nn.softmax(logits)
+      ds_uncertainty = DempsterShaferUncertainty(logits)
       if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)
         metrics['test/accuracy'].update_state(labels, probs)
         metrics['test/ece'].update_state(labels, probs)
+        metrics['test/stddev'].update_state(stddev)
+        metrics['test/ds_uncertainty'].update_state(ds_uncertainty)
       else:
         corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
             negative_log_likelihood)
@@ -250,6 +340,10 @@ def main(argv):
             labels, probs)
         corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
             labels, probs)
+        corrupt_metrics['test/stddev_{}'.format(dataset_name)].update_state(
+            stddev)
+        corrupt_metrics['test/ds_uncertainty_{}'.format(
+            dataset_name)].update_state(ds_uncertainty)
 
     strategy.run(step_fn, args=(next(iterator),))
 
@@ -259,6 +353,7 @@ def main(argv):
     logging.info('Starting to run epoch: %s', epoch)
     for step in range(steps_per_epoch):
       train_step(train_iterator)
+      global_step.assign_add(batch_size)
 
       current_step = epoch * steps_per_epoch + (step + 1)
       max_steps = steps_per_epoch * FLAGS.train_epochs
