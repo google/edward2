@@ -66,7 +66,7 @@ flags.DEFINE_string(
 flags.DEFINE_integer('seed', 42, 'Random seed.')
 flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core/GPU.')
 flags.DEFINE_float(
-    'base_learning_rate', 0.0001,
+    'base_learning_rate', 0.0005,
     'Base learning rate when total batch size is 128. It is '
     'scaled by the ratio of the total batch size to 128.')
 flags.DEFINE_integer(
@@ -148,8 +148,7 @@ def main(argv):
       dataset_dir=FLAGS.dataset_dir,
       data_mode='ood')
 
-  dataset_builders = {'clean': ind_dataset_builder,
-                      'out_of_scope_requests': ood_dataset_builder}
+  dataset_builders = {'clean': ind_dataset_builder, 'ood': ood_dataset_builder}
 
   train_dataset = ind_dataset_builder.build(split=ub.datasets.base.Split.TRAIN)
 
