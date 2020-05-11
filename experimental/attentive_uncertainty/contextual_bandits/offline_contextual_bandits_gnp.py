@@ -17,10 +17,6 @@
 """Thompson sampling for contextual bandit problems via offline GNPs.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from experimental.attentive_uncertainty import generalized_neural_process  # local file import
 import tensorflow.compat.v1 as tf
 

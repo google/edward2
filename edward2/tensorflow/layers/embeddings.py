@@ -15,10 +15,6 @@
 
 """Bayesian embedding layers."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from edward2.tensorflow import constraints
 from edward2.tensorflow import initializers
 from edward2.tensorflow import regularizers

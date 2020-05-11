@@ -13,12 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Lint as: python3
 """Thompson sampling for contextual bandit problems via online learning of SNPs.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 from experimental.attentive_uncertainty import regressor  # local file import
 from experimental.attentive_uncertainty import utils  # local file import

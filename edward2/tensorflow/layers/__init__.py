@@ -15,10 +15,6 @@
 
 """Layers."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from edward2.tensorflow.layers import utils
 from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
 from edward2.tensorflow.layers.convolutional import CondConv2D

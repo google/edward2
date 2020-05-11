@@ -15,10 +15,6 @@
 
 """Build a Convolutional Bayesian neural network."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import edward2 as ed
 from experimental.auxiliary_sampling.sampling import mean_field_fn  # local file import
 

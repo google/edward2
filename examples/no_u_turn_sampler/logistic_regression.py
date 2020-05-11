@@ -15,10 +15,6 @@
 
 """Trains a Bayesian logistic regression model using No-U-Turn Sampler."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import cProfile
 import functools
 import os

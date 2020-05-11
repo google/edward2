@@ -15,10 +15,6 @@
 
 """MLP on UCI data trained with maximum likelihood and gradient descent."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 from absl import app
 from absl import flags

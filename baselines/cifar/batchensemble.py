@@ -15,10 +15,6 @@
 
 """BatchEnsemble Wide ResNet 28-10 on CIFAR-10 and CIFAR-100."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import functools
 import os
 import time

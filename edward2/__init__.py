@@ -24,10 +24,6 @@ For user guides, see:
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import warnings
 from edward2 import numpy
 from edward2 import tensorflow

@@ -15,10 +15,6 @@
 
 """Tests for generated random variables."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import inspect
 from absl.testing import parameterized
 import edward2 as ed

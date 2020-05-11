@@ -16,10 +16,6 @@
 """Generates and saves instances of wheel bandit problems.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 from absl import app
 from absl import flags

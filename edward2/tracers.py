@@ -21,10 +21,6 @@ program and fixes the value of random variables; and 'tape' traces the program
 and records the executed random variables onto an ordered dictionary.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections
 import contextlib
 from edward2.trace import trace

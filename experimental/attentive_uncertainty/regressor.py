@@ -16,10 +16,6 @@
 """Regression model for structured neural processes.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import edward2 as ed
 from experimental.attentive_uncertainty import attention  # local file import
 from experimental.attentive_uncertainty import layers  # local file import

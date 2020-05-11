@@ -15,10 +15,6 @@
 
 """Edward2 probabilistic programming language with NumPy backend."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 # Make the NumPy backend be optional. The namespace is empty if NumPy
 # is not available.
 # pylint: disable=g-import-not-at-top

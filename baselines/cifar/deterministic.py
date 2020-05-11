@@ -21,10 +21,6 @@ example, l2 instead of weight decay, and a different parameterization for SGD's
 momentum.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import functools
 import os
 import time

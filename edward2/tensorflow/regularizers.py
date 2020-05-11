@@ -33,10 +33,6 @@ probabilistic literature, trainable regularizers apply constraints on the
 apply projections during optimization.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import random_variable

@@ -15,10 +15,6 @@
 
 """ResNet50 model."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import string
 import tensorflow.compat.v2 as tf
 

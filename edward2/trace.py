@@ -15,10 +15,6 @@
 
 """Tracing mechanism for controlling the execution of programs."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import contextlib
 import functools
 import threading

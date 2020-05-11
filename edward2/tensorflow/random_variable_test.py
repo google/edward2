@@ -15,10 +15,6 @@
 
 """Tests for random variable."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import re
 from absl.testing import parameterized
 import edward2 as ed

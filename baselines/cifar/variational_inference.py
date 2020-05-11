@@ -26,10 +26,6 @@ This script performs variational inference with a few notable techniques:
 4. KL annealing (Bowman et al., 2015).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import functools
 import os
 import time

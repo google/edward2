@@ -15,10 +15,6 @@
 
 """Uncertainty-based dense layers."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import math
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
