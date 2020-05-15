@@ -71,7 +71,7 @@ flags.DEFINE_integer('lr_warmup_epochs', 1,
                      'Number of epochs for a linear warmup to the initial '
                      'learning rate. Use 0 to do no warmup.')
 flags.DEFINE_float('lr_decay_ratio', 0.1, 'Amount to decay learning rate.')
-flags.DEFINE_list('lr_decay_epochs', [80, 160, 180],
+flags.DEFINE_list('lr_decay_epochs', ['80', '160', '180'],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('dropout_rate', 0.,
                    'Dropout rate. Only used if alpha/gamma initializers are, '
@@ -205,8 +205,8 @@ def main(argv):
         dropout_rate=FLAGS.dropout_rate)
     logging.info(model.summary())
     base_lr = FLAGS.base_learning_rate * batch_size_train / 128
-    lr_decay_epochs = [(start_epoch * FLAGS.train_epochs) // 200
-                       for start_epoch in FLAGS.lr_decay_epochs]
+    lr_decay_epochs = [(int(start_epoch_str) * FLAGS.train_epochs) // 200
+                       for start_epoch_str in FLAGS.lr_decay_epochs]
     lr_schedule = utils.LearningRateSchedule(
         steps_per_epoch,
         base_lr,

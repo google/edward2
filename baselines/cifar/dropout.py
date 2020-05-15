@@ -36,7 +36,7 @@ flags.DEFINE_integer('lr_warmup_epochs', 1,
                      'Number of epochs for a linear warmup to the initial '
                      'learning rate. Use 0 to do no warmup.')
 flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
-flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
+flags.DEFINE_list('lr_decay_epochs', ['60', '120', '160'],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('dropout_rate', 0.1, 'Dropout rate.')
@@ -262,8 +262,8 @@ def main(argv):
     logging.info('Model number of weights: %s', model.count_params())
     # Linearly scale learning rate and the decay epochs by vanilla settings.
     base_lr = FLAGS.base_learning_rate * batch_size / 128
-    lr_decay_epochs = [(start_epoch * FLAGS.train_epochs) // 200
-                       for start_epoch in FLAGS.lr_decay_epochs]
+    lr_decay_epochs = [(int(start_epoch_str) * FLAGS.train_epochs) // 200
+                       for start_epoch_str in FLAGS.lr_decay_epochs]
     lr_schedule = utils.LearningRateSchedule(
         steps_per_epoch,
         base_lr,
