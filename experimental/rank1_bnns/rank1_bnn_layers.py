@@ -122,10 +122,11 @@ class DenseRank1(tf.keras.layers.Layer):
 
   def call(self, inputs):
     batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha_shape[-1]
     examples_per_model = batch_size // self.ensemble_size
     # NOTE: This restricts this layer from being called on tensors of ndim > 2.
     inputs = tf.reshape(
-        inputs, [self.ensemble_size, examples_per_model, inputs.shape[-1]])
+        inputs, [self.ensemble_size, examples_per_model, input_dim])
 
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
