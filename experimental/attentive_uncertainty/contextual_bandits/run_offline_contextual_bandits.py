@@ -52,10 +52,8 @@ flags.DEFINE_integer(
     'num_contexts',
     2000,
     'Number of contexts')
-flags.DEFINE_list(
-    'deltas',
-    [0.5, 0.7, 0.9, 0.95, 0.99],
-    'delta parameters for wheel bandit instance.')
+flags.DEFINE_list('deltas', ['0.5', '0.7', '0.9', '0.95', '0.99'],
+                  'delta parameters for wheel bandit instance.')
 flags.DEFINE_string(
     'modeldir',
     '/tmp/wheel_bandit/models/multitask',
@@ -235,7 +233,8 @@ def run_trial(trial_idx, delta, algo_names):
 
 def benchmark():
   """Benchmark performance on wheel-bandit."""
-  for delta in FLAGS.deltas:
+  for delta_str in FLAGS.deltas:
+    delta = float(delta_str)
     all_regrets, all_times = [], []
     for idx in range(FLAGS.num_trials):
       summary_results = run_trial(idx, delta, FLAGS.algo_names)

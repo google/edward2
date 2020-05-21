@@ -38,10 +38,8 @@ flags.DEFINE_string(
     'datadir',
     '/tmp/wheel_bandit/data/',
     'Directory for saving npz files.')
-flags.DEFINE_list(
-    'deltas',
-    [0.5, 0.7, 0.9, 0.95, 0.99],
-    'List of deltas for wheel bandit.')
+flags.DEFINE_list('deltas', ['0.5', '0.7', '0.9', '0.95', '0.99'],
+                  'List of deltas for wheel bandit.')
 
 
 def get_wheel_data(num_contexts, delta, seed):
@@ -71,7 +69,8 @@ def main(argv):
   datadir = FLAGS.datadir
   deltas = FLAGS.deltas
 
-  for delta in deltas:
+  for delta_str in deltas:
+    delta = float(delta_str)
     print('Delta', delta)
     for i in range(num_instances):
       print('Instance', i)

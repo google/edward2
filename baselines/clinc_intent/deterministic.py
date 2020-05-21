@@ -40,7 +40,8 @@ flags.DEFINE_string('model_family', 'textcnn',
                     'Types of model to use. Can be either TextCNN or BERT.')
 
 # Model flags, TextCNN
-flags.DEFINE_list('filter_sizes', [3, 4, 5], 'Comma-separated filter sizes.')
+flags.DEFINE_list('filter_sizes', ['3', '4', '5'],
+                  'Comma-separated filter sizes.')
 flags.DEFINE_integer('num_filters', 64, 'Number of filters per filter size.')
 flags.DEFINE_integer('embedding_size', 300,
                      'Dimensionality of character embedding.')
@@ -186,7 +187,7 @@ def main(argv):
     logging.info('Building %s model', FLAGS.model_family)
     if FLAGS.model_family.lower() == 'textcnn':
       model = cnn_model.textcnn(
-          filter_sizes=FLAGS.filter_sizes,
+          filter_sizes=[int(x) for x in FLAGS.filter_sizes],
           num_filters=FLAGS.num_filters,
           num_classes=num_classes,
           feature_size=feature_size,
