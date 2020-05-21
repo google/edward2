@@ -30,7 +30,7 @@ import edward2 as ed
 import deterministic_model  # local file import
 import utils  # local file import
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 flags.DEFINE_integer('per_core_batch_size', 512, 'Batch size per TPU core/GPU.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
@@ -116,7 +116,6 @@ def main(argv):
     raise ValueError('Only GPU is currently supported.')
   if FLAGS.num_cores > 1:
     raise ValueError('Only a single accelerator is currently supported.')
-  tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)
 

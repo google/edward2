@@ -16,7 +16,7 @@
 """Random variable."""
 
 import functools
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class RandomVariable(object):

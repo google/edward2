@@ -17,7 +17,7 @@
 """Utilities for sampling."""
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 

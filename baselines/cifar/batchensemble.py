@@ -25,7 +25,7 @@ from absl import logging
 import edward2 as ed
 import batchensemble_model  # local file import
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('ensemble_size', 4, 'Size of ensemble.')
@@ -79,7 +79,6 @@ FLAGS = flags.FLAGS
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

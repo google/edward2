@@ -20,7 +20,7 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class DataSpec(collections.namedtuple(

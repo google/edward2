@@ -17,8 +17,8 @@
 
 import functools
 import numpy as np
+import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-import tensorflow.compat.v2 as tf
 
 # SciPy is not a mandatory dependency when using the TF backend.
 try:

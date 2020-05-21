@@ -26,7 +26,7 @@ from absl import logging
 import edward2 as ed
 from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 # ~24.4 steps per epoch for 4x4 TPU; per_core_batch_size=64; 300 epochs;
@@ -109,7 +109,6 @@ FLAGS = flags.FLAGS
 def main(argv):
   del argv  # Unused arg.
 
-  tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
   if FLAGS.version2:

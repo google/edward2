@@ -24,7 +24,7 @@ Adapted from code contributed by BigMoyan.
 import functools
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 BATCH_NORM_DECAY = 0.9
 BATCH_NORM_EPSILON = 1e-5

@@ -16,7 +16,7 @@
 """Masked autoencoder for distribution estimation."""
 
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class MADE(tf.keras.Model):

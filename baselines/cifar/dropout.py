@@ -24,7 +24,7 @@ from absl import logging
 
 import edward2 as ed
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('seed', 42, 'Random seed.')
@@ -186,7 +186,6 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, l2,
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

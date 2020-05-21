@@ -23,7 +23,7 @@ from edward2.tensorflow import random_variable
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 @utils.add_weight

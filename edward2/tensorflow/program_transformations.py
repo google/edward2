@@ -17,7 +17,7 @@
 
 import inspect
 from edward2.trace import trace
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 def make_log_joint_fn(model):

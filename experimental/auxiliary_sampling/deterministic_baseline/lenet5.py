@@ -16,7 +16,7 @@
 """Build a convolutional neural network."""
 
 import edward2 as ed
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 def lenet5(input_shape, num_classes):

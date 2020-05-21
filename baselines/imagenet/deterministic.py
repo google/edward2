@@ -26,7 +26,7 @@ from absl import logging
 import edward2 as ed
 import deterministic_model  # local file import
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
@@ -70,7 +70,6 @@ _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

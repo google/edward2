@@ -19,7 +19,7 @@
 # TensorFlow is not available.
 # pylint: disable=g-import-not-at-top
 try:
-  import tensorflow.compat.v2 as tf  # pylint: disable=unused-import
+  import tensorflow as tf  # pylint: disable=unused-import
   from tensorflow_probability import distributions
 except ImportError:
   pass

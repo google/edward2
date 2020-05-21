@@ -33,7 +33,7 @@ import deterministic_model as cnn_model  # local file import
 import deterministic_model_bert as bert_model  # local file import
 
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import uncertainty_baselines as ub
 
 # TODO(trandustin): We inherit
@@ -107,7 +107,6 @@ def main(argv):
     raise ValueError('Only GPU is currently supported.')
   if FLAGS.num_cores > 1:
     raise ValueError('Only a single accelerator is currently supported.')
-  tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)
 

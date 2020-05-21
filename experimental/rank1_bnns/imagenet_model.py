@@ -20,7 +20,7 @@ import string
 import edward2 as ed
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 # Use batch normalization defaults from Pytorch.
 BATCH_NORM_DECAY = 0.9

@@ -19,7 +19,7 @@ import inspect
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 
@@ -164,5 +164,4 @@ class GeneratedRandomVariablesTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(log_joint_builtin(x=7.), log_joint_wrapped(x=7.))
 
 if __name__ == "__main__":
-  tf.enable_v2_behavior()
   tf.test.main()

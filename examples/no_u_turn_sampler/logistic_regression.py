@@ -30,7 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
 import sklearn.datasets
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 flags.DEFINE_integer("max_steps",
                      default=5,
@@ -100,7 +100,6 @@ def main(argv):
     tf.io.gfile.rmtree(FLAGS.model_dir)
   tf.io.gfile.makedirs(FLAGS.model_dir)
 
-  tf.enable_v2_behavior()
   print("GPU(s) available", tf.test.is_gpu_available())
 
   if FLAGS.fake_data:

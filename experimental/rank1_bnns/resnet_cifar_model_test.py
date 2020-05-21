@@ -17,7 +17,7 @@
 """Tests for Rank-1 ResNet-32x4."""
 from absl.testing import parameterized
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class ResnetCifarModelTest(parameterized.TestCase, tf.test.TestCase):
@@ -80,5 +80,4 @@ class ResnetCifarModelTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()

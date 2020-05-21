@@ -25,7 +25,7 @@ from absl import logging
 import edward2 as ed
 import efficientnet_model  # local file import
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 # ~312.78 steps per epoch for 4x4 TPU; per_core_batch_size=128; 350 epochs;
 
@@ -72,7 +72,6 @@ NUM_CLASSES = 1000
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

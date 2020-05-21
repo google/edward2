@@ -17,7 +17,7 @@
 """The Bidirectional Encoder Representations from Transformers (BERT) model."""
 
 import json
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 from tensorflow_models.official.nlp import optimization
 from tensorflow_models.official.nlp.bert import bert_models

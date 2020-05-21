@@ -53,7 +53,7 @@ model.fit(dataset,
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class MixtureLogistic(tf.keras.layers.Layer):

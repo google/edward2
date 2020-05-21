@@ -18,7 +18,7 @@
 from edward2.tensorflow import random_variable
 from edward2.tensorflow import transformed_random_variable
 from edward2.tensorflow.layers import utils
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 # TODO(trandustin): Move Reverse to another module(?).

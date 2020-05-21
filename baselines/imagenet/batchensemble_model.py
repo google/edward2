@@ -18,7 +18,7 @@
 import functools
 import string
 import edward2 as ed
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 # Use batch normalization defaults from Pytorch.
 BATCH_NORM_DECAY = 0.9

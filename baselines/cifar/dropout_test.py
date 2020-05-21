@@ -16,7 +16,7 @@
 """Tests for WRN 28-10 with Monte Carlo dropout."""
 
 import dropout  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class DropoutTest(tf.test.TestCase):
@@ -54,5 +54,4 @@ class DropoutTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()

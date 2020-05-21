@@ -24,7 +24,7 @@ import collections
 import functools
 import math
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 BlockArgs = collections.namedtuple('BlockArgs', [
     'kernel_size',

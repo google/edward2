@@ -18,7 +18,7 @@
 import edward2 as ed
 from experimental.auxiliary_sampling.sampling import mean_field_fn  # local file import
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 

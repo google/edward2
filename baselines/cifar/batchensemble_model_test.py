@@ -16,7 +16,7 @@
 """Tests for BatchEnsemble."""
 
 import batchensemble_model  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class BatchEnsembleModelTest(tf.test.TestCase):
@@ -55,5 +55,4 @@ class BatchEnsembleModelTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()

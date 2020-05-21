@@ -20,7 +20,7 @@ import functools
 import math
 import edward2 as ed
 import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 BlockArgs = collections.namedtuple('BlockArgs', [
     'kernel_size',

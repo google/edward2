@@ -23,7 +23,7 @@ from absl import logging
 import edward2 as ed
 import utils  # local file import
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 flags.DEFINE_enum('dataset', 'boston_housing',
                   enum_values=['boston_housing',
@@ -143,7 +143,6 @@ def make_adversarial_loss_fn(model):
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   np.random.seed(FLAGS.seed)
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)

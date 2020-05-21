@@ -24,7 +24,7 @@ apply constraints on the `tf.Variables` themselves (i.e., a constrained
 parameterization) and do not apply projections during optimization.
 """
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class Exp(tf.keras.constraints.Constraint):

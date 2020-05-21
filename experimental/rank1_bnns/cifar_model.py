@@ -18,7 +18,7 @@
 import functools
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
     tf.keras.layers.BatchNormalization,

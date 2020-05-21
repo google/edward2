@@ -16,7 +16,7 @@
 """Tests for program transformations."""
 
 import edward2 as ed
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
@@ -146,5 +146,4 @@ class ProgramTransformationsTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.enable_v2_behavior()
   tf.test.main()

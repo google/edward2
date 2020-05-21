@@ -26,8 +26,8 @@ from experimental.auxiliary_sampling.lenet5 import lenet5  # local file import
 from experimental.auxiliary_sampling.res_net import res_net  # local file import
 from experimental.auxiliary_sampling.sampling import sample_auxiliary_op  # local file import
 import numpy as np
+import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 flags.DEFINE_integer('training_steps', 30000, 'Training steps.')

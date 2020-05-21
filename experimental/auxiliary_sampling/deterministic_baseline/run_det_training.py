@@ -26,8 +26,8 @@ from experimental.auxiliary_sampling.compute_metrics import ensemble_metrics  # 
 from experimental.auxiliary_sampling.deterministic_baseline.lenet5 import lenet5  # local file import
 from experimental.auxiliary_sampling.res_net import res_net  # local file import
 import numpy as np
+import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-import tensorflow.compat.v2 as tf
 
 flags.DEFINE_integer('ensemble_size', 1, 'Number of ensemble members.')
 flags.DEFINE_boolean('bootstrap', False,

@@ -18,7 +18,7 @@
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class DenseTest(parameterized.TestCase, tf.test.TestCase):
@@ -310,5 +310,4 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.enable_v2_behavior()
   tf.test.main()

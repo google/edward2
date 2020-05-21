@@ -16,7 +16,7 @@
 # Lint as: python3
 """Rank-1 BNN layers."""
 import edward2 as ed
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 @ed.layers.utils.add_weight

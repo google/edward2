@@ -31,7 +31,7 @@ import edward2 as ed
 import deterministic  # local file import
 import utils  # local file import
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 # TODO(trandustin): We inherit
@@ -103,7 +103,6 @@ def main(argv):
     raise ValueError('Only GPU is currently supported.')
   if FLAGS.num_cores > 1:
     raise ValueError('Only a single accelerator is currently supported.')
-  tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)
 

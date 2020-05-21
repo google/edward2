@@ -24,7 +24,7 @@ A standard 1D CNN model for sentence classification.
      https://www.aclweb.org/anthology/D14-1181/
 """
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 def embedding_block(inputs,

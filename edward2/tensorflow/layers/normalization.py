@@ -18,8 +18,8 @@
 from edward2.tensorflow import random_variable
 from edward2.tensorflow import transformed_random_variable
 import numpy as np
+import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-import tensorflow.compat.v2 as tf
 
 
 class ActNorm(tf.keras.layers.Layer):

@@ -27,7 +27,7 @@ from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import cifar_model  # local file import
 from experimental.rank1_bnns import refining  # local file import
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('kl_annealing_epochs', 200,
@@ -114,7 +114,6 @@ FLAGS = flags.FLAGS
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

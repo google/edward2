@@ -25,7 +25,7 @@ from absl import logging
 import edward2 as ed
 from baselines.imagenet import utils  # local file import
 from experimental.rank1_bnns import imagenet_model  # local file import
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 flags.DEFINE_integer('kl_annealing_epochs', 90,
                      'Number of epochs over which to anneal the KL term to 1.')
@@ -98,7 +98,6 @@ _LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
 
   per_core_batch_size = FLAGS.per_core_batch_size // FLAGS.ensemble_size

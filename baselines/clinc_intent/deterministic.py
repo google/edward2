@@ -26,7 +26,7 @@ import deterministic_model as cnn_model  # local file import
 import deterministic_model_bert as bert_model  # local file import
 
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import uncertainty_baselines as ub
 
 # Data flags
@@ -122,7 +122,6 @@ def create_feature_and_label(inputs, feature_size, model_family):
 
 def main(argv):
   del argv  # unused arg
-  tf.enable_v2_behavior()
   tf.io.gfile.makedirs(FLAGS.output_dir)
   logging.info('Saving checkpoints at %s', FLAGS.output_dir)
   tf.random.set_seed(FLAGS.seed)

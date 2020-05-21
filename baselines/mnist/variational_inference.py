@@ -23,8 +23,8 @@ from absl import logging
 import edward2 as ed
 import utils  # local file import
 import numpy as np
+import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp
 
 flags.DEFINE_enum('dataset', 'mnist',

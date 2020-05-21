@@ -17,7 +17,7 @@
 """Utilities."""
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 def make_sign_initializer(random_sign_init):

@@ -18,7 +18,7 @@
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import random_variable
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 

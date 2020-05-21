@@ -17,7 +17,7 @@
 
 import edward2 as ed
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class BayesianLinearModelTest(tf.test.TestCase):
@@ -53,5 +53,4 @@ class BayesianLinearModelTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()

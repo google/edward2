@@ -21,7 +21,7 @@ from edward2.tensorflow import initializers
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.layers import utils
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 
