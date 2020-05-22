@@ -15,6 +15,7 @@
 
 # Lint as: python3
 """Utilities for sampling."""
+from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 import numpy as np
 import tensorflow as tf
@@ -124,3 +125,40 @@ def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
             tfp.math.softplus_inverse(new_posterior_scale))
         regularizer.mean = new_prior_mean.numpy()
         regularizer.stddev = new_prior_scale.numpy()
+
+
+def freeze_rank1_weights(model):
+  """Freeze the weight matrices of the rank1 BNN layers."""
+  for layer in model.layers:
+    if isinstance(layer, rank1_bnn_layers.DenseRank1):
+      layer.dense.trainable = False
+    elif isinstance(layer, rank1_bnn_layers.Conv2DRank1):
+      layer.conv2d.trainable = False
+
+
+class LearningRateScheduleWithRefining(utils.LearningRateSchedule):
+  """Learning rate schedule that includes the refining phase."""
+
+  def __init__(self,
+               steps_per_epoch,
+               initial_learning_rate,
+               decay_ratio,
+               decay_epochs,
+               warmup_epochs,
+               train_epochs,
+               refining_learning_rate):
+    super(LearningRateScheduleWithRefining,
+          self).__init__(steps_per_epoch,
+                         initial_learning_rate,
+                         decay_ratio,
+                         decay_epochs,
+                         warmup_epochs)
+    self.train_epochs = train_epochs
+    self.refining_learning_rate = refining_learning_rate
+
+  def __call__(self, step):
+    lr_epoch = tf.cast(step, tf.float32) / self.steps_per_epoch
+    return tf.where(lr_epoch >= self.train_epochs,
+                    self.refining_learning_rate,
+                    super(LearningRateScheduleWithRefining,
+                          self).__call__(step))
