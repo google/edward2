@@ -223,7 +223,7 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
 
     return mean, variance
 
-  def call(self, inputs, training):
+  def call(self, inputs, training=None):
     """Call function."""
     if training:
       mean, variance = self._get_mean_and_variance(inputs)
