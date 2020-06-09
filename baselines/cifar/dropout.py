@@ -29,7 +29,7 @@ import tensorflow_datasets as tfds
 
 flags.DEFINE_integer('seed', 42, 'Random seed.')
 flags.DEFINE_integer('per_core_batch_size', 64, 'Batch size per TPU core/GPU.')
-flags.DEFINE_float('base_learning_rate', 0.1,
+flags.DEFINE_float('base_learning_rate', 0.05,
                    'Base learning rate when total batch size is 128. It is '
                    'scaled by the ratio of the total batch size to 128.')
 flags.DEFINE_integer('lr_warmup_epochs', 1,
@@ -40,6 +40,9 @@ flags.DEFINE_list('lr_decay_epochs', ['60', '120', '160'],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 3e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('dropout_rate', 0.1, 'Dropout rate.')
+flags.DEFINE_integer('num_dropout_samples', 1,
+                     'Number of dropout samples to use for prediction.')
+
 flags.DEFINE_enum('dataset', 'cifar10',
                   enum_values=['cifar10', 'cifar100'],
                   help='Dataset.')
@@ -50,7 +53,7 @@ flags.DEFINE_string('cifar100_c_path', None,
 flags.DEFINE_integer('corruptions_interval', 50,
                      'Number of epochs between evaluating on the corrupted '
                      'test data. Use -1 to never evaluate.')
-flags.DEFINE_integer('checkpoint_interval', 25,
+flags.DEFINE_integer('checkpoint_interval', -1,
                      'Number of epochs between saving checkpoints. Use -1 to '
                      'never save checkpoints.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE.')
@@ -342,10 +345,19 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
-      logits = model(images, training=False)
-      if FLAGS.use_bfloat16:
-        logits = tf.cast(logits, tf.float32)
-      probs = tf.nn.softmax(logits)
+
+      logits_list = []
+      for _ in range(FLAGS.num_dropout_samples):
+        logits = model(images, training=False)
+        if FLAGS.use_bfloat16:
+          logits = tf.cast(logits, tf.float32)
+        logits_list.append(logits)
+
+      # Logits dimension is (num_samples, batch_size, num_classes).
+      logits_list = tf.stack(logits_list, axis=0)
+      probs_list = tf.nn.softmax(logits_list)
+      probs = tf.reduce_mean(probs_list, axis=0)
+
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
 
