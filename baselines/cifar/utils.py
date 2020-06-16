@@ -311,21 +311,16 @@ def aggregate_corrupt_metrics(metrics,
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
-      if 'test/member_acc_mean_{}'.format(dataset_name) in metrics.keys():
-        member_acc[i] = metrics['test/member_acc_mean_{}'.format(
-            dataset_name)].result()
-      else:
-        member_acc[i] = 0.
-      if 'test/member_ece_mean_{}'.format(dataset_name) in metrics.keys():
-        member_ece[i] = metrics['test/member_ece_mean_{}'.format(
-            dataset_name)].result()
-        member_ece[i] = 0.
+      member_acc[i] = metrics['test/member_acc_mean_{}'.format(
+          dataset_name)].result()
+      member_ece[i] = metrics['test/member_ece_mean_{}'.format(
+          dataset_name)].result()
       if corrupt_diversity is not None:
-        disagreement[i] = (
-            corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
-                dataset_name)].result())
         # Normalize the corrupt disagreement by its error rate.
         error = 1 - acc[i] + tf.keras.backend.epsilon()
+        disagreement[i] = (
+            corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
+                dataset_name)].result()) / error
         cosine_similarity[i] = (
             corrupt_diversity['corrupt_diversity/cosine_similarity_{}'.format(
                 dataset_name)].result()) / error
