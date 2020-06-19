@@ -196,6 +196,12 @@ def main(argv):
     corrupt_metrics['test/ece_{}'.format(name)] = (
         ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
+  test_diversity = {
+      'test/disagreement': tf.keras.metrics.Mean(),
+      'test/average_kl': tf.keras.metrics.Mean(),
+      'test/cosine_similarity': tf.keras.metrics.Mean(),
+  }
+
   # Evaluate model predictions.
   for n, (name, test_dataset) in enumerate(test_datasets.items()):
     logits_dataset = []
@@ -214,6 +220,11 @@ def main(argv):
       negative_log_likelihood = tf.reduce_mean(
           ensemble_negative_log_likelihood(labels, logits))
       per_probs = tf.nn.softmax(logits)
+      diversity_results = ed.metrics.average_pairwise_diversity(
+          per_probs, ensemble_size)
+      for k, v in diversity_results.items():
+        test_diversity['test/' + k].update_state(v)
+
       probs = tf.reduce_mean(per_probs, axis=0)
       if name == 'clean':
         gibbs_ce = tf.reduce_mean(gibbs_cross_entropy(labels, logits))
@@ -234,6 +245,8 @@ def main(argv):
         (n + 1) / num_datasets, n + 1, num_datasets))
     logging.info(message)
 
+  total_metrics = metrics.copy()
+  total_metrics.update(test_diversity)
   corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
                                                     corruption_types,
                                                     max_intensity)
