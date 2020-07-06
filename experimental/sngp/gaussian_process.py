@@ -22,13 +22,11 @@ import tensorflow as tf
 class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
   """Gaussian process layer with random feature approximation.
 
-  The normalized Gaussian process (NGP) is a Gaussian process whose predictive
-  value is normalized by the model's predictive standard deviation.
-
-  During training, the model updates its predictive variance using
-  minibatch statistics. During inference, the model divides its predictive logit
-  by the predictive standard deviation, which is equivalent to approximating the
-  posterior mean of the predictive distribution via mean-field approximation.
+  During training, the model updates the maximum a posteriori (MAP) logits
+  estimates and posterior precision matrix using minibatch statistics. During
+  inference, the model divides the MAP logit estiamtes by the predictive
+  standard deviation, which is equivalent to approximating the posterior mean
+  of the predictive probability via the mean-field approximation.
 
   Attributes:
     units: (int) The dimensionality of layer.
@@ -153,8 +151,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
   def build(self, input_shape):
     gp_feature_dim = input_shape[-1]
 
-    # Posterior precision matrix for the Gaussian Process'
-    # Random Feature coefficients.
+    # Posterior precision matrix for the GP' random feature coefficients.
     self.precision_matrix = (
         self.add_weight(
             name='gp_precision_matrix',
@@ -204,7 +201,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     return training
 
   def call(self, inputs, training=None):
-    """Implementes the minibatch update to Gaussian process covariance.
+    """Minibatch updates the GP's posterior precision matrix estimate.
 
     Args:
       inputs: (tf.Tensor) GP random features, shape (batch_size,

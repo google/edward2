@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for RandomFeatureGaussianProcess."""
+# Lint as: python3
+"""Tests for Gaussian process functions."""
 import os
 import shutil
 
@@ -75,10 +76,10 @@ class GaussianProcessTest(tf.test.TestCase, parameterized.TestCase):
 
     self.rbf_kern_func = RBF_KERN_FUNC
 
-    self.x_tr = _generate_normal_data(self.num_train_sample,
-                                      self.num_data_dim, loc=0.)
-    self.x_ts = _generate_normal_data(self.num_test_sample,
-                                      self.num_data_dim, loc=1.)
+    self.x_tr = _generate_normal_data(
+        self.num_train_sample, self.num_data_dim, loc=0.)
+    self.x_ts = _generate_normal_data(
+        self.num_test_sample, self.num_data_dim, loc=1.)
 
   @parameterized.named_parameters(('rbf_data', False),
                                   ('orthogonal_data', True))
