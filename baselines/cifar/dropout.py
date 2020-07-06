@@ -42,6 +42,14 @@ flags.DEFINE_float('l2', 3e-4, 'L2 regularization coefficient.')
 flags.DEFINE_float('dropout_rate', 0.1, 'Dropout rate.')
 flags.DEFINE_integer('num_dropout_samples', 1,
                      'Number of dropout samples to use for prediction.')
+flags.DEFINE_integer('num_dropout_samples_training', 1,
+                     'Number of dropout samples for training.')
+flags.DEFINE_bool('filterwise_dropout', False, 'Dropout whole convolutional'
+                  'filters instead of individual values in the feature map.')
+flags.DEFINE_bool('residual_dropout', True,
+                  'Apply dropout only to the residual connections as proposed'
+                  'in the original paper.'
+                  'Otherwise dropout is applied after every layer.')
 
 flags.DEFINE_enum('dataset', 'cifar10',
                   enum_values=['cifar10', 'cifar100'],
@@ -80,7 +88,18 @@ Conv2D = functools.partial(  # pylint: disable=invalid-name
     kernel_initializer='he_normal')
 
 
-def basic_block(inputs, filters, strides, l2, dropout_rate):
+def apply_dropout(inputs, dropout_rate, filterwise_dropout):
+  """Apply a dropout layer to the inputs."""
+  if filterwise_dropout:
+    return tf.keras.layers.Dropout(
+        dropout_rate, noise_shape=[inputs.shape[0], 1, 1, inputs.shape[3]
+                                  ])(inputs, training=True)
+  else:
+    return tf.keras.layers.Dropout(dropout_rate)(inputs, training=True)
+
+
+def basic_block(inputs, filters, strides, l2, dropout_rate, residual_dropout,
+                filterwise_dropout):
   """Basic residual block of two 3x3 convs.
 
   Args:
@@ -89,6 +108,9 @@ def basic_block(inputs, filters, strides, l2, dropout_rate):
     strides: Stride dimensions for Conv2D.
     l2: L2 regularization coefficient.
     dropout_rate: Dropout rate.
+    residual_dropout: Apply dropout only to the residual connections.
+    filterwise_dropout: Dropout whole convolutional filters instead of
+      individual values in the feature map.
 
   Returns:
     tf.Tensor.
@@ -98,13 +120,23 @@ def basic_block(inputs, filters, strides, l2, dropout_rate):
   y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
+
+  if not residual_dropout:
+    y = apply_dropout(y, dropout_rate, filterwise_dropout)
+
   y = Conv2D(filters,
              strides=strides,
              kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
-  y = tf.keras.layers.Dropout(dropout_rate)(y, training=True)
+
+  if residual_dropout:
+    y = apply_dropout(y, dropout_rate, filterwise_dropout)
+
   y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = tf.keras.layers.Activation('relu')(y)
+  if not residual_dropout:
+    y = apply_dropout(y, dropout_rate, filterwise_dropout)
+
   y = Conv2D(filters,
              strides=1,
              kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
@@ -113,22 +145,35 @@ def basic_block(inputs, filters, strides, l2, dropout_rate):
                kernel_size=1,
                strides=strides,
                kernel_regularizer=tf.keras.regularizers.l2(l2))(x)
+    if not residual_dropout:
+      y = apply_dropout(y, dropout_rate, filterwise_dropout)
   x = tf.keras.layers.add([x, y])
   return x
 
 
-def group(inputs, filters, strides, num_blocks, l2, dropout_rate):
+def group(inputs, filters, strides, num_blocks, l2, dropout_rate,
+          residual_dropout, filterwise_dropout):
   """Group of residual blocks."""
-  x = basic_block(inputs, filters=filters, strides=strides, l2=l2,
-                  dropout_rate=dropout_rate)
+  x = basic_block(inputs,
+                  filters=filters,
+                  strides=strides,
+                  l2=l2,
+                  dropout_rate=dropout_rate,
+                  residual_dropout=residual_dropout,
+                  filterwise_dropout=filterwise_dropout)
   for _ in range(num_blocks - 1):
-    x = basic_block(x, filters=filters, strides=1, l2=l2,
-                    dropout_rate=dropout_rate)
+    x = basic_block(x,
+                    filters=filters,
+                    strides=1,
+                    l2=l2,
+                    dropout_rate=dropout_rate,
+                    residual_dropout=residual_dropout,
+                    filterwise_dropout=filterwise_dropout)
   return x
 
 
 def wide_resnet(input_shape, depth, width_multiplier, num_classes, l2,
-                dropout_rate):
+                dropout_rate, residual_dropout, filterwise_dropout):
   """Builds Wide ResNet.
 
   Following Zagoruyko and Komodakis (2016), it accepts a width multiplier on the
@@ -145,6 +190,9 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, l2,
     num_classes: Number of output classes.
     l2: L2 regularization coefficient.
     dropout_rate: Dropout rate.
+    residual_dropout: Apply dropout only to the residual connections.
+    filterwise_dropout: Dropout whole convolutional filters instead of
+      individual values in the feature map.
 
   Returns:
     tf.keras.Model.
@@ -156,24 +204,32 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes, l2,
   x = Conv2D(16,
              strides=1,
              kernel_regularizer=tf.keras.regularizers.l2(l2))(inputs)
+  if not residual_dropout:
+    x = apply_dropout(x, dropout_rate, filterwise_dropout)
   x = group(x,
             filters=16 * width_multiplier,
             strides=1,
             num_blocks=num_blocks,
             l2=l2,
-            dropout_rate=dropout_rate)
+            dropout_rate=dropout_rate,
+            residual_dropout=residual_dropout,
+            filterwise_dropout=filterwise_dropout)
   x = group(x,
             filters=32 * width_multiplier,
             strides=2,
             num_blocks=num_blocks,
             l2=l2,
-            dropout_rate=dropout_rate)
+            dropout_rate=dropout_rate,
+            residual_dropout=residual_dropout,
+            filterwise_dropout=filterwise_dropout)
   x = group(x,
             filters=64 * width_multiplier,
             strides=2,
             num_blocks=num_blocks,
             l2=l2,
-            dropout_rate=dropout_rate)
+            dropout_rate=dropout_rate,
+            residual_dropout=residual_dropout,
+            filterwise_dropout=filterwise_dropout)
   x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
                          gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
   x = tf.keras.layers.Activation('relu')(x)
@@ -207,7 +263,8 @@ def main(argv):
   train_input_fn = utils.load_input_fn(
       split=tfds.Split.TRAIN,
       name=FLAGS.dataset,
-      batch_size=FLAGS.per_core_batch_size,
+      batch_size=FLAGS.per_core_batch_size //
+      FLAGS.num_dropout_samples_training,
       use_bfloat16=FLAGS.use_bfloat16)
   clean_test_input_fn = utils.load_input_fn(
       split=tfds.Split.TEST,
@@ -239,9 +296,11 @@ def main(argv):
             strategy.experimental_distribute_datasets_from_function(input_fn))
 
   ds_info = tfds.builder(FLAGS.dataset).info
-  batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
+  batch_size = (FLAGS.per_core_batch_size * FLAGS.num_cores
+                // FLAGS.num_dropout_samples_training)
   steps_per_epoch = ds_info.splits['train'].num_examples // batch_size
-  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
+  test_batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
+  steps_per_eval = ds_info.splits['test'].num_examples // test_batch_size
   num_classes = ds_info.features['label'].num_classes
 
   if FLAGS.use_bfloat16:
@@ -258,7 +317,9 @@ def main(argv):
                         width_multiplier=10,
                         num_classes=num_classes,
                         l2=FLAGS.l2,
-                        dropout_rate=FLAGS.dropout_rate)
+                        dropout_rate=FLAGS.dropout_rate,
+                        residual_dropout=FLAGS.residual_dropout,
+                        filterwise_dropout=FLAGS.filterwise_dropout)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -314,6 +375,8 @@ def main(argv):
     def step_fn(inputs):
       """Per-Replica StepFn."""
       images, labels = inputs
+      images = tf.tile(images, [FLAGS.num_dropout_samples_training, 1, 1, 1])
+      labels = tf.tile(labels, [FLAGS.num_dropout_samples_training])
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
         if FLAGS.use_bfloat16:
@@ -358,8 +421,13 @@ def main(argv):
       probs_list = tf.nn.softmax(logits_list)
       probs = tf.reduce_mean(probs_list, axis=0)
 
+      labels_broadcasted = tf.broadcast_to(
+          labels, [FLAGS.num_dropout_samples, labels.shape[0]])
+      log_likelihoods = -tf.keras.losses.sparse_categorical_crossentropy(
+          labels_broadcasted, logits_list, from_logits=True)
       negative_log_likelihood = tf.reduce_mean(
-          tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+          -tf.reduce_logsumexp(log_likelihoods, axis=[0]) +
+          tf.math.log(float(FLAGS.num_dropout_samples)))
 
       if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(

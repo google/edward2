@@ -8,6 +8,7 @@
 | BatchEnsemble (size=4) | 0.08 / 0.143 | 99.9% / 96.2% |  5e-5 / 0.0206 | 1.02 / 77.5% / 0.129 | 5.4 (8 TPUv2 cores) | 36.6M |
 | Monte Carlo Dropout (size=1) | 2e-3 / 0.160 | 99.9% / 95.9% | 2e-3 / 0.0241 | 1.27 / 68.8% / 0.166 | 1.2 (8 TPUv2 cores) | 36.5M |
 | Monte Carlo Dropout (size=30) | 1e-3 / 0.145 | 99.9% / 96.1% | 1.5e-3 / 0.019 | 1.27 / 70.0% / 0.167 | 1.2 (8 TPUv2 cores) | 36.5M |
+| Monte Carlo Dropout, improved (size=30)<sup>11</sup> | 1e-3 / 0.115 | 99.9% / 96.4% | 1e-3 / 0.006 | 0.75 / 79.3% / 0.075 | 4.8 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 2e-3 / 0.114 | 99.9% / 96.6% | - / 0.010 | 0.81 / 77.9% / 0.087 | 1.2 (32 TPUv2 cores) | 146M |
 | Variational inference | 1e-3 / 0.211 | 99.9% / 94.7% | 1e-3 / 0.029 | 1.46 / 71.3% / 0.181 | 5.5 (8 TPUv2 cores) | 73M |
 
@@ -19,6 +20,7 @@
 | BatchEnsemble (size=4) | 3e-3 / 0.740 | 99.7% / 81.5% | 2e-3 / 0.0561 | 2.49 / 54.1% / 0.191 | 5.5 (8 TPUv2 cores) | 36.6M |
 | Monte Carlo Dropout (size=1) | 1e-2 / 0.830 | 99.9% / 79.6% | 9e-3 / 0.0501 | 2.90 / 42.63% / 0.202 | 1.1 (8 TPUv2 cores) | 36.5M |
 | Monte Carlo Dropout (size=30) | 6e-3 / 0.785 | 99.9% / 80.7% | 5e-3 / 0.0487 | 2.73 / 46.2 / 0.207 | 1.1 (8 TPUv2 cores) | 36.5M |
+| Monte Carlo Dropout, improved (size=30)<sup>11</sup> | 1e-2 / 0.649 | 99.9% / 82.2% | 8e-3 / 0.0165 | 2.09 / 56.2% / 0.110 | 4.4 (8 TPUv2 cores) | 36.5M |
 | Ensemble (size=4) | 0.003 / 0.666 | 99.9% / 82.7% | - / 0.021 | 2.27 / 54.1% / 0.138 | 1.1 (32 TPUv2 cores) | 146M |
 | Variational inference | 3e-3 / 0.944 | 99.9% / 77.8% | 2e-3 / 0.097 | 3.18 / 48.2% / 0.271 | 5.5 (8 TPUv2 cores) | 73M |
 
@@ -100,6 +102,7 @@ We note results in the literature below. Note there are differences in the setup
 8. ResNet-20. Trains on 40k examples. Performs variational inference over only first convolutional layer of every residual block and final output layer. Has free parameter on normal prior's location. Uses scale hyperprior (and with a fixed scale parameter). NLL results are medians, not means; accuracies are guestimated from Figure 2's plot.
 9. Uses ResNet-18. cSGHMC uses a total of 12 copies of the full size of weights for prediction. Ensembles use 4 times cSGHMC's number. The authors use a T=1/200 temperature scaling on the log-posterior (see the newly added appendix I at https://openreview.net/forum?id=rkeS1RVtPS).
 10. Results are slightly worse than open-source implementations such as the [original paper](https://github.com/szagoruyko/wide-residual-networks)'s 80.75%. Our experiments only tuned over l2, so there may be more work to be done.
+11. MC dropout can be significantly improved using three techniques. a, Using dropout after every layer instead of only in the residual connections. b, Using filterwise dropout in the convolutional layers instead of dropout for each individual value in the feature map. c, Repeating examples in the training batch, although this comes at an increased training cost.
 
 TODO(trandustin): Add column for Test runtime.
 

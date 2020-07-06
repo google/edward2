@@ -41,7 +41,9 @@ class DropoutTest(tf.test.TestCase):
                                 width_multiplier=1,
                                 num_classes=num_classes,
                                 l2=0.,
-                                dropout_rate=0.01)
+                                dropout_rate=0.01,
+                                residual_dropout=True,
+                                filterwise_dropout=False)
     model.compile(
         'adam',
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
