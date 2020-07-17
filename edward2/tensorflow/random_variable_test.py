@@ -28,6 +28,23 @@ class FakeDistribution(tfp.distributions.Distribution):
 
   def __init__(self):
     super(FakeDistribution, self).__init__(
+        dtype=tf.float32,
+        reparameterization_type=tfp.distributions.FULLY_REPARAMETERIZED,
+        validate_args=False,
+        allow_nan_stats=True)
+
+  def _sample_n(self, *args, **kwargs):
+    return tf.ones(shape=(4, 4))
+
+  def sample(self, *args, **kwargs):
+    return tf.ones(shape=(4, 4))
+
+
+class FakeDistributionNoSample(tfp.distributions.Distribution):
+  """Fake distribution class for testing."""
+
+  def __init__(self):
+    super(FakeDistributionNoSample, self).__init__(
         dtype=None,
         reparameterization_type=tfp.distributions.FULLY_REPARAMETERIZED,
         validate_args=False,
@@ -45,7 +62,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
                             value=tf.zeros([2, 5], dtype=tf.int32))
     x = ed.RandomVariable(FakeDistribution())
     with self.assertRaises(NotImplementedError):
-      _ = x.value
+      _ = ed.RandomVariable(FakeDistributionNoSample())
 
   def testGradientsFirstOrder(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0., 1.))

@@ -154,11 +154,13 @@ def one_hot_multiply(inputs, scale):
   permutation_matrix = tf.math.floormod(
       tf.tile(tf.range(vocab_size)[:, tf.newaxis], [1, vocab_size]) *
       tf.range(vocab_size)[tf.newaxis], vocab_size)
-  permutation_matrix = tf.one_hot(permutation_matrix, depth=vocab_size, axis=-1)
+  permutation_matrix = tf.cast(
+      tf.one_hot(permutation_matrix, depth=vocab_size, axis=-1), inputs.dtype)
   # Scale the inputs according to the permutation matrix of all possible scales.
   scaled_inputs = tf.einsum('...v,avu->...au', inputs, permutation_matrix)
-  scaled_inputs = tf.concat([tf.zeros(batch_shape + [1, vocab_size]),
-                             scaled_inputs[..., 1:, :]], axis=-2)
+  scaled_inputs = tf.concat([
+      tf.zeros(batch_shape + [1, vocab_size], dtype=inputs.dtype),
+      scaled_inputs[..., 1:, :]], axis=-2)
   # Reduce rows of the scaled inputs by the scale values. This forms a
   # weighted linear combination of scaling by zero, scaling by one, and so on.
   outputs = tf.einsum('...v,...vu->...u', scale, scaled_inputs)
@@ -328,7 +330,7 @@ def smart_constant_value(pred):
     pred_value = bool(pred)
   elif isinstance(pred, bool):
     pred_value = pred
-  elif isinstance(pred, tf.Tensor):
+  elif tf.is_tensor(pred):
     pred_value = tf.get_static_value(pred)
   else:
     raise TypeError('`pred` must be a Tensor, or a Python bool, or 1 or 0. '

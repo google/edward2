@@ -81,7 +81,7 @@ class RandomVariable(object):
     """
     self._distribution = distribution
     self._sample_shape = sample_shape
-    if isinstance(value, tf.Tensor):
+    if tf.is_tensor(value):
       value_shape = value.shape
       expected_value_shape = self.sample_shape.concatenate(
           self.distribution.batch_shape).concatenate(
@@ -91,6 +91,7 @@ class RandomVariable(object):
             "Incompatible shape for initialization argument 'value'. "
             "Expected %s, got %s." % (expected_value_shape, value_shape))
     self._value = value
+    self._value_shape = self.value.shape
 
   @property
   def distribution(self):
@@ -105,7 +106,7 @@ class RandomVariable(object):
   @property
   def sample_shape(self):
     """Sample shape of random variable as a `TensorShape`."""
-    if isinstance(self._sample_shape, tf.Tensor):
+    if tf.is_tensor(self._sample_shape):
       return tf.TensorShape(tf.get_static_value(self._sample_shape))
     return tf.TensorShape(self._sample_shape)
 
@@ -119,14 +120,14 @@ class RandomVariable(object):
       sample_shape: `Tensor`.
     """
     with tf.name_scope(name):
-      if isinstance(self._sample_shape, tf.Tensor):
+      if tf.is_tensor(self._sample_shape):
         return self._sample_shape
       return tf.convert_to_tensor(self.sample_shape.as_list(), dtype=tf.int32)
 
   @property
   def shape(self):
     """Shape of random variable."""
-    return self.value.shape
+    return self._value_shape
 
   @property
   def value(self):
