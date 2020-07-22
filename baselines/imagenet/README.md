@@ -2,11 +2,11 @@
 
 ## ResNet-50
 
-| Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | mCE | Train Runtime (hours) | # Parameters |
-| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| BatchEnsemble<sup>1</sup> | 0.861 / 0.944 | 78.9% / 76.7% | 0.0313 / 0.0494 | 3.18 / 41.8% / 0.110 | 73.7% | 17.5 (32 TPUv2 cores) | 25.8M |
-| Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | - | 5 (32 TPUv3 cores) | 25.6M |
-| Ensemble (size=4) | - / 0.877 | - / 77.5% | - / 0.0305 | 2.99 / 42.1% / 0.051 | 73.3% | 17.5 (128 TPUv2 cores) | 102.4M |
+| Method | Train/Test NLL | Train/Test Top-1 Accuracy | Train/Test Cal. Error | cNLL/cA/cCE | mCE | Train Runtime (hours) | Inference Runtime (ms/example)| # Parameters |
+| ----------- | ----------- | ----------- | ----------- | ----------- | -----------| ----------- | ----------- | ----------- |
+| BatchEnsemble<sup>1</sup> | 0.861 / 0.944 | 78.9% / 76.7% | 0.0313 / 0.0494 | 3.18 / 41.8% / 0.110 | 73.7% | 17.5 (32 TPUv2 cores) | ??? (8 TPUv2 cores) | 25.8M |
+| Deterministic | 0.900 / 0.943 | 77.9% / 76.1% | 0.0411 / 0.0392 | - | - | 5 (32 TPUv3 cores) | ??? (8 TPUv2 cores) | 25.6M |
+| Ensemble (size=4) | - / 0.877 | - / 77.5% | - / 0.0305 | 2.99 / 42.1% / 0.051 | 73.3% | 17.5 (128 TPUv2 cores) | ??? (8 TPUv2 cores) 102.4M |
 
 ## EfficientNet
 
