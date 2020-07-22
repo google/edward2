@@ -444,6 +444,8 @@ def main(argv):
 
     strategy.run(step_fn, args=(next(iterator),))
 
+  metrics.update({'test/ms_per_example': tf.keras.metrics.Mean()})
+
   train_iterator = iter(train_dataset)
   start_time = time.time()
   for epoch in range(initial_epoch, FLAGS.train_epochs):
@@ -478,7 +480,11 @@ def main(argv):
         if step % 20 == 0:
           logging.info('Starting to run eval step %s of epoch: %s', step,
                        epoch)
+        test_start_time = time.time()
         test_step(test_iterator, dataset_name)
+        ms_per_example = (time.time() - test_start_time) * 1e6 / batch_size
+        metrics['test/ms_per_example'].update_state(ms_per_example)
+
       logging.info('Done with testing on %s', dataset_name)
 
     corrupt_results = {}
