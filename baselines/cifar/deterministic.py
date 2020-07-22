@@ -288,15 +288,20 @@ def main(argv):
                                         momentum=0.9,
                                         nesterov=True)
     metrics = {
-        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
-        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'test/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
+        'train/negative_log_likelihood':
+            tf.keras.metrics.Mean(),
+        'train/accuracy':
+            tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss':
+            tf.keras.metrics.Mean(),
+        'train/ece':
+            ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
+        'test/negative_log_likelihood':
+            tf.keras.metrics.Mean(),
+        'test/accuracy':
+            tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/ece':
+            ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
@@ -379,6 +384,8 @@ def main(argv):
 
     strategy.run(step_fn, args=(next(iterator),))
 
+  metrics.update({'test/ms_per_example': tf.keras.metrics.Mean()})
+
   train_iterator = iter(train_dataset)
   start_time = time.time()
   for epoch in range(initial_epoch, FLAGS.train_epochs):
@@ -413,7 +420,11 @@ def main(argv):
         if step % 20 == 0:
           logging.info('Starting to run eval step %s of epoch: %s', step,
                        epoch)
+        test_start_time = time.time()
         test_step(test_iterator, dataset_name)
+        ms_per_example = (time.time() - test_start_time) * 1e6 / batch_size
+        metrics['test/ms_per_example'].update_state(ms_per_example)
+
       logging.info('Done with testing on %s', dataset_name)
 
     corrupt_results = {}
