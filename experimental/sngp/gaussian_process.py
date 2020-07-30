@@ -47,6 +47,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                gp_output_bias_trainable=False,
                gp_cov_momentum=0.999,
                gp_cov_ridge_penalty=1e-6,
+               l2_regularization=0.,
                dtype=None,
                return_random_features=False,
                name='random_feature_gaussian_process'):
@@ -71,6 +72,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         average for posterior covariance matrix.
       gp_cov_ridge_penalty: (float) Initial Ridge penalty to posterior
         covariance matrix.
+      l2_regularization: (float) The strength of l2 regularization on the output
+        weights.
       dtype: (tf.DType) Input data type.
       return_random_features: (bool) Whether to also return random features.
       name: (string) Layer name.
@@ -95,7 +98,10 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         ridge_penalty=gp_cov_ridge_penalty,
         dtype=self.dtype)
     self._gp_output_layer = tf.keras.layers.Dense(
-        units=self.units, use_bias=False, dtype=self.dtype)
+        units=self.units,
+        use_bias=False,
+        kernel_regularizer=tf.keras.regularizers.l2(l2_regularization),
+        dtype=self.dtype)
     self._gp_output_bias = tf.Variable(
         initial_value=[gp_output_bias] * self.units,
         dtype=self.dtype,
