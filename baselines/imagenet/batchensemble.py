@@ -53,6 +53,7 @@ flags.DEFINE_string('alexnet_errors_path', None,
                     'Path to AlexNet corruption errors file.')
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 flags.DEFINE_bool('use_ensemble_bn', False, 'Whether to use ensemble bn.')
+flags.DEFINE_float('mixup_alpha', 0., 'Mixup regularization coefficient.')
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -93,13 +94,15 @@ def main(argv):
     resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu=FLAGS.tpu)
     tf.config.experimental_connect_to_cluster(resolver)
     tf.tpu.experimental.initialize_tpu_system(resolver)
-    strategy = tf.distribute.experimental.TPUStrategy(resolver)
+    strategy = tf.distribute.TPUStrategy(resolver)
 
   imagenet_train = utils.ImageNetInput(
       is_training=True,
       data_dir=FLAGS.data_dir,
       batch_size=per_core_batch_size,
-      use_bfloat16=FLAGS.use_bfloat16)
+      one_hot=(FLAGS.mixup_alpha > 0),
+      use_bfloat16=FLAGS.use_bfloat16,
+      mixup_alpha=FLAGS.mixup_alpha)
   imagenet_eval = utils.ImageNetInput(
       is_training=False,
       data_dir=FLAGS.data_dir,
@@ -162,8 +165,14 @@ def main(argv):
             num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'test/ece': ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins)
+        'test/ece': ed.metrics.ExpectedCalibrationError(
+            num_bins=FLAGS.num_bins),
+        'test/member_accuracy_mean': (
+            tf.keras.metrics.SparseCategoricalAccuracy()),
+        'test/member_ece_mean': ed.metrics.ExpectedCalibrationError(
+            num_bins=FLAGS.num_bins)
     }
+
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
       for intensity in range(1, max_intensity + 1):
@@ -174,6 +183,10 @@ def main(argv):
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
+              ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+          corrupt_metrics['test/member_acc_mean_{}'.format(dataset_name)] = (
+              tf.keras.metrics.SparseCategoricalAccuracy())
+          corrupt_metrics['test/member_ece_mean_{}'.format(dataset_name)] = (
               ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
     test_diversity = {}
@@ -212,7 +225,10 @@ def main(argv):
       """Per-Replica StepFn."""
       images, labels = inputs
       images = tf.tile(images, [FLAGS.ensemble_size, 1, 1, 1])
-      labels = tf.tile(labels, [FLAGS.ensemble_size])
+      if FLAGS.mixup_alpha > 0:
+        labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
+      else:
+        labels = tf.tile(labels, [FLAGS.ensemble_size])
 
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
@@ -225,10 +241,16 @@ def main(argv):
         diversity_results = ed.metrics.average_pairwise_diversity(
             per_probs, FLAGS.ensemble_size)
 
-        negative_log_likelihood = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(labels,
-                                                            logits,
-                                                            from_logits=True))
+        if FLAGS.mixup_alpha > 0:
+          negative_log_likelihood = tf.reduce_mean(
+              tf.keras.losses.categorical_crossentropy(labels,
+                                                       logits,
+                                                       from_logits=True))
+        else:
+          negative_log_likelihood = tf.reduce_mean(
+              tf.keras.losses.sparse_categorical_crossentropy(labels,
+                                                              logits,
+                                                              from_logits=True))
         filtered_variables = []
         for var in model.trainable_variables:
           # Apply l2 on the slow weights and bias terms. This excludes BN
@@ -260,6 +282,8 @@ def main(argv):
       else:
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
+      if FLAGS.mixup_alpha > 0:
+        labels = tf.argmax(labels, axis=-1)
       metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
@@ -297,15 +321,24 @@ def main(argv):
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
 
-      if dataset_name == 'clean':
-        for i in range(FLAGS.ensemble_size):
-          member_probs = per_probs[i]
+      for i in range(FLAGS.ensemble_size):
+        member_probs = per_probs[i]
+        if dataset_name == 'clean':
           member_loss = tf.keras.losses.sparse_categorical_crossentropy(
               labels, member_probs)
           metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
           metrics['test/accuracy_member_{}'.format(i)].update_state(
               labels, member_probs)
+          metrics['test/member_accuracy_mean'].update_state(
+              labels, member_probs)
+          metrics['test/member_ece_mean'].update_state(labels, member_probs)
+        else:
+          corrupt_metrics['test/member_acc_mean_{}'.format(
+              dataset_name)].update_state(labels, member_probs)
+          corrupt_metrics['test/member_ece_mean_{}'.format(
+              dataset_name)].update_state(labels, member_probs)
 
+      if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)
         metrics['test/accuracy'].update_state(labels, probs)

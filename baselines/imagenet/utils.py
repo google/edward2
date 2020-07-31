@@ -15,8 +15,10 @@
 
 """Utilities for ImageNet."""
 
+import functools
 import os
 
+import edward2 as ed
 import numpy as np
 import pandas as pd
 import tensorflow.compat.v1 as tf
@@ -341,6 +343,9 @@ class ImageNetInput(object):
     batch_size: The global batch size to use.
     image_preprocessing_fn: Image preprocessing function.
     resize_method: If None, use bicubic in default.
+    mixup_alpha: `float` to control the strength of Mixup regularization, set to
+        0.0 to disable.
+    ensemble_size: `int` for number of ensemble members.
   """
 
   def __init__(self,
@@ -352,7 +357,9 @@ class ImageNetInput(object):
                one_hot=False,
                drop_remainder=True,
                use_bfloat16=False,
-               resize_method=None):
+               resize_method=None,
+               mixup_alpha=0.,
+               ensemble_size=1):
     self.image_preprocessing_fn = preprocess_image
     self.is_training = is_training
     self.use_bfloat16 = use_bfloat16
@@ -363,6 +370,37 @@ class ImageNetInput(object):
     self.normalize_input = normalize_input
     self.one_hot = one_hot
     self.resize_method = resize_method
+    self.mixup_alpha = mixup_alpha
+    self.ensemble_size = ensemble_size
+
+  def mixup(self, batch_size, alpha, images, labels):
+    """Applies Mixup regularization to a batch of images and labels.
+
+    [1] Hongyi Zhang, Moustapha Cisse, Yann N. Dauphin, David Lopez-Paz
+      Mixup: Beyond Empirical Risk Minimization.
+      ICLR'18, https://arxiv.org/abs/1710.09412
+
+    Arguments:
+      batch_size: The input batch size for images and labels.
+      alpha: Float that controls the strength of Mixup regularization.
+      images: A batch of images of shape [batch_size, ...]
+      labels: A batch of labels of shape [batch_size, num_classes]
+
+    Returns:
+      A tuple of (images, labels) with the same dimensions as the input with
+      Mixup regularization applied.
+    """
+    mix_weight = ed.Beta(alpha, alpha, sample_shape=[batch_size, 1])
+    mix_weight = tf.maximum(mix_weight, 1. - mix_weight)
+    images_mix_weight = tf.reshape(mix_weight, [batch_size, 1, 1, 1])
+    images_mix_weight = tf.cast(images_mix_weight, images.dtype)
+    # Mixup on a single batch is implemented by taking a weighted sum with the
+    # same batch in reverse.
+    images_mix = (
+        images * images_mix_weight + images[::-1] * (1. - images_mix_weight))
+    mix_weight = tf.cast(mix_weight, labels.dtype)
+    labels_mix = labels * mix_weight + labels[::-1] * (1. - mix_weight)
+    return images_mix, labels_mix
 
   def dataset_parser(self, value):
     """Parse an ImageNet record from a serialized string Tensor."""
@@ -451,6 +489,11 @@ class ImageNetInput(object):
     dataset = dataset.map(self.dataset_parser, tf.data.experimental.AUTOTUNE)
     dataset = dataset.batch(
         batch_size=self.batch_size, drop_remainder=self.drop_remainder)
+
+    if self.is_training and self.mixup_alpha > 0.0:
+      dataset = dataset.map(
+          functools.partial(self.mixup, self.batch_size, self.mixup_alpha),
+          num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
@@ -547,18 +590,33 @@ def aggregate_corrupt_metrics(metrics,
                               alexnet_errors_path=None,
                               fine_metrics=False):
   """Aggregates metrics across intensities and corruption types."""
-  results = {'test/nll_mean_corrupted': 0.,
-             'test/accuracy_mean_corrupted': 0.,
-             'test/ece_mean_corrupted': 0.}
+  results = {
+      'test/nll_mean_corrupted': 0.,
+      'test/accuracy_mean_corrupted': 0.,
+      'test/ece_mean_corrupted': 0.,
+      'test/member_acc_mean_corrupted': 0.,
+      'test/member_ece_mean_corrupted': 0.
+  }
   for intensity in range(1, max_intensity + 1):
     ece = np.zeros(len(corruption_types))
     nll = np.zeros(len(corruption_types))
     acc = np.zeros(len(corruption_types))
+    member_acc = np.zeros(len(corruption_types))
+    member_ece = np.zeros(len(corruption_types))
     for i in range(len(corruption_types)):
       dataset_name = '{0}_{1}'.format(corruption_types[i], intensity)
       nll[i] = metrics['test/nll_{}'.format(dataset_name)].result()
       acc[i] = metrics['test/accuracy_{}'.format(dataset_name)].result()
       ece[i] = metrics['test/ece_{}'.format(dataset_name)].result()
+      if 'test/member_acc_mean_{}'.format(dataset_name) in metrics.keys():
+        member_acc[i] = metrics['test/member_acc_mean_{}'.format(
+            dataset_name)].result()
+      else:
+        member_acc[i] = 0.
+      if 'test/member_ece_mean_{}'.format(dataset_name) in metrics.keys():
+        member_ece[i] = metrics['test/member_ece_mean_{}'.format(
+            dataset_name)].result()
+        member_ece[i] = 0.
       if fine_metrics:
         results['test/nll_{}'.format(dataset_name)] = nll[i]
         results['test/accuracy_{}'.format(dataset_name)] = acc[i]
@@ -566,6 +624,8 @@ def aggregate_corrupt_metrics(metrics,
     avg_nll = np.mean(nll)
     avg_accuracy = np.mean(acc)
     avg_ece = np.mean(ece)
+    avg_member_acc = np.mean(member_acc)
+    avg_member_ece = np.mean(member_ece)
     results['test/nll_mean_{}'.format(intensity)] = avg_nll
     results['test/accuracy_mean_{}'.format(intensity)] = avg_accuracy
     results['test/ece_mean_{}'.format(intensity)] = avg_ece
@@ -575,10 +635,16 @@ def aggregate_corrupt_metrics(metrics,
     results['test/nll_mean_corrupted'] += avg_nll
     results['test/accuracy_mean_corrupted'] += avg_accuracy
     results['test/ece_mean_corrupted'] += avg_ece
+    results['test/member_acc_mean_{}'.format(intensity)] = avg_member_acc
+    results['test/member_ece_mean_{}'.format(intensity)] = avg_member_ece
+    results['test/member_acc_mean_corrupted'] += avg_member_acc
+    results['test/member_ece_mean_corrupted'] += avg_member_ece
 
   results['test/nll_mean_corrupted'] /= max_intensity
   results['test/accuracy_mean_corrupted'] /= max_intensity
   results['test/ece_mean_corrupted'] /= max_intensity
+  results['test/member_acc_mean_corrupted'] /= max_intensity
+  results['test/member_ece_mean_corrupted'] /= max_intensity
 
   if alexnet_errors_path:
     with tf.io.gfile.GFile(alexnet_errors_path, 'r') as f:
