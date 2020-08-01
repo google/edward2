@@ -17,14 +17,21 @@
 
 Spectral-normalized neural GP (SNGP) [1] is a simple method to improve
 a deterministic neural network's uncertainty by applying spectral
-normalization to hidden weights, and then replace the dense output layer with
-a Gaussian process.
+normalization to the hidden layers, and then replace the dense output layer
+with a Gaussian process layer.
+
+## Combining with MC Dropout:
 
 As a single-model method, SNGP can be combined with other classic
 uncertainty techniques (e.g., Monte Carlo dropout, deep ensemble) to further
-improve performance. This script supports adding Monte Carlo dropout to
-SNGP by setting `use_mc_dropout=True` and `num_dropout_samples` to an integer
-greater than 1.
+improve performance.
+
+This script supports adding Monte Carlo dropout to
+SNGP by setting `use_mc_dropout=True`, setting `num_dropout_samples=10`
+(or any integer larger than 1). Additionally we recommend adjust
+`gp_mean_field_factor` slightly, since averaging already calibrated
+individual models (in this case single SNGPs) can sometimes lead to
+under-confidence [3].
 
 ## References:
 
@@ -35,6 +42,9 @@ greater than 1.
 [2]: Zhiyun Lu, Eugene Ie, Fei Sha. Uncertainty Estimation with Infinitesimal
      Jackknife.  _arXiv preprint arXiv:2006.07584_, 2020.
      https://arxiv.org/abs/2006.07584
+[3]: Rahul Rahaman, Alexandre H. Thiery. Uncertainty Quantification and Deep
+     Ensembles.  _arXiv preprint arXiv:2007.08792_, 2020.
+     https://arxiv.org/abs/2007.08792
 """
 
 import functools
@@ -317,7 +327,7 @@ def wide_resnet(input_shape, batch_size, depth, width_multiplier, num_classes,
   x = tf.keras.layers.Flatten()(x)
 
   if use_gp_layer:
-    # add random projection layer to reduce dimension
+    # Uses random projection to reduce the input dimension of the GP layer.
     if gp_input_dim > 0:
       x = tf.keras.layers.Dense(
           gp_input_dim,
