@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """Definitions for random feature Gaussian process layer."""
-
+import math
 import tensorflow as tf
 
 
@@ -47,10 +47,14 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                gp_output_bias_trainable=False,
                gp_cov_momentum=0.999,
                gp_cov_ridge_penalty=1e-6,
+               scale_random_features=True,
+               return_random_features=False,
+               use_custom_random_features=False,
+               custom_random_features_activation=tf.math.cos,
                l2_regularization=0.,
                dtype=None,
-               return_random_features=False,
-               name='random_feature_gaussian_process'):
+               name='random_feature_gaussian_process',
+               **gp_output_kwargs):
     """Initializes a Normalized Gaussian Process (NGP) layer instance.
 
     Args:
@@ -72,26 +76,47 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         average for posterior covariance matrix.
       gp_cov_ridge_penalty: (float) Initial Ridge penalty to posterior
         covariance matrix.
+      scale_random_features: (bool) Whether to scale the random feature
+        by sqrt(2. / num_inducing).
+      return_random_features: (bool) Whether to also return random features.
+      use_custom_random_features: (bool) Whether to use custom random
+        features implemented using tf.keras.layers.Dense.
+      custom_random_features_activation: (callable) Activation function for the
+        random feature layer. Default to cosine which approximates a RBF
+        kernel function.
       l2_regularization: (float) The strength of l2 regularization on the output
         weights.
       dtype: (tf.DType) Input data type.
-      return_random_features: (bool) Whether to also return random features.
       name: (string) Layer name.
+      **gp_output_kwargs: Additional keyword arguments to dense output layer.
     """
     super(RandomFeatureGaussianProcess, self).__init__(name=name, dtype=dtype)
     self.units = units
     self.num_inducing = num_inducing
     self.normalize_input = normalize_input
+    self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
 
     # define module layers
     self._input_norm_layer = tf.keras.layers.LayerNormalization()
-    self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
-        output_dim=self.num_inducing,
-        kernel_initializer=gp_kernel_type,
-        scale=gp_kernel_scale,
-        trainable=gp_kernel_scale_trainable,
-        dtype=self.dtype)
+
+    if use_custom_random_features:
+      random_features_bias_initializer = tf.random_uniform_initializer(
+          minval=0., maxval=2. * math.pi)
+      self._random_feature = tf.keras.layers.Dense(
+          units=self.num_inducing,
+          use_bias=True,
+          activation=custom_random_features_activation,
+          kernel_initializer='random_normal',
+          bias_initializer=random_features_bias_initializer,
+          trainable=False)
+    else:
+      self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
+          output_dim=self.num_inducing,
+          kernel_initializer=gp_kernel_type,
+          scale=gp_kernel_scale,
+          trainable=gp_kernel_scale_trainable,
+          dtype=self.dtype)
 
     self._gp_cov_layer = LaplaceRandomFeatureCovariance(
         momentum=gp_cov_momentum,
@@ -101,7 +126,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         units=self.units,
         use_bias=False,
         kernel_regularizer=tf.keras.regularizers.l2(l2_regularization),
-        dtype=self.dtype)
+        dtype=self.dtype,
+        **gp_output_kwargs)
     self._gp_output_bias = tf.Variable(
         initial_value=[gp_output_bias] * self.units,
         dtype=self.dtype,
@@ -117,7 +143,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     if self.normalize_input:
       gp_inputs = self._input_norm_layer(gp_inputs)
 
-    gp_feature = self._random_feature(gp_inputs) * gp_feature_scale
+    gp_feature = self._random_feature(gp_inputs)
+    if self.scale_random_features:
+      gp_feature = gp_feature * gp_feature_scale
 
     # compute posterior center (i.e., MAP estimate) and variance.
     gp_output = self._gp_output_layer(gp_feature) + self._gp_output_bias
