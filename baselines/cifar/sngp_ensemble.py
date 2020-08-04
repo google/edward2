@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ensemble on CIFAR.
+"""Ensemble of SNGP models on CIFAR.
 
 This script only performs evaluation, not training. We recommend training
 ensembles by launching independent runs of `deterministic.py` over different
@@ -28,7 +28,7 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-import deterministic  # local file import
+import sngp  # local file import
 import utils  # local file import
 import numpy as np
 import tensorflow as tf
@@ -40,6 +40,12 @@ import tensorflow_datasets as tfds
 # from a binary or duplicate the model definition here.
 flags.DEFINE_string('checkpoint_dir', None,
                     'The directory where the model weights are stored.')
+flags.DEFINE_float(
+    'gp_mean_field_factor_ensemble', 0.0005,
+    'The tunable multiplicative factor used in the mean-field approximation '
+    'for the posterior mean of softmax Gaussian process. If -1 then use '
+    'posterior mode instead of posterior mean. See [2] for detail.')
+
 flags.mark_flag_as_required('checkpoint_dir')
 FLAGS = flags.FLAGS
 
@@ -81,13 +87,17 @@ def main(argv):
           use_bfloat16=FLAGS.use_bfloat16)
       test_datasets[dataset_name] = corrupted_input_fn()
 
-  model = deterministic.wide_resnet(
+  model = sngp.wide_resnet(
       input_shape=ds_info.features['image'].shape,
+      batch_size=FLAGS.per_core_batch_size,
       depth=28,
       width_multiplier=10,
       num_classes=num_classes,
       l2=0.,
-      version=2)
+      dropout_rate=FLAGS.dropout_rate,
+      use_mc_dropout=FLAGS.use_mc_dropout,
+      gp_input_dim=FLAGS.gp_input_dim,
+      use_gp_layer=FLAGS.use_gp_layer)
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
@@ -115,7 +125,10 @@ def main(argv):
         test_iterator = iter(test_dataset)
         for _ in range(steps_per_eval):
           features, _ = next(test_iterator)  # pytype: disable=attribute-error
-          logits.append(model(features, training=False))
+          logits_member, covmat_member = model(features, training=False)
+          logits_member = sngp.mean_field_logits(
+              logits_member, covmat_member, FLAGS.gp_mean_field_factor_ensemble)
+          logits.append(logits_member)
 
         logits = tf.concat(logits, axis=0)
         with tf.io.gfile.GFile(filename, 'w') as f:
