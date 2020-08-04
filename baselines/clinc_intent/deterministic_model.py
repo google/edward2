@@ -113,6 +113,33 @@ def conv_pooled_block(inputs, num_filters, filter_size, feature_size,
   return maxpool_layer(conv)
 
 
+class DisMax(tf.keras.layers.Layer):
+  r"""Implements the output layer of model for Distinction Maximization Loss.
+
+  In Distinction Maximization loss, the logits produced by the output layer of
+  a neural network are defined as `logits = - ||f_{\theta}(x) - W||`/. This
+  layer implements the loss as specified here - https://arxiv.org/abs/1908.05569
+  """
+
+  def __init__(self, num_classes=10):
+    super(DisMax, self).__init__()
+    self.num_classes = num_classes
+
+  def build(self, input_shape):
+    self.w = self.add_weight(
+        'w',
+        shape=(input_shape[-1], self.num_classes),
+        initializer='zeros',
+        trainable=True)
+
+  def call(self, inputs):
+    distances = tf.norm(
+        tf.expand_dims(inputs, axis=-1) - tf.expand_dims(self.w, axis=0),
+        axis=1)
+    # In DM Loss, the probability predictions do not have the alpha term.
+    return -1.0 * distances
+
+
 def textcnn(filter_sizes,
             num_filters,
             num_classes,
@@ -121,7 +148,8 @@ def textcnn(filter_sizes,
             embed_size,
             dropout_rate,
             l2,
-            premade_embedding_arr=None):
+            premade_embedding_arr=None,
+            distance_logits=False):
   """Builds TextCNN model.
 
   Args:
@@ -137,6 +165,7 @@ def textcnn(filter_sizes,
       layer.
     premade_embedding_arr: (np.ndarray) Pre-made word embedding in numpy array
       format, shape (vocab_size, embed_size).
+    distance_logits: (bool) Whether to use distance_logits.
 
   Returns:
     (tf.keras.Model) The TextCNN model.
@@ -172,15 +201,16 @@ def textcnn(filter_sizes,
       dropout_rate, name='dropout')(
           flat_outputs)
 
-  # Dense output.
-  dense_output_layer = tf.keras.layers.Dense(
-      num_classes,
-      activation=None,
-      kernel_initializer='glorot_normal',
-      bias_initializer=tf.keras.initializers.constant(0.1),
-      kernel_regularizer=tf.keras.regularizers.l2(l2),
-      bias_regularizer=tf.keras.regularizers.l2(l2),
-      name='dense')
-  outputs = dense_output_layer(flat_outputs)
+  if distance_logits:
+    outputs = DisMax(num_classes=num_classes)(flat_outputs)
+  else:
+    outputs = tf.keras.layers.Dense(
+        num_classes,
+        activation=None,
+        kernel_initializer='glorot_normal',
+        bias_initializer=tf.keras.initializers.constant(0.1),
+        kernel_regularizer=tf.keras.regularizers.l2(l2),
+        bias_regularizer=tf.keras.regularizers.l2(l2),
+        name='dense')(flat_outputs)
 
   return tf.keras.Model(inputs=inputs, outputs=outputs)
