@@ -13,14 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ensemble of SNGP models on CIFAR.
+"""Ensemble of SNGP models on ImageNet."""
 
-This script only performs evaluation, not training. We recommend training
-ensembles by launching independent runs of `sngp.py` over different
-seeds.
-"""
-
-import functools
 import os
 
 from absl import app
@@ -29,25 +23,25 @@ from absl import logging
 
 import edward2 as ed
 import sngp  # local file import
+import sngp_model  # local file import
 import utils  # local file import
 import numpy as np
 import tensorflow as tf
-import tensorflow_datasets as tfds
 
-# TODO(trandustin): We inherit
-# FLAGS.{dataset,per_core_batch_size,output_dir,seed} from deterministic. This
-# is not intuitive, which suggests we need to either refactor to avoid importing
-# from a binary or duplicate the model definition here.
 flags.DEFINE_string('checkpoint_dir', None,
                     'The directory where the model weights are stored.')
+flags.mark_flag_as_required('checkpoint_dir')
 flags.DEFINE_float(
     'gp_mean_field_factor_ensemble', 0.0005,
     'The tunable multiplicative factor used in the mean-field approximation '
     'for the posterior mean of softmax Gaussian process. If -1 then use '
     'posterior mode instead of posterior mean.')
 
-flags.mark_flag_as_required('checkpoint_dir')
 FLAGS = flags.FLAGS
+
+# Number of images in eval dataset.
+IMAGENET_VALIDATION_IMAGES = 50000
+NUM_CLASSES = 1000
 
 
 def main(argv):
@@ -59,49 +53,35 @@ def main(argv):
   tf.random.set_seed(FLAGS.seed)
   tf.io.gfile.makedirs(FLAGS.output_dir)
 
-  ds_info = tfds.builder(FLAGS.dataset).info
   batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
-  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
-  num_classes = ds_info.features['label'].num_classes
+  steps_per_eval = IMAGENET_VALIDATION_IMAGES // batch_size
 
-  dataset_input_fn = utils.load_input_fn(
-      split=tfds.Split.TEST,
-      name=FLAGS.dataset,
+  dataset_test = utils.ImageNetInput(
+      is_training=False,
+      data_dir=FLAGS.data_dir,
       batch_size=FLAGS.per_core_batch_size,
-      use_bfloat16=FLAGS.use_bfloat16)
-  test_datasets = {'clean': dataset_input_fn()}
-  corruption_types, max_intensity = utils.load_corrupted_test_info(
-      FLAGS.dataset)
+      use_bfloat16=False).input_fn()
+  test_datasets = {'clean': dataset_test}
+  corruption_types, max_intensity = utils.load_corrupted_test_info()
   for name in corruption_types:
     for intensity in range(1, max_intensity + 1):
       dataset_name = '{0}_{1}'.format(name, intensity)
-      if FLAGS.dataset == 'cifar10':
-        load_c_dataset = utils.load_cifar10_c_input_fn
-      else:
-        load_c_dataset = functools.partial(
-            utils.load_cifar100_c_input_fn, path=FLAGS.cifar100_c_path)
-      corrupted_input_fn = load_c_dataset(
-          corruption_name=name,
-          corruption_intensity=intensity,
+      test_datasets[dataset_name] = utils.load_corrupted_test_dataset(
+          name=name,
+          intensity=intensity,
           batch_size=FLAGS.per_core_batch_size,
-          use_bfloat16=FLAGS.use_bfloat16)
-      test_datasets[dataset_name] = corrupted_input_fn()
+          drop_remainder=True,
+          use_bfloat16=False)
 
-  model = sngp.wide_resnet(
-      input_shape=ds_info.features['image'].shape,
-      batch_size=FLAGS.per_core_batch_size,
-      depth=28,
-      width_multiplier=10,
-      num_classes=num_classes,
-      l2=0.,
-      dropout_rate=FLAGS.dropout_rate,
-      use_mc_dropout=FLAGS.use_mc_dropout,
-      gp_input_dim=FLAGS.gp_input_dim,
-      use_gp_layer=FLAGS.use_gp_layer)
+  model = sngp_model.resnet50(input_shape=(224, 224, 3),
+                              batch_size=FLAGS.per_core_batch_size,
+                              num_classes=NUM_CLASSES,
+                              conv_layer=sngp.CONV_LAYER,
+                              output_layer=sngp.OUTPUT_LAYER)
+
   logging.info('Model input shape: %s', model.input_shape)
   logging.info('Model output shape: %s', model.output_shape)
   logging.info('Model number of weights: %s', model.count_params())
-
   # Search for checkpoints from their index file; then remove the index suffix.
   ensemble_filenames = tf.io.gfile.glob(os.path.join(FLAGS.checkpoint_dir,
                                                      '**/*.index'))
@@ -153,8 +133,8 @@ def main(argv):
     corrupt_metrics['test/nll_{}'.format(name)] = tf.keras.metrics.Mean()
     corrupt_metrics['test/accuracy_{}'.format(name)] = (
         tf.keras.metrics.SparseCategoricalAccuracy())
-    corrupt_metrics['test/ece_{}'.format(name)] = (
-        ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+    corrupt_metrics['test/ece_{}'.format(
+        name)] = ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins)
 
   # Evaluate model predictions.
   for n, (name, test_dataset) in enumerate(test_datasets.items()):
@@ -170,7 +150,7 @@ def main(argv):
     for step in range(steps_per_eval):
       _, labels = next(test_iterator)  # pytype: disable=attribute-error
       logits = logits_dataset[:, (step*batch_size):((step+1)*batch_size)]
-      labels = tf.cast(labels, tf.int32)
+      labels = tf.cast(tf.reshape(labels, [-1]), tf.int32)
       negative_log_likelihood = tf.reduce_mean(
           utils.ensemble_negative_log_likelihood(labels, logits))
       per_probs = tf.nn.softmax(logits)
@@ -196,7 +176,8 @@ def main(argv):
 
   corrupt_results = utils.aggregate_corrupt_metrics(corrupt_metrics,
                                                     corruption_types,
-                                                    max_intensity)
+                                                    max_intensity,
+                                                    FLAGS.alexnet_errors_path)
   total_results = {name: metric.result() for name, metric in metrics.items()}
   total_results.update(corrupt_results)
   logging.info('Metrics: %s', total_results)

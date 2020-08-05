@@ -21,7 +21,7 @@ from version import __version__  # pylint: disable=g-import-not-at-top
 
 setup(
     name='edward2',
-    version='0.0.1',
+    version=__version__,
     description='Edward2',
     author='Edward2 Team',
     author_email='trandustin@google.com',

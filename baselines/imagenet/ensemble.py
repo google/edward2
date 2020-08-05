@@ -57,59 +57,6 @@ IMAGENET_VALIDATION_IMAGES = 50000
 NUM_CLASSES = 1000
 
 
-def ensemble_negative_log_likelihood(labels, logits):
-  """Negative log-likelihood for ensemble.
-
-  For each datapoint (x,y), the ensemble's negative log-likelihood is:
-
-  ```
-  -log p(y|x) = -log sum_{m=1}^{ensemble_size} exp(log p(y|x,theta_m)) +
-                log ensemble_size.
-  ```
-
-  Args:
-    labels: tf.Tensor of shape [...].
-    logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
-
-  Returns:
-    tf.Tensor of shape [...].
-  """
-  labels = tf.cast(labels, tf.int32)
-  logits = tf.convert_to_tensor(logits)
-  ensemble_size = float(logits.shape[0])
-  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
-      logits)
-  return -tf.reduce_logsumexp(-nll, axis=0) + tf.math.log(ensemble_size)
-
-
-def gibbs_cross_entropy(labels, logits):
-  """Average cross entropy for ensemble members (Gibbs cross entropy).
-
-  For each datapoint (x,y), the ensemble's Gibbs cross entropy is:
-
-  ```
-  GCE = - (1/ensemble_size) sum_{m=1}^ensemble_size log p(y|x,theta_m).
-  ```
-
-  The Gibbs cross entropy approximates the average cross entropy of a single
-  model drawn from the (Gibbs) ensemble.
-
-  Args:
-    labels: tf.Tensor of shape [...].
-    logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
-
-  Returns:
-    tf.Tensor of shape [...].
-  """
-  labels = tf.cast(labels, tf.int32)
-  logits = tf.convert_to_tensor(logits)
-  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
-      logits)
-  return tf.reduce_mean(nll, axis=0)
-
-
 def main(argv):
   del argv  # unused arg
   if not FLAGS.use_gpu:
@@ -212,11 +159,11 @@ def main(argv):
       logits = logits_dataset[:, (step*batch_size):((step+1)*batch_size)]
       labels = tf.cast(tf.reshape(labels, [-1]), tf.int32)
       negative_log_likelihood = tf.reduce_mean(
-          ensemble_negative_log_likelihood(labels, logits))
+          utils.ensemble_negative_log_likelihood(labels, logits))
       per_probs = tf.nn.softmax(logits)
       probs = tf.reduce_mean(per_probs, axis=0)
       if name == 'clean':
-        gibbs_ce = tf.reduce_mean(gibbs_cross_entropy(labels, logits))
+        gibbs_ce = tf.reduce_mean(utils.gibbs_cross_entropy(labels, logits))
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)
         metrics['test/gibbs_cross_entropy'].update_state(gibbs_ce)
