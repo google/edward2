@@ -142,6 +142,16 @@ def main(argv):
         tf.keras.metrics.SparseCategoricalAccuracy())
     corrupt_metrics['test/ece_{}'.format(name)] = (
         ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+  for i in range(ensemble_size):
+    metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
+    metrics['test/accuracy_member_{}'.format(i)] = (
+        tf.keras.metrics.SparseCategoricalAccuracy())
+  test_diversity = {
+      'test/disagreement': tf.keras.metrics.Mean(),
+      'test/average_kl': tf.keras.metrics.Mean(),
+      'test/cosine_similarity': tf.keras.metrics.Mean(),
+  }
+  metrics.update(test_diversity)
 
   # Evaluate model predictions.
   for n, (name, test_dataset) in enumerate(test_datasets.items()):
@@ -169,6 +179,18 @@ def main(argv):
         metrics['test/gibbs_cross_entropy'].update_state(gibbs_ce)
         metrics['test/accuracy'].update_state(labels, probs)
         metrics['test/ece'].update_state(labels, probs)
+
+        for i in range(ensemble_size):
+          member_probs = per_probs[i]
+          member_loss = tf.keras.losses.sparse_categorical_crossentropy(
+              labels, member_probs)
+          metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
+          metrics['test/accuracy_member_{}'.format(i)].update_state(
+              labels, member_probs)
+        diversity_results = ed.metrics.average_pairwise_diversity(
+            per_probs, ensemble_size)
+        for k, v in diversity_results.items():
+          test_diversity['test/' + k].update_state(v)
       else:
         corrupt_metrics['test/nll_{}'.format(name)].update_state(
             negative_log_likelihood)
