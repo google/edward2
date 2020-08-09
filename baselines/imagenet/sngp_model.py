@@ -33,12 +33,7 @@ DEFAULT_OUTPUT_LAYER = functools.partial(
     name='fc1000')
 
 
-def bottleneck_block(inputs,
-                     filters,
-                     stage,
-                     block,
-                     strides,
-                     conv_layer):
+def bottleneck_block(inputs, filters, stage, block, strides, conv_layer):
   """Residual block with 1x1 -> 3x3 -> 1x1 convs in main path.
 
   Note that strides appear in the second conv (3x3) rather than the first (1x1).
