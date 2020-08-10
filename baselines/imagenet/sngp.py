@@ -67,7 +67,7 @@ flags.DEFINE_string('alexnet_errors_path', None,
 flags.DEFINE_integer('num_bins', 15, 'Number of bins for ECE computation.')
 
 # SNGP flags.
-flags.DEFINE_bool('use_spec_norm', True,
+flags.DEFINE_bool('use_spec_norm', False,
                   'Whether to apply spectral normalization.')
 flags.DEFINE_bool('use_gp_layer', True,
                   'Whether to use Gaussian process as the output layer.')
