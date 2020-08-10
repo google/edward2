@@ -24,10 +24,10 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from uncertainty_baselines.baselines.cifar import utils
 
 # ~24.4 steps per epoch for 4x4 TPU; per_core_batch_size=64; 300 epochs;
 # so 2/3 of training time.

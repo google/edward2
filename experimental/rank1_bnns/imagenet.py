@@ -23,9 +23,9 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-from baselines.imagenet import utils  # local file import
 from experimental.rank1_bnns import imagenet_model  # local file import
 import tensorflow as tf
+from uncertainty_baselines.baselines.imagenet import utils
 
 flags.DEFINE_integer('kl_annealing_epochs', 90,
                      'Number of epochs over which to anneal the KL term to 1.')

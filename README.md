@@ -7,8 +7,6 @@ training and inference. It's organized as follows:
 
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
   Library code.
-* [`baselines/`](https://github.com/google/edward2/blob/master/baselines):
-  High-quality implementations of uncertainty models with good performance.
 * [`examples/`](https://github.com/google/edward2/blob/master/examples):
   Examples.
 * [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
@@ -20,7 +18,7 @@ The core utilities are fairly low-level: if you'd like a high-level module for
 uncertainty modeling, check out the guide for
 [Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
 We recommend the
-[`baselines/`](https://github.com/google/edward2/blob/master/baselines)
+[Uncertainty Baselines](https://github.com/google/uncertainty-baselines)
 if you'd like to build on research-ready code.
 
 ## Installation

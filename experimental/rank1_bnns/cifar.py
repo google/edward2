@@ -23,12 +23,12 @@ from absl import flags
 from absl import logging
 
 import edward2 as ed
-from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import cifar_model  # local file import
 from experimental.rank1_bnns import refining  # local file import
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from uncertainty_baselines.baselines.cifar import utils
 
 flags.DEFINE_integer('kl_annealing_epochs', 200,
                      'Number of epoch over which to anneal the KL term to 1.')

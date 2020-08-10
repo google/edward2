@@ -15,11 +15,11 @@
 
 # Lint as: python3
 """Utilities for sampling."""
-from baselines.cifar import utils  # local file import
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from uncertainty_baselines.baselines.cifar import utils
 
 
 def get_auxiliary_posterior(posterior_mean,
