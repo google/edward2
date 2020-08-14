@@ -22,10 +22,10 @@ from absl import app
 from absl import flags
 from absl import logging
 
-import edward2 as ed
 from experimental.rank1_bnns import imagenet_model  # local file import
 import tensorflow as tf
 from uncertainty_baselines.baselines.imagenet import utils
+import uncertainty_metrics as um
 
 flags.DEFINE_integer('kl_annealing_epochs', 90,
                      'Number of epochs over which to anneal the KL term to 1.')
@@ -188,14 +188,12 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
+        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'train/kl': tf.keras.metrics.Mean(),
         'train/kl_scale': tf.keras.metrics.Mean(),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'test/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
+        'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
@@ -207,7 +205,7 @@ def main(argv):
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
-              ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+              um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
     test_diversity = {}
     training_diversity = {}
@@ -258,7 +256,7 @@ def main(argv):
         if FLAGS.ensemble_size > 1:
           per_probs = tf.reshape(
               probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-          diversity_results = ed.metrics.average_pairwise_diversity(
+          diversity_results = um.average_pairwise_diversity(
               per_probs, FLAGS.ensemble_size)
 
         negative_log_likelihood = tf.reduce_mean(
@@ -346,7 +344,7 @@ def main(argv):
       if dataset_name == 'clean':
         if FLAGS.ensemble_size > 1:
           per_probs = tf.reduce_mean(all_probs, axis=0)  # marginalize samples
-          diversity_results = ed.metrics.average_pairwise_diversity(
+          diversity_results = um.average_pairwise_diversity(
               per_probs, FLAGS.ensemble_size)
           for k, v in diversity_results.items():
             test_diversity['test/' + k].update_state(v)

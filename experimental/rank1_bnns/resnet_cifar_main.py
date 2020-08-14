@@ -23,11 +23,11 @@ from absl import app
 from absl import flags
 from absl import logging
 
-import edward2 as ed
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from uncertainty_baselines.baselines.cifar import utils
+import uncertainty_metrics as um
 
 # ~24.4 steps per epoch for 4x4 TPU; per_core_batch_size=64; 300 epochs;
 # so 2/3 of training time.
@@ -218,12 +218,10 @@ def main(argv):
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
         'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
+        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'test/ece': ed.metrics.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins),
+        'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'test/loss': tf.keras.metrics.Mean(),
     }
     if FLAGS.corruptions_interval > 0:
@@ -236,7 +234,7 @@ def main(argv):
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
-              ed.metrics.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
+              um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
     test_diversity = {}
     training_diversity = {}
@@ -288,7 +286,7 @@ def main(argv):
           per_probs = tf.reshape(
               probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
 
-          diversity_results = ed.metrics.average_pairwise_diversity(
+          diversity_results = um.average_pairwise_diversity(
               per_probs, FLAGS.ensemble_size)
 
         if FLAGS.num_train_samples > 1:
@@ -391,7 +389,7 @@ def main(argv):
         if dataset_name == 'clean':
           per_probs_tensor = tf.reshape(
               probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-          diversity_results = ed.metrics.average_pairwise_diversity(
+          diversity_results = um.average_pairwise_diversity(
               per_probs_tensor, FLAGS.ensemble_size)
 
           for k, v in diversity_results.items():
