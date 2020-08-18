@@ -264,6 +264,32 @@ class NormalEmpiricalBayesKLDivergence(NormalKLDivergence):
     }
 
 
+class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
+  """KL with normal prior whose mean is fixed at the variational posterior's."""
+
+  def __init__(self, stddev=1., scale_factor=1.):
+    """Constructs regularizer."""
+    self.stddev = stddev
+    self.scale_factor = scale_factor
+
+  def __call__(self, x):
+    """Computes regularization given an ed.Normal random variable as input."""
+    if not isinstance(x, random_variable.RandomVariable):
+      raise ValueError('Input must be an ed.RandomVariable.')
+    prior = generated_random_variables.Independent(
+        generated_random_variables.Normal(loc=x.distribution.mean(),
+                                          scale=self.stddev).distribution,
+        reinterpreted_batch_ndims=len(x.distribution.event_shape))
+    regularization = x.distribution.kl_divergence(prior.distribution)
+    return self.scale_factor * regularization
+
+  def get_config(self):
+    return {
+        'stddev': self.stddev,
+        'scale_factor': self.scale_factor,
+    }
+
+
 class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
   """Normal KL divergence with trainable stddev parameter."""
 
