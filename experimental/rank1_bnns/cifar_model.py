@@ -16,6 +16,7 @@
 # Lint as: python3
 """Wide ResNet architecture with rank-1 distributions."""
 import functools
+import edward2 as ed
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
@@ -223,7 +224,7 @@ def wide_resnet(input_shape,
   x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = rank1_bnn_layers.DenseRank1(
+  x = ed.layers.DenseRank1(
       num_classes,
       alpha_initializer=utils.make_initializer(alpha_initializer,
                                                random_sign_init,

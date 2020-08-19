@@ -22,6 +22,7 @@
 Adapted from code contributed by BigMoyan.
 """
 import functools
+import edward2 as ed
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
@@ -185,7 +186,7 @@ def rank1_resnet_v1(input_shape,
   # v1 does not use BN after last shortcut connection-ReLU
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = rank1_bnn_layers.DenseRank1(
+  x = ed.layers.DenseRank1(
       num_classes,
       activation=None,
       alpha_initializer=utils.make_initializer(alpha_initializer,

@@ -320,7 +320,7 @@ def rank1_resnet50(input_shape,
   x = group_(x, [256, 256, 1024], stage=4, num_blocks=6, strides=2)
   x = group_(x, [512, 512, 2048], stage=5, num_blocks=3, strides=2)
   x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
-  x = rank1_bnn_layers.DenseRank1(
+  x = ed.layers.DenseRank1(
       num_classes,
       alpha_initializer=utils.make_initializer(alpha_initializer,
                                                random_sign_init,

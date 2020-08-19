@@ -190,6 +190,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseReparameterization},
       {"layer": ed.layers.DenseVariationalDropout},
       {"layer": ed.layers.DenseHierarchical},
+      {"layer": ed.layers.DenseRank1},
   )
   def testDenseModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
@@ -205,6 +206,8 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(outputs.shape, (3, 2))
     if layer == ed.layers.DenseHierarchical:
       self.assertLen(model.losses, 3)
+    elif layer == ed.layers.DenseRank1:
+      self.assertLen(model.losses, 2)
     else:
       self.assertLen(model.losses, 1)
 
@@ -307,6 +310,135 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     expected_shape = (ensemble_size * examples_per_model, output_dim)
     self.assertEqual(batch_outputs.shape, expected_shape)
     self.assertAllClose(batch_outputs, loop_outputs)
+
+  @parameterized.parameters(
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "bias_initializer": "zeros"},
+      {"alpha_initializer": "trainable_deterministic",
+       "gamma_initializer": "trainable_deterministic",
+       "bias_initializer": "trainable_deterministic"},
+  )
+  def testDenseRank1BatchEnsemble(self,
+                                  alpha_initializer,
+                                  gamma_initializer,
+                                  bias_initializer):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    ensemble_size = 3
+    examples_per_model = 4
+    input_dim = 5
+    output_dim = 5
+    inputs = tf.random.normal([examples_per_model, input_dim])
+    batched_inputs = tf.tile(inputs, [ensemble_size, 1])
+    layer = ed.layers.DenseRank1(
+        output_dim,
+        alpha_initializer=alpha_initializer,
+        gamma_initializer=gamma_initializer,
+        bias_initializer=bias_initializer,
+        alpha_regularizer=None,
+        gamma_regularizer=None,
+        activation=None,
+        ensemble_size=ensemble_size)
+
+    output = layer(batched_inputs)
+    manual_output = [
+        layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
+        for i in range(ensemble_size)]
+    manual_output = tf.concat(manual_output, axis=0)
+
+    expected_shape = (ensemble_size*examples_per_model, output_dim)
+    self.assertEqual(output.shape, expected_shape)
+    self.assertAllClose(output, manual_output)
+
+  @parameterized.parameters(
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "trainable_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "trainable_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+  )
+  def testDenseRank1AlphaGamma(self,
+                               alpha_initializer,
+                               gamma_initializer,
+                               all_close,
+                               use_additive_perturbation,
+                               ensemble_size):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    inputs = np.random.rand(5*ensemble_size, 12).astype(np.float32)
+    model = ed.layers.DenseRank1(
+        4,
+        ensemble_size=ensemble_size,
+        alpha_initializer=alpha_initializer,
+        gamma_initializer=gamma_initializer,
+        activation=None)
+    outputs1 = model(inputs)
+    outputs2 = model(inputs)
+    self.assertEqual(outputs1.shape, (5*ensemble_size, 4))
+    if all_close:
+      self.assertAllClose(outputs1, outputs2)
+    else:
+      self.assertNotAllClose(outputs1, outputs2)
+    model.get_config()
 
 
 if __name__ == "__main__":

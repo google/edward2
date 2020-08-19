@@ -32,6 +32,7 @@ from edward2.tensorflow.layers.dense import DenseBatchEnsemble
 from edward2.tensorflow.layers.dense import DenseDVI
 from edward2.tensorflow.layers.dense import DenseFlipout
 from edward2.tensorflow.layers.dense import DenseHierarchical
+from edward2.tensorflow.layers.dense import DenseRank1
 from edward2.tensorflow.layers.dense import DenseReparameterization
 from edward2.tensorflow.layers.dense import DenseVariationalDropout
 from edward2.tensorflow.layers.discrete_flows import DiscreteAutoregressiveFlow
@@ -77,6 +78,7 @@ _allowed_symbols = [
     "DenseFlipout",
     "DenseHierarchical",
     "DenseReparameterization",
+    "DenseRank1",
     "DenseVariationalDropout",
     "DepthwiseCondConv2D",
     "DepthwiseConv2DBatchEnsemble",

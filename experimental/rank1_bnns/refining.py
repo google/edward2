@@ -15,6 +15,7 @@
 
 # Lint as: python3
 """Utilities for sampling."""
+import edward2 as ed
 from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 import numpy as np
 import tensorflow as tf
@@ -86,7 +87,7 @@ def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
       to the variance of the prior. (0 < auxiliary_var_ratio < 1)
   """
   for layer in model.layers:
-    if (isinstance(layer, rank1_bnn_layers.DenseRank1) or
+    if (isinstance(layer, ed.layers.DenseRank1) or
         isinstance(layer, rank1_bnn_layers.Conv2DRank1)):
       for initializer, regularizer in [(layer.alpha_initializer,
                                         layer.alpha_regularizer),
@@ -130,7 +131,7 @@ def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
 def freeze_rank1_weights(model):
   """Freeze the weight matrices of the rank1 BNN layers."""
   for layer in model.layers:
-    if isinstance(layer, rank1_bnn_layers.DenseRank1):
+    if isinstance(layer, ed.layers.DenseRank1):
       layer.dense.trainable = False
     elif isinstance(layer, rank1_bnn_layers.Conv2DRank1):
       layer.conv2d.trainable = False
