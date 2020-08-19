@@ -186,12 +186,15 @@ def main(argv):
                                         nesterov=True)
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'train/kl': tf.keras.metrics.Mean(),
         'train/kl_scale': tf.keras.metrics.Mean(),
+        'train/elbo': tf.keras.metrics.Mean(),
+        'train/loss': tf.keras.metrics.Mean(),
+        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'test/kl': tf.keras.metrics.Mean(),
+        'test/elbo': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
@@ -201,6 +204,10 @@ def main(argv):
         for corruption in corruption_types:
           dataset_name = '{0}_{1}'.format(corruption, intensity)
           corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/kl_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/elbo_{}'.format(dataset_name)] = (
               tf.keras.metrics.Mean())
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
@@ -237,6 +244,20 @@ def main(argv):
       logging.info('Loaded checkpoint %s', latest_checkpoint)
       initial_epoch = optimizer.iterations.numpy() // steps_per_epoch
 
+  def compute_l2_loss(model):
+    filtered_variables = []
+    for var in model.trainable_variables:
+      # Apply l2 on the BN parameters and bias terms. This
+      # excludes only fast weight approximate posterior/prior parameters,
+      # but pay caution to their naming scheme.
+      if ('kernel' in var.name or
+          'batch_norm' in var.name or
+          'bias' in var.name):
+        filtered_variables.append(tf.reshape(var, (-1,)))
+    l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
+        tf.concat(filtered_variables, axis=0))
+    return l2_loss
+
   @tf.function
   def train_step(iterator):
     """Training StepFn."""
@@ -263,26 +284,17 @@ def main(argv):
             tf.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True))
-        filtered_variables = []
-        for var in model.trainable_variables:
-          # Apply l2 on the BN parameters and bias terms. This
-          # excludes only fast weight approximate posterior/prior parameters,
-          # but pay caution to their naming scheme.
-          if ('kernel' in var.name or
-              'batch_norm' in var.name or
-              'bias' in var.name):
-            filtered_variables.append(tf.reshape(var, (-1,)))
-
-        l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
-            tf.concat(filtered_variables, axis=0))
+        l2_loss = compute_l2_loss(model)
         kl = sum(model.losses) / APPROX_IMAGENET_TRAIN_IMAGES
         kl_scale = tf.cast(optimizer.iterations + 1, kl.dtype)
         kl_scale /= steps_per_epoch * FLAGS.kl_annealing_epochs
         kl_scale = tf.minimum(1., kl_scale)
         kl_loss = kl_scale * kl
-        loss = negative_log_likelihood + l2_loss + kl_loss
+
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
+        loss = negative_log_likelihood + l2_loss + kl_loss
         scaled_loss = loss / strategy.num_replicas_in_sync
+        elbo = -(negative_log_likelihood + l2_loss + kl)
 
       grads = tape.gradient(scaled_loss, model.trainable_variables)
 
@@ -301,13 +313,14 @@ def main(argv):
       else:
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-      metrics['train/ece'].update_state(labels, probs)
-      metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/kl'].update_state(kl)
       metrics['train/kl_scale'].update_state(kl_scale)
+      metrics['train/elbo'].update_state(elbo)
+      metrics['train/loss'].update_state(loss)
       metrics['train/accuracy'].update_state(labels, logits)
+      metrics['train/ece'].update_state(labels, probs)
       if FLAGS.ensemble_size > 1:
         for k, v in diversity_results.items():
           training_diversity['train/' + k].update_state(v)
@@ -341,6 +354,10 @@ def main(argv):
           -tf.reduce_logsumexp(log_likelihoods, axis=[0, 1]) +
           tf.math.log(float(FLAGS.num_eval_samples * FLAGS.ensemble_size)))
 
+      l2_loss = compute_l2_loss(model)
+      kl = sum(model.losses) / IMAGENET_VALIDATION_IMAGES
+      elbo = -(negative_log_likelihood + l2_loss + kl)
+
       if dataset_name == 'clean':
         if FLAGS.ensemble_size > 1:
           per_probs = tf.reduce_mean(all_probs, axis=0)  # marginalize samples
@@ -358,11 +375,15 @@ def main(argv):
 
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)
+        metrics['test/kl'].update_state(kl)
+        metrics['test/elbo'].update_state(elbo)
         metrics['test/accuracy'].update_state(labels, probs)
         metrics['test/ece'].update_state(labels, probs)
       else:
         corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
             negative_log_likelihood)
+        corrupt_metrics['test/kl_{}'.format(dataset_name)].update_state(kl)
+        corrupt_metrics['test/elbo_{}'.format(dataset_name)].update_state(elbo)
         corrupt_metrics['test/accuracy_{}'.format(dataset_name)].update_state(
             labels, probs)
         corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(

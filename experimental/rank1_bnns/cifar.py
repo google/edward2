@@ -173,7 +173,8 @@ def main(argv):
                 FLAGS.num_cores)
   train_dataset_size = ds_info.splits['train'].num_examples
   steps_per_epoch = train_dataset_size // batch_size
-  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
+  test_dataset_size = ds_info.splits['test'].num_examples
+  steps_per_eval = test_dataset_size // batch_size
   num_classes = ds_info.features['label'].num_classes
 
   if FLAGS.use_bfloat16:
@@ -220,12 +221,15 @@ def main(argv):
                                         nesterov=True)
     metrics = {
         'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
-        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'train/kl': tf.keras.metrics.Mean(),
         'train/kl_scale': tf.keras.metrics.Mean(),
+        'train/elbo': tf.keras.metrics.Mean(),
+        'train/loss': tf.keras.metrics.Mean(),
+        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
         'test/negative_log_likelihood': tf.keras.metrics.Mean(),
+        'test/kl': tf.keras.metrics.Mean(),
+        'test/elbo': tf.keras.metrics.Mean(),
         'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
@@ -241,6 +245,10 @@ def main(argv):
           dataset_name = '{0}_{1}'.format(corruption, intensity)
           corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
               tf.keras.metrics.Mean())
+          corrupt_metrics['test/kl_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
+          corrupt_metrics['test/elbo_{}'.format(dataset_name)] = (
+              tf.keras.metrics.Mean())
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
@@ -255,6 +263,20 @@ def main(argv):
       checkpoint.restore(latest_checkpoint)
       logging.info('Loaded checkpoint %s', latest_checkpoint)
       initial_epoch = optimizer.iterations.numpy() // steps_per_epoch
+
+  def compute_l2_loss(model):
+    filtered_variables = []
+    for var in model.trainable_variables:
+      # Apply l2 on the BN parameters and bias terms. This
+      # excludes only fast weight approximate posterior/prior parameters,
+      # but pay caution to their naming scheme.
+      if ('kernel' in var.name or
+          'batch_norm' in var.name or
+          'bias' in var.name):
+        filtered_variables.append(tf.reshape(var, (-1,)))
+    l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
+        tf.concat(filtered_variables, axis=0))
+    return l2_loss
 
   @tf.function
   def train_step(iterator):
@@ -274,18 +296,7 @@ def main(argv):
             tf.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True))
-        filtered_variables = []
-        for var in model.trainable_variables:
-          # Apply l2 on the BN parameters and bias terms. This
-          # excludes only fast weight approximate posterior/prior parameters,
-          # but pay caution to their naming scheme.
-          if ('kernel' in var.name or
-              'batch_norm' in var.name or
-              'bias' in var.name):
-            filtered_variables.append(tf.reshape(var, (-1,)))
-
-        l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
-            tf.concat(filtered_variables, axis=0))
+        l2_loss = compute_l2_loss(model)
         kl = sum(model.losses) / train_dataset_size
         kl_scale = tf.cast(optimizer.iterations + 1, kl.dtype)
         kl_scale /= steps_per_epoch * FLAGS.kl_annealing_epochs
@@ -295,6 +306,7 @@ def main(argv):
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
         loss = negative_log_likelihood + l2_loss + kl_loss
         scaled_loss = loss / strategy.num_replicas_in_sync
+        elbo = -(negative_log_likelihood + l2_loss + kl)
 
       grads = tape.gradient(scaled_loss, model.trainable_variables)
 
@@ -316,13 +328,14 @@ def main(argv):
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
       probs = tf.nn.softmax(logits)
-      metrics['train/ece'].update_state(labels, probs)
-      metrics['train/loss'].update_state(loss)
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/kl'].update_state(kl)
       metrics['train/kl_scale'].update_state(kl_scale)
-      metrics['train/accuracy'].update_state(labels, logits)
+      metrics['train/elbo'].update_state(elbo)
+      metrics['train/loss'].update_state(loss)
+      metrics['train/accuracy'].update_state(labels, probs)
+      metrics['train/ece'].update_state(labels, probs)
 
     strategy.run(step_fn, args=(next(iterator),))
 
@@ -363,14 +376,22 @@ def main(argv):
           tf.math.log(float(FLAGS.num_eval_samples * FLAGS.ensemble_size)))
       probs = tf.math.reduce_mean(probs, axis=[0, 1])  # marginalize
 
+      l2_loss = compute_l2_loss(model)
+      kl = sum(model.losses) / test_dataset_size
+      elbo = -(negative_log_likelihood + l2_loss + kl)
+
       if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(
             negative_log_likelihood)
+        metrics['test/kl'].update_state(kl)
+        metrics['test/elbo'].update_state(elbo)
         metrics['test/accuracy'].update_state(labels, probs)
         metrics['test/ece'].update_state(labels, probs)
       else:
         corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
             negative_log_likelihood)
+        corrupt_metrics['test/kl_{}'.format(dataset_name)].update_state(kl)
+        corrupt_metrics['test/elbo_{}'.format(dataset_name)].update_state(elbo)
         corrupt_metrics['test/accuracy_{}'.format(dataset_name)].update_state(
             labels, probs)
         corrupt_metrics['test/ece_{}'.format(dataset_name)].update_state(
