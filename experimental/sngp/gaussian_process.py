@@ -16,7 +16,7 @@
 # Lint as: python3
 """Definitions for random feature Gaussian process layer."""
 import math
-import tensorflow as tf
+import tensorflow.compat.v2 as tf
 
 
 class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
