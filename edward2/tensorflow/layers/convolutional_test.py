@@ -177,19 +177,14 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(outputs.shape, (3, 2))
     self.assertLen(model.losses, 1)
 
-  @parameterized.parameters(
-      {"layer_cls": ed.layers.Conv2DBatchEnsemble},
-      {"layer_cls": ed.layers.DepthwiseConv2DBatchEnsemble},
-  )
-  def testConv2DBatchEnsemble(self, layer_cls):
+
+  def testDepthwiseConv2DBatchEnsemble(self):
     """Tests that vectorized implementation is same as for loop."""
     ensemble_size = 2
     examples_per_model = 3
     channels = 5
     inputs = tf.random.normal([examples_per_model, 4, 4, channels])
-    if layer_cls == ed.layers.Conv2DBatchEnsemble:
-      layer_cls = functools.partial(layer_cls, filters=channels)
-    layer = layer_cls(
+    layer = ed.layers.DepthwiseConv2DBatchEnsemble(
         kernel_size=2,
         ensemble_size=ensemble_size,
         activation=None)
@@ -199,6 +194,32 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     loop_outputs = [
         layer.conv2d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
         for i in range(ensemble_size)]
+    loop_outputs = tf.concat(loop_outputs, axis=0)
+
+    expected_shape = (ensemble_size * examples_per_model, 3, 3, channels)
+    self.assertEqual(batch_outputs.shape, expected_shape)
+    self.assertAllClose(batch_outputs, loop_outputs)
+
+  def testConv2DBatchEnsemble(self):
+    """Tests that vectorized implementation is same as for loop."""
+    ensemble_size = 2
+    examples_per_model = 3
+    channels = 5
+    inputs = tf.random.normal([examples_per_model, 4, 4, channels])
+    layer = ed.layers.Conv2DBatchEnsemble(
+        filters=channels,
+        kernel_size=2,
+        ensemble_size=ensemble_size,
+        activation=None)
+
+    batch_inputs = tf.tile(inputs, [ensemble_size, 1, 1, 1])
+    batch_outputs = layer(batch_inputs)
+
+    loop_outputs = [
+        super(ed.layers.Conv2DBatchEnsemble, layer).call(
+            inputs * layer.alpha[i]) * layer.gamma[i] + layer.ensemble_bias[i]
+        for i in range(ensemble_size)
+    ]
     loop_outputs = tf.concat(loop_outputs, axis=0)
 
     expected_shape = (ensemble_size * examples_per_model, 3, 3, channels)
@@ -219,8 +240,10 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     batch_inputs = tf.tile(inputs, [ensemble_size, 1, 1])
     batch_outputs = layer(batch_inputs)
     loop_outputs = [
-        layer.conv1d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-        for i in range(ensemble_size)]
+        super(ed.layers.Conv1DBatchEnsemble, layer).call(
+            inputs * layer.alpha[i]) * layer.gamma[i] + layer.ensemble_bias[i]
+        for i in range(ensemble_size)
+    ]
     loop_outputs = tf.concat(loop_outputs, axis=0)
 
     expected_shape = (ensemble_size * examples_per_model, 3, channels)

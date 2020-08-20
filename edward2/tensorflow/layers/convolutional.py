@@ -549,7 +549,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         false_fn=lambda: super(Conv2DVariationalDropout, self).call(inputs))
 
 
-class Conv2DBatchEnsemble(tf.keras.layers.Layer):
+class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
   """A batch ensemble convolutional layer."""
 
   def __init__(self,
@@ -572,17 +572,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
                kernel_constraint=None,
                bias_constraint=None,
                **kwargs):
-    super(Conv2DBatchEnsemble, self).__init__(**kwargs)
-    self.rank = rank
-    self.ensemble_size = ensemble_size
-    self.alpha_initializer = initializers.get(alpha_initializer)
-    self.gamma_initializer = initializers.get(gamma_initializer)
-    self.bias_initializer = initializers.get(bias_initializer)
-    self.bias_regularizer = regularizers.get(bias_regularizer)
-    self.bias_constraint = constraints.get(bias_constraint)
-    self.activation = tf.keras.activations.get(activation)
-    self.use_bias = use_bias
-    self.conv2d = tf.keras.layers.Conv2D(
+    super(Conv2DBatchEnsemble, self).__init__(
         filters=filters,
         kernel_size=kernel_size,
         strides=strides,
@@ -596,13 +586,21 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
         bias_regularizer=None,
         activity_regularizer=activity_regularizer,
         kernel_constraint=kernel_constraint,
-        bias_constraint=None)
-    self.filters = self.conv2d.filters
-    self.kernel_size = self.conv2d.kernel_size
-    self.data_format = self.conv2d.data_format
+        bias_constraint=None,
+        **kwargs)
+    self.rank = rank
+    self.ensemble_size = ensemble_size
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.ensemble_bias_initializer = initializers.get(bias_initializer)
+    self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
+    self.ensemble_bias_constraint = constraints.get(bias_constraint)
+    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.use_ensemble_bias = use_bias
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
+    super(Conv2DBatchEnsemble, self).build(input_shape)
     if self.data_format == 'channels_first':
       input_channel = input_shape[1]
     elif self.data_format == 'channels_last':
@@ -626,17 +624,17 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
-    if self.use_bias:
-      self.bias = self.add_weight(
-          name='bias',
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
           shape=[self.ensemble_size, self.filters],
-          initializer=self.bias_initializer,
-          regularizer=self.bias_regularizer,
-          constraint=self.bias_constraint,
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
           trainable=True,
           dtype=self.dtype)
     else:
-      self.bias = None
+      self.ensemble_bias = None
     self.built = True
 
   def call(self, inputs):
@@ -660,7 +658,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
       perturb_inputs = tf.expand_dims(inputs, 0) * alpha
       perturb_inputs = tf.reshape(perturb_inputs, tf.concat(
           [[-1], perturb_inputs.shape[2:]], 0))
-      outputs = self.conv2d(perturb_inputs)
+      outputs = super(Conv2DBatchEnsemble, self).call(perturb_inputs)
 
       outputs = tf.reshape(outputs, tf.concat(
           [[self.rank, -1], outputs.shape[1:]], 0))
@@ -675,40 +673,36 @@ class Conv2DBatchEnsemble(tf.keras.layers.Layer):
       alpha = tf.expand_dims(alpha, axis=axis_change)
       gamma = tf.expand_dims(gamma, axis=axis_change)
       gamma = tf.expand_dims(gamma, axis=axis_change)
-      outputs = self.conv2d(inputs*alpha) * gamma
+      outputs = super(Conv2DBatchEnsemble, self).call(inputs*alpha) * gamma
 
-    if self.use_bias:
-      bias = tf.reshape(tf.tile(self.bias, [1, examples_per_model]),
+    if self.use_ensemble_bias:
+      bias = tf.reshape(tf.tile(self.ensemble_bias, [1, examples_per_model]),
                         [batch_size, self.filters])
       bias = tf.expand_dims(bias, axis=axis_change)
       bias = tf.expand_dims(bias, axis=axis_change)
       outputs += bias
 
-    if self.activation is not None:
-      outputs = self.activation(outputs)
+    if self.ensemble_activation is not None:
+      outputs = self.ensemble_activation(outputs)
     return outputs
-
-  def compute_output_shape(self, input_shape):
-    return self.conv2d.compute_output_shape(input_shape)
 
   def get_config(self):
     config = {
         'ensemble_size': self.ensemble_size,
         'alpha_initializer': initializers.serialize(self.alpha_initializer),
         'gamma_initializer': initializers.serialize(self.gamma_initializer),
-        'bias_initializer': initializers.serialize(self.bias_initializer),
-        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-        'bias_constraint': constraints.serialize(self.bias_constraint),
-        'activation': tf.keras.activations.serialize(self.activation),
-        'use_bias': self.use_bias,
+        'ensemble_bias_initializer': initializers.serialize(self.ensemble_bias_initializer),
+        'ensemble_bias_regularizer': regularizers.serialize(self.ensemble_bias_regularizer),
+        'ensemble_bias_constraint': constraints.serialize(self.ensemble_bias_constraint),
+        'ensemble_activation': tf.keras.activations.serialize(self.ensemble_activation),
+        'use_ensemble_bias': self.use_ensemble_bias,
     }
     new_config = super(Conv2DBatchEnsemble, self).get_config()
-    new_config.update(self.conv2d.get_config())
     new_config.update(config)
     return new_config
 
 
-class Conv1DBatchEnsemble(tf.keras.layers.Layer):
+class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
   """A batch ensemble convolutional layer."""
 
   def __init__(self,
@@ -730,16 +724,7 @@ class Conv1DBatchEnsemble(tf.keras.layers.Layer):
                kernel_constraint=None,
                bias_constraint=None,
                **kwargs):
-    super(Conv1DBatchEnsemble, self).__init__(**kwargs)
-    self.ensemble_size = ensemble_size
-    self.alpha_initializer = initializers.get(alpha_initializer)
-    self.gamma_initializer = initializers.get(gamma_initializer)
-    self.bias_initializer = initializers.get(bias_initializer)
-    self.bias_regularizer = regularizers.get(bias_regularizer)
-    self.bias_constraint = constraints.get(bias_constraint)
-    self.activation = tf.keras.activations.get(activation)
-    self.use_bias = use_bias
-    self.conv1d = tf.keras.layers.Conv1D(
+    super(Conv1DBatchEnsemble, self).__init__(
         filters=filters,
         kernel_size=kernel_size,
         strides=strides,
@@ -753,13 +738,20 @@ class Conv1DBatchEnsemble(tf.keras.layers.Layer):
         bias_regularizer=None,
         activity_regularizer=activity_regularizer,
         kernel_constraint=kernel_constraint,
-        bias_constraint=None)
-    self.filters = self.conv1d.filters
-    self.kernel_size = self.conv1d.kernel_size
-    self.data_format = self.conv1d.data_format
+        bias_constraint=None,
+        **kwargs)
+    self.ensemble_size = ensemble_size
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.ensemble_bias_initializer = initializers.get(bias_initializer)
+    self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
+    self.ensemble_bias_constraint = constraints.get(bias_constraint)
+    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.use_ensemble_bias = use_bias
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
+    super(Conv1DBatchEnsemble, self).build(input_shape)
     if self.data_format == 'channels_first':
       input_channel = input_shape[1]
     elif self.data_format == 'channels_last':
@@ -777,17 +769,17 @@ class Conv1DBatchEnsemble(tf.keras.layers.Layer):
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
-    if self.use_bias:
-      self.bias = self.add_weight(
-          name='bias',
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
           shape=[self.ensemble_size, self.filters],
-          initializer=self.bias_initializer,
-          regularizer=self.bias_regularizer,
-          constraint=self.bias_constraint,
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
           trainable=True,
           dtype=self.dtype)
     else:
-      self.bias = None
+      self.ensemble_bias = None
     self.built = True
 
   def call(self, inputs):
@@ -801,34 +793,30 @@ class Conv1DBatchEnsemble(tf.keras.layers.Layer):
                        [batch_size, self.filters])
     alpha = tf.expand_dims(alpha, axis=axis_change)
     gamma = tf.expand_dims(gamma, axis=axis_change)
-    outputs = self.conv1d(inputs*alpha) * gamma
+    outputs = super(Conv1DBatchEnsemble, self).call(inputs*alpha) * gamma
 
     if self.use_bias:
-      bias = tf.reshape(tf.tile(self.bias, [1, examples_per_model]),
+      bias = tf.reshape(tf.tile(self.ensemble_bias, [1, examples_per_model]),
                         [batch_size, self.filters])
       bias = tf.expand_dims(bias, axis=axis_change)
       outputs += bias
 
-    if self.activation is not None:
-      outputs = self.activation(outputs)
+    if self.ensemble_activation is not None:
+      outputs = self.ensemble_activation(outputs)
     return outputs
-
-  def compute_output_shape(self, input_shape):
-    return self.conv1d.compute_output_shape(input_shape)
 
   def get_config(self):
     config = {
         'ensemble_size': self.ensemble_size,
         'alpha_initializer': initializers.serialize(self.alpha_initializer),
         'gamma_initializer': initializers.serialize(self.gamma_initializer),
-        'bias_initializer': initializers.serialize(self.bias_initializer),
-        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-        'bias_constraint': constraints.serialize(self.bias_constraint),
-        'activation': tf.keras.activations.serialize(self.activation),
-        'use_bias': self.use_bias,
+        'ensemble_bias_initializer': initializers.serialize(self.ensemble_bias_initializer),
+        'ensemble_bias_regularizer': regularizers.serialize(self.ensemble_bias_regularizer),
+        'ensemble_bias_constraint': constraints.serialize(self.ensemble_bias_constraint),
+        'ensemble_activation': tf.keras.activations.serialize(self.ensemble_activation),
+        'use_ensemble_bias': self.use_ensemble_bias,
     }
     new_config = super(Conv1DBatchEnsemble, self).get_config()
-    new_config.update(self.conv1d.get_config())
     new_config.update(config)
     return new_config
 

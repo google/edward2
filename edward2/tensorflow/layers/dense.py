@@ -465,7 +465,7 @@ class DenseHierarchical(DenseVariationalDropout):
     return super(DenseHierarchical, self).call(inputs, training=training)
 
 
-class DenseBatchEnsemble(tf.keras.layers.Layer):
+class DenseBatchEnsemble(tf.keras.layers.Dense):
   """A batch ensemble dense layer."""
 
   def __init__(self,
@@ -484,31 +484,32 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
                kernel_constraint=None,
                bias_constraint=None,
                **kwargs):
-    super(DenseBatchEnsemble, self).__init__(**kwargs)
-    self.rank = rank
-    self.ensemble_size = ensemble_size
-    self.activation = tf.keras.activations.get(activation)
-    self.use_bias = use_bias
-    self.alpha_initializer = initializers.get(alpha_initializer)
-    self.gamma_initializer = initializers.get(gamma_initializer)
-    self.bias_initializer = initializers.get(bias_initializer)
-    self.bias_regularizer = regularizers.get(bias_regularizer)
-    self.bias_constraint = constraints.get(bias_constraint)
-    self.dense = tf.keras.layers.Dense(
+    super(DenseBatchEnsemble, self).__init__(
         units=units,
         use_bias=False,
         activation=None,
-        kernel_initializer=kernel_initializer,
+        kernel_initializer=initializers.get(kernel_initializer),
         bias_initializer=None,
-        kernel_regularizer=kernel_regularizer,
+        kernel_regularizer=regularizers.get(kernel_regularizer),
         bias_regularizer=None,
-        activity_regularizer=activity_regularizer,
+        activity_regularizer=regularizers.get(activity_regularizer),
         kernel_constraint=kernel_constraint,
-        bias_constraint=None)
-    self.units = self.dense.units
+        bias_constraint=None,
+        **kwargs)
+    self.rank = rank
+    self.ensemble_size = ensemble_size
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.use_ensemble_bias = use_bias
+    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_bias_initializer = initializers.get(bias_initializer)
+    self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
+    self.ensemble_bias_constraint = constraints.get(bias_constraint)
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
+    super(DenseBatchEnsemble, self).build(input_shape)
+
     input_dim = input_shape[-1]
     if self.rank > 1:
       alpha_shape = [self.rank, self.ensemble_size, input_dim]
@@ -529,17 +530,17 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
         initializer=self.gamma_initializer,
         trainable=True,
         dtype=self.dtype)
-    if self.use_bias:
-      self.bias = self.add_weight(
-          name='bias',
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
           shape=[self.ensemble_size, self.units],
-          initializer=self.bias_initializer,
-          regularizer=self.bias_regularizer,
-          constraint=self.bias_constraint,
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
           trainable=True,
           dtype=self.dtype)
     else:
-      self.bias = None
+      self.ensemble_bias = None
     self.built = True
 
   def call(self, inputs):
@@ -555,7 +556,7 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
       gamma = tf.reshape(tf.tile(self.gamma, [1, 1, examples_per_model]),
                          [self.rank, batch_size, self.units])
       perturb_inputs = tf.expand_dims(inputs, 0) * alpha
-      outputs = self.dense(perturb_inputs)
+      outputs = super(DenseBatchEnsemble, self).call(perturb_inputs)
       outputs = tf.reduce_sum(outputs * gamma, axis=0)
       outputs = tf.reshape(
           outputs, [self.ensemble_size, examples_per_model, -1])
@@ -564,33 +565,28 @@ class DenseBatchEnsemble(tf.keras.layers.Layer):
           inputs, [self.ensemble_size, examples_per_model, input_dim])
       alpha = tf.expand_dims(self.alpha, 1)
       gamma = tf.expand_dims(self.gamma, 1)
-      outputs = self.dense(inputs * alpha) * gamma
-
-    if self.use_bias:
-      bias = tf.expand_dims(self.bias, 1)
+      perturb_inputs = inputs * alpha
+      outputs = super(DenseBatchEnsemble, self).call(perturb_inputs) * gamma
+    if self.use_ensemble_bias:
+      bias = tf.expand_dims(self.ensemble_bias, 1)
       outputs += bias
-
-    if self.activation is not None:
-      outputs = self.activation(outputs)
+    if self.ensemble_activation is not None:
+      outputs = self.ensemble_activation(outputs)
     outputs = tf.reshape(outputs, [batch_size, self.units])
     return outputs
-
-  def compute_output_shape(self, input_shape):
-    return self.dense.compute_output_shape(input_shape)
 
   def get_config(self):
     config = {
         'ensemble_size': self.ensemble_size,
-        'activation': tf.keras.activations.serialize(self.activation),
-        'use_bias': self.use_bias,
+        'ensemble_activation': tf.keras.activations.serialize(self.ensemble_activation),
+        'use_ensemble_bias': self.use_ensemble_bias,
         'alpha_initializer': initializers.serialize(self.alpha_initializer),
         'gamma_initializer': initializers.serialize(self.gamma_initializer),
-        'bias_initializer': initializers.serialize(self.bias_initializer),
-        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-        'bias_constraint': constraints.serialize(self.bias_constraint),
+        'ensemble_bias_initializer': initializers.serialize(self.ensemble_bias_initializer),
+        'ensemble_bias_regularizer': regularizers.serialize(self.ensemble_bias_regularizer),
+        'ensemble_bias_constraint': constraints.serialize(self.ensemble_bias_constraint),
     }
     new_config = super(DenseBatchEnsemble, self).get_config()
-    new_config.update(self.dense.get_config())
     new_config.update(config)
     return new_config
 
