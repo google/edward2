@@ -48,8 +48,9 @@ class NormalizationTest(tf.test.TestCase, parameterized.TestCase):
     self.norm_multiplier = 0.95
 
   @parameterized.named_parameters(
-      ('Dense', (16, 10), DenseLayer, nm.SpectralNormalization),
-      ('Conv2D', (16, 32, 32, 3), Conv2DLayer, nm.SpectralNormalizationConv2D))
+      ('Dense', (None, 10), DenseLayer, nm.SpectralNormalization),
+      ('Conv2D', (None, 32, 32, 3), Conv2DLayer,
+       nm.SpectralNormalizationConv2D))
   def test_spec_norm_magnitude(self, input_shape, layer, norm_wrapper):
     """Tests if the weights spectral norm converges to norm_multiplier."""
     layer.build(input_shape)
@@ -66,6 +67,19 @@ class NormalizationTest(tf.test.TestCase, parameterized.TestCase):
     spectral_norm_expected = self.norm_multiplier
     self.assertAllClose(
         spectral_norm_computed, spectral_norm_expected, atol=5e-2)
+
+    # Test that the normalized layer is K-Lipschitz. In particular, if the layer
+    # is a function f, then ||f(x1) - f(x2)||_2 <= K * ||(x1 - x2)||_2, where K
+    # is the norm multiplier.
+    new_input_shape = (16,) + input_shape[1:]
+    new_input = tf.random.uniform(new_input_shape)
+    delta_vec = tf.random.uniform(new_input_shape)
+    output1 = sn_layer(new_input)
+    output2 = sn_layer(new_input + delta_vec)
+
+    delta_input = tf.norm(tf.reshape(delta_vec, (-1,))).numpy()
+    delta_output = tf.norm(tf.reshape(output2 - output1, (-1,))).numpy()
+    self.assertLessEqual(delta_output, self.norm_multiplier * delta_input)
 
 
 if __name__ == '__main__':

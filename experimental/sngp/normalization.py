@@ -190,7 +190,6 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     self.padding = self.layer.padding.upper()
 
     # Resolve shapes.
-    batch_size = input_shape[0]
     in_height = input_shape[1]
     in_width = input_shape[2]
     in_channel = self.w_shape[2]
@@ -199,8 +198,8 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     out_width = in_width // self.strides[1]
     out_channel = self.w_shape[3]
 
-    self.in_shape = (batch_size, in_height, in_width, in_channel)
-    self.out_shape = (batch_size, out_height, out_width, out_channel)
+    self.in_shape = (1, in_height, in_width, in_channel)
+    self.out_shape = (1, out_height, out_width, out_channel)
     self.uv_initializer = tf.initializers.random_normal()
 
     if self.padding != 'SAME':
@@ -259,6 +258,8 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
         v_hat, self.w, strides=self.strides, padding=self.padding)
 
     sigma = tf.matmul(tf.reshape(v_w_hat, [1, -1]), tf.reshape(u_hat, [-1, 1]))
+    # Convert sigma from a 1x1 matrix to a scalar.
+    sigma = tf.reshape(sigma, [])
 
     self.u.assign(u_hat)
     self.v.assign(v_hat)
