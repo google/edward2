@@ -126,10 +126,9 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     self.v.assign(v_hat)
 
     # Bound spectral norm to be not larger than self.norm_multiplier.
-    if (self.norm_multiplier / sigma) < 1:
-      w_norm = (self.norm_multiplier / sigma) * self.w
-    else:
-      w_norm = self.w
+    w_norm = tf.cond((self.norm_multiplier / sigma) < 1,
+                     lambda: (self.norm_multiplier / sigma) * self.w,
+                     lambda: self.w)
 
     self.layer.kernel.assign(w_norm)
 
@@ -147,6 +146,7 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
                norm_multiplier=0.95,
                training=True,
                aggregation=tf.VariableAggregation.MEAN,
+               legacy_mode=False,
                **kwargs):
     """Initializer.
 
@@ -162,12 +162,16 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
       aggregation: (tf.VariableAggregation) Indicates how a distributed variable
         will be aggregated. Accepted values are constants defined in the class
         tf.VariableAggregation.
+      legacy_mode: (bool) Whether to use the legacy implementation where
+        the dimension of the u and v vectors are set to the batch size.
+        It should not be enabled unless for backward compatibility reasons.
       **kwargs: (dict) Other keyword arguments for the layers.Wrapper class.
     """
     self.iteration = iteration
     self.do_power_iteration = training
     self.aggregation = aggregation
     self.norm_multiplier = norm_multiplier
+    self.legacy_mode = legacy_mode
 
     # Set layer attributes.
     layer._name += '_spec_norm'
@@ -183,11 +187,15 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     self.layer.kernel._aggregation = self.aggregation  # pylint: disable=protected-access
     self._dtype = self.layer.kernel.dtype
 
-    self.w = self.layer.kernel
     # Shape (kernel_size_1, kernel_size_2, in_channel, out_channel).
+    self.w = self.layer.kernel
     self.w_shape = self.w.shape.as_list()
     self.strides = self.layer.strides
     self.padding = self.layer.padding.upper()
+
+    # Set the dimensions of u and v vectors.
+    batch_size = input_shape[0]
+    uv_dim = batch_size if self.legacy_mode else 1
 
     # Resolve shapes.
     in_height = input_shape[1]
@@ -198,8 +206,8 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     out_width = in_width // self.strides[1]
     out_channel = self.w_shape[3]
 
-    self.in_shape = (1, in_height, in_width, in_channel)
-    self.out_shape = (1, out_height, out_width, out_channel)
+    self.in_shape = (uv_dim, in_height, in_width, in_channel)
+    self.out_shape = (uv_dim, out_height, out_width, out_channel)
     self.uv_initializer = tf.initializers.random_normal()
 
     if self.padding != 'SAME':
@@ -264,10 +272,9 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     self.u.assign(u_hat)
     self.v.assign(v_hat)
 
-    if (self.norm_multiplier / sigma) < 1:
-      w_norm = (self.norm_multiplier / sigma) * self.w
-    else:
-      w_norm = self.w
+    w_norm = tf.cond((self.norm_multiplier / sigma) < 1,
+                     lambda: (self.norm_multiplier / sigma) * self.w,
+                     lambda: self.w)
 
     self.layer.kernel.assign(w_norm)
 
