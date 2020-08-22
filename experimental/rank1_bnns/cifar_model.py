@@ -17,7 +17,6 @@
 """Wide ResNet architecture with rank-1 distributions."""
 import functools
 import edward2 as ed
-from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
 
@@ -26,7 +25,7 @@ BatchNormalization = functools.partial(  # pylint: disable=invalid-name
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
 Conv2DRank1 = functools.partial(  # pylint: disable=invalid-name
-    rank1_bnn_layers.Conv2DRank1,
+    ed.layers.Conv2DRank1,
     kernel_size=3,
     padding='same',
     use_bias=False,

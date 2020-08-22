@@ -1386,3 +1386,199 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.Layer):
     new_config.update(self.conv2d.get_config())
     new_config.update(config)
     return new_config
+
+
+@utils.add_weight
+class Conv2DRank1(tf.keras.layers.Layer):
+  """A rank-1 Bayesian NN 2D convolution layer (Dusenberry et al., 2020).
+
+  The argument ensemble_size selects the number of mixture components over all
+  weights, i.e., an ensemble of size `ensemble_size`. The layer performs a
+  forward pass by enumeration, returning a forward pass under each mixture
+  component. It takes an input tensor of shape
+  [ensemble_size*examples_per_model,] + input_shape and returns an output tensor
+  of shape [ensemble_size*examples_per_model,] + output_shape.
+
+  To use a different batch for each mixture, take a minibatch of size
+  ensemble_size*examples_per_model. To use the same batch for each mixture, get
+  a minibatch of size examples_per_model and tile it by ensemble_size before
+  applying any ensemble layers.
+  """
+
+  def __init__(self,
+               filters,
+               kernel_size,
+               strides=(1, 1),
+               padding='valid',
+               data_format=None,
+               dilation_rate=(1, 1),
+               activation=None,
+               use_bias=True,
+               alpha_initializer='trainable_normal',
+               gamma_initializer='trainable_normal',
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               alpha_regularizer='normal_kl_divergence',
+               gamma_regularizer='normal_kl_divergence',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               alpha_constraint=None,
+               gamma_constraint=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               use_additive_perturbation=False,
+               min_perturbation_value=-10,
+               max_perturbation_value=10,
+               ensemble_size=1,
+               **kwargs):
+    super().__init__(**kwargs)
+    self.filters = filters
+    self.kernel_size = kernel_size
+    self.activation = tf.keras.activations.get(activation)
+    self.use_bias = use_bias
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.bias_initializer = initializers.get(bias_initializer)
+    self.alpha_regularizer = regularizers.get(alpha_regularizer)
+    self.gamma_regularizer = regularizers.get(gamma_regularizer)
+    self.bias_regularizer = regularizers.get(bias_regularizer)
+    self.alpha_constraint = constraints.get(alpha_constraint)
+    self.gamma_constraint = constraints.get(gamma_constraint)
+    self.bias_constraint = constraints.get(bias_constraint)
+    self.use_additive_perturbation = use_additive_perturbation
+    self.min_perturbation_value = min_perturbation_value
+    self.max_perturbation_value = max_perturbation_value
+    self.ensemble_size = ensemble_size
+    self.conv2d = tf.keras.layers.Conv2D(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=None,
+        use_bias=False,
+        kernel_initializer=kernel_initializer,
+        kernel_regularizer=kernel_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint)
+    self.data_format = self.conv2d.data_format
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    if self.data_format == 'channels_first':
+      input_channel = input_shape[1]
+    elif self.data_format == 'channels_last':
+      input_channel = input_shape[-1]
+
+    self.alpha = self.add_weight(
+        'alpha',
+        shape=[self.ensemble_size, input_channel],
+        initializer=self.alpha_initializer,
+        regularizer=self.alpha_regularizer,
+        constraint=self.alpha_constraint,
+        trainable=True,
+        dtype=self.dtype)
+    self.gamma = self.add_weight(
+        'gamma',
+        shape=[self.ensemble_size, self.filters],
+        initializer=self.gamma_initializer,
+        regularizer=self.gamma_regularizer,
+        constraint=self.gamma_constraint,
+        trainable=True,
+        dtype=self.dtype)
+    if self.use_bias:
+      self.bias = self.add_weight(
+          name='bias',
+          shape=[self.ensemble_size, self.filters],
+          initializer=self.bias_initializer,
+          regularizer=self.bias_regularizer,
+          constraint=self.bias_constraint,
+          trainable=True,
+          dtype=self.dtype)
+      self.bias_shape = self.bias.shape
+    else:
+      self.bias = None
+      self.bias_shape = None
+    self.alpha_shape = self.alpha.shape
+    self.gamma_shape = self.gamma.shape
+    self.built = True
+
+  def call(self, inputs):
+    axis_change = -1 if self.data_format == 'channels_first' else 1
+    batch_size = tf.shape(inputs)[0]
+    input_dim = self.alpha.shape[-1]
+    examples_per_model = batch_size // self.ensemble_size
+
+    # Sample parameters for each example.
+    if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
+      alpha = tf.clip_by_value(
+          self.alpha_initializer(
+              self.alpha_shape,
+              self.dtype).distribution.sample(examples_per_model),
+          self.min_perturbation_value,
+          self.max_perturbation_value)
+      alpha = tf.transpose(alpha, [1, 0, 2])
+    else:
+      alpha = tf.tile(self.alpha, [1, examples_per_model])
+    if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
+      gamma = tf.clip_by_value(
+          self.gamma_initializer(
+              self.gamma_shape,
+              self.dtype).distribution.sample(examples_per_model),
+          self.min_perturbation_value,
+          self.max_perturbation_value)
+      gamma = tf.transpose(gamma, [1, 0, 2])
+    else:
+      gamma = tf.tile(self.gamma, [1, examples_per_model])
+
+    alpha = tf.reshape(alpha, [batch_size, input_dim])
+    alpha = tf.expand_dims(alpha, axis=axis_change)
+    alpha = tf.expand_dims(alpha, axis=axis_change)
+    gamma = tf.reshape(gamma, [batch_size, self.filters])
+    gamma = tf.expand_dims(gamma, axis=axis_change)
+    gamma = tf.expand_dims(gamma, axis=axis_change)
+
+    if self.use_additive_perturbation:
+      outputs = self.conv2d(inputs + alpha) + gamma
+    else:
+      outputs = self.conv2d(inputs * alpha) * gamma
+
+    if self.use_bias:
+      if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+        bias = self.bias_initializer(
+            self.bias_shape, self.dtype).distribution.sample(examples_per_model)
+        bias = tf.transpose(bias, [1, 0, 2])
+      else:
+        bias = tf.tile(self.bias, [1, examples_per_model])
+      bias = tf.reshape(bias, [batch_size, -1])
+      bias = tf.expand_dims(bias, axis=axis_change)
+      bias = tf.expand_dims(bias, axis=axis_change)
+      outputs += bias
+
+    if self.activation is not None:
+      outputs = self.activation(outputs)
+    return outputs
+
+  def get_config(self):
+    config = {
+        'activation': tf.keras.activations.serialize(self.activation),
+        'use_bias': self.use_bias,
+        'alpha_initializer': initializers.serialize(self.alpha_initializer),
+        'gamma_initializer': initializers.serialize(self.gamma_initializer),
+        'bias_initializer': initializers.serialize(self.bias_initializer),
+        'alpha_regularizer': regularizers.serialize(self.alpha_regularizer),
+        'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
+        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+        'alpha_constraint': constraints.serialize(self.alpha_constraint),
+        'gamma_constraint': constraints.serialize(self.gamma_constraint),
+        'bias_constraint': constraints.serialize(self.bias_constraint),
+        'use_additive_perturbation': self.use_additive_perturbation,
+        'ensemble_size': self.ensemble_size,
+    }
+    base_config = super().get_config()
+    conv_config = self.conv2d.get_config()
+    return dict(
+        list(base_config.items()) +
+        list(conv_config.items()) +
+        list(config.items()))

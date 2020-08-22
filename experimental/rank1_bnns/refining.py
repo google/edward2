@@ -16,7 +16,6 @@
 # Lint as: python3
 """Utilities for sampling."""
 import edward2 as ed
-from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -88,7 +87,7 @@ def sample_rank1_auxiliaries(model, auxiliary_var_ratio):
   """
   for layer in model.layers:
     if (isinstance(layer, ed.layers.DenseRank1) or
-        isinstance(layer, rank1_bnn_layers.Conv2DRank1)):
+        isinstance(layer, ed.layers.Conv2DRank1)):
       for initializer, regularizer in [(layer.alpha_initializer,
                                         layer.alpha_regularizer),
                                        (layer.gamma_initializer,
@@ -133,7 +132,7 @@ def freeze_rank1_weights(model):
   for layer in model.layers:
     if isinstance(layer, ed.layers.DenseRank1):
       layer.dense.trainable = False
-    elif isinstance(layer, rank1_bnn_layers.Conv2DRank1):
+    elif isinstance(layer, ed.layers.Conv2DRank1):
       layer.conv2d.trainable = False
 
 

@@ -18,7 +18,6 @@
 import functools
 import string
 import edward2 as ed
-from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
 
@@ -78,7 +77,7 @@ def bottleneck_block(inputs,
   conv_name_base = 'res' + str(stage) + block + '_branch'
   bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-  x = rank1_bnn_layers.Conv2DRank1(
+  x = ed.layers.Conv2DRank1(
       filters1,
       kernel_size=1,
       use_bias=False,
@@ -105,7 +104,7 @@ def bottleneck_block(inputs,
       name=bn_name_base+'2a')
   x = tf.keras.layers.Activation('relu')(x)
 
-  x = rank1_bnn_layers.Conv2DRank1(
+  x = ed.layers.Conv2DRank1(
       filters2,
       kernel_size=3,
       strides=strides,
@@ -134,7 +133,7 @@ def bottleneck_block(inputs,
       name=bn_name_base+'2b')
   x = tf.keras.layers.Activation('relu')(x)
 
-  x = rank1_bnn_layers.Conv2DRank1(
+  x = ed.layers.Conv2DRank1(
       filters3,
       kernel_size=1,
       use_bias=False,
@@ -162,7 +161,7 @@ def bottleneck_block(inputs,
 
   shortcut = inputs
   if not x.shape.is_compatible_with(shortcut.shape):
-    shortcut = rank1_bnn_layers.Conv2DRank1(
+    shortcut = ed.layers.Conv2DRank1(
         filters3,
         kernel_size=1,
         strides=strides,
@@ -286,7 +285,7 @@ def rank1_resnet50(input_shape,
       use_tpu=use_tpu)
   inputs = tf.keras.layers.Input(shape=input_shape)
   x = tf.keras.layers.ZeroPadding2D(padding=3, name='conv1_pad')(inputs)
-  x = rank1_bnn_layers.Conv2DRank1(
+  x = ed.layers.Conv2DRank1(
       64,
       kernel_size=7,
       strides=2,

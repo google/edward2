@@ -24,6 +24,7 @@ from edward2.tensorflow.layers.convolutional import Conv1DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
 from edward2.tensorflow.layers.convolutional import Conv2DHierarchical
+from edward2.tensorflow.layers.convolutional import Conv2DRank1
 from edward2.tensorflow.layers.convolutional import Conv2DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DVariationalDropout
 from edward2.tensorflow.layers.convolutional import DepthwiseCondConv2D
@@ -71,6 +72,7 @@ _allowed_symbols = [
     "Conv2DFlipout",
     "Conv2DHierarchical",
     "Conv1DReparameterization",
+    "Conv2DRank1",
     "Conv2DReparameterization",
     "Conv2DVariationalDropout",
     "DenseBatchEnsemble",

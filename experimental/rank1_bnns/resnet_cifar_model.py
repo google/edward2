@@ -23,7 +23,6 @@ Adapted from code contributed by BigMoyan.
 """
 import functools
 import edward2 as ed
-from experimental.rank1_bnns import rank1_bnn_layers  # local file import
 from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
 
@@ -71,7 +70,7 @@ def rank1_resnet_layer(inputs,
     tf.Tensor.
   """
   x = inputs
-  x = rank1_bnn_layers.Conv2DRank1(
+  x = ed.layers.Conv2DRank1(
       filters,
       kernel_size=kernel_size,
       strides=strides,

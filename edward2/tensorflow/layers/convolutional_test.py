@@ -101,6 +101,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.Conv2DHierarchical},
       {"layer": ed.layers.Conv2DReparameterization},
       {"layer": ed.layers.Conv2DVariationalDropout},
+      {"layer": ed.layers.Conv2DRank1},
   )
   def testConv2DModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
@@ -113,6 +114,8 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(outputs.shape, (3, 2))
     if layer == ed.layers.Conv2DHierarchical:
       self.assertLen(model.losses, 3)
+    elif layer == ed.layers.Conv2DRank1:
+      self.assertLen(model.losses, 2)
     else:
       self.assertLen(model.losses, 1)
 
@@ -226,6 +229,130 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     expected_shape = (ensemble_size * examples_per_model, 3, channels)
     self.assertEqual(batch_outputs.shape, expected_shape)
     self.assertAllClose(batch_outputs, loop_outputs)
+
+  @parameterized.parameters(
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal"},
+      {"alpha_initializer": "trainable_deterministic",
+       "gamma_initializer": "trainable_deterministic"},
+  )
+  def testConv2DRank1BatchEnsemble(self, alpha_initializer, gamma_initializer):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    ensemble_size = 3
+    examples_per_model = 4
+    input_dim = 5
+    output_dim = 5
+    inputs = tf.random.normal([examples_per_model, 4, 4, input_dim])
+    batched_inputs = tf.tile(inputs, [ensemble_size, 1, 1, 1])
+    layer = ed.layers.Conv2DRank1(
+        output_dim,
+        kernel_size=2,
+        padding="same",
+        alpha_initializer=alpha_initializer,
+        gamma_initializer=gamma_initializer,
+        alpha_regularizer=None,
+        gamma_regularizer=None,
+        activation=None,
+        ensemble_size=ensemble_size)
+
+    output = layer(batched_inputs)
+    manual_output = [
+        layer.conv2d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
+        for i in range(ensemble_size)]
+    manual_output = tf.concat(manual_output, axis=0)
+    self.assertEqual(output.shape,
+                     (ensemble_size*examples_per_model, 4, 4, output_dim))
+    self.assertAllClose(output, manual_output)
+
+  @parameterized.parameters(
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "he_normal",
+       "gamma_initializer": "he_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "zeros",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "trainable_normal",
+       "all_close": True,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "zeros",
+       "gamma_initializer": "trainable_normal",
+       "all_close": True,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": False,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": True,
+       "ensemble_size": 1},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": False,
+       "ensemble_size": 4},
+      {"alpha_initializer": "trainable_normal",
+       "gamma_initializer": "trainable_normal",
+       "all_close": False,
+       "use_additive_perturbation": True,
+       "ensemble_size": 4},
+  )
+  def testConv2DRank1AlphaGamma(self,
+                                alpha_initializer,
+                                gamma_initializer,
+                                all_close,
+                                use_additive_perturbation,
+                                ensemble_size):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    inputs = np.random.rand(5*ensemble_size, 4, 4, 12).astype(np.float32)
+    model = ed.layers.Conv2DRank1(
+        4,
+        kernel_size=2,
+        alpha_initializer=alpha_initializer,
+        gamma_initializer=gamma_initializer,
+        activation=None)
+    outputs1 = model(inputs)
+    outputs2 = model(inputs)
+    self.assertEqual(outputs1.shape, (5*ensemble_size, 3, 3, 4))
+    if all_close:
+      self.assertAllClose(outputs1, outputs2)
+    else:
+      self.assertNotAllClose(outputs1, outputs2)
+    model.get_config()
 
 if __name__ == "__main__":
   tf.test.main()
