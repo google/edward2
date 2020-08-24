@@ -57,6 +57,7 @@ from edward2.tensorflow.layers.normalization import ActNorm
 from edward2.tensorflow.layers.normalization import ensemble_batchnorm
 from edward2.tensorflow.layers.normalization import EnsembleSyncBatchNorm
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
+from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
 
@@ -94,6 +95,7 @@ _allowed_symbols = [
     "GaussianProcess",
     "LinearKernel",
     "LSTMCellFlipout",
+    "LSTMCellRank1",
     "LSTMCellReparameterization",
     "MADE",
     "MixtureLogistic",
