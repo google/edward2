@@ -14,7 +14,10 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Wide ResNet 28-10 with rank-1 distributions on CIFAR-10 and CIFAR-100."""
+"""Wide ResNet 28-10 with rank-1 distributions on CIFAR-10 and CIFAR-100.
+
+This file experiments with refining the variational posteriors of rank-1 BNNs.
+"""
 import functools
 import os
 import time
@@ -23,6 +26,8 @@ from absl import flags
 from absl import logging
 
 from experimental.rank1_bnns import cifar_model  # local file import
+from experimental.rank1_bnns import refining  # local file import
+import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from uncertainty_baselines.baselines.cifar import utils
@@ -90,6 +95,21 @@ flags.DEFINE_integer('train_epochs', 250, 'Number of training epochs.')
 flags.DEFINE_integer('num_eval_samples', 1,
                      'Number of model predictions to sample per example at '
                      'eval time.')
+# Refinement flags.
+flags.DEFINE_integer('refining_epochs', 0,
+                     'Number of refining epochs. At the default 0 epochs,'
+                     'no refining takes place.')
+flags.DEFINE_integer('num_auxiliary_variables', 10,
+                     'Number of auxiliary variables.')
+flags.DEFINE_float('auxiliary_variance_ratio', 0.5,
+                   'The variance ratio of each auxiliary variable and the '
+                   'prior. The prior variance is reduced by this ratio after '
+                   'sampling each auxiliary variable.')
+flags.DEFINE_float('refining_learning_rate', 0.005,
+                   'Learning rate during the refining phase.')
+flags.DEFINE_bool('freeze_weights_during_refining', True,
+                  'Freeze the weight matrices during the refining phase.')
+
 
 # Accelerator flags.
 flags.DEFINE_bool('use_gpu', False, 'Whether to run on GPU or otherwise TPU.')
@@ -191,12 +211,14 @@ def main(argv):
     base_lr = FLAGS.base_learning_rate * batch_size / 128
     lr_decay_epochs = [(int(start_epoch_str) * FLAGS.train_epochs) // 200
                        for start_epoch_str in FLAGS.lr_decay_epochs]
-    lr_schedule = utils.LearningRateSchedule(
+    lr_schedule = refining.LearningRateScheduleWithRefining(
         steps_per_epoch,
         base_lr,
         decay_ratio=FLAGS.lr_decay_ratio,
         decay_epochs=lr_decay_epochs,
-        warmup_epochs=FLAGS.lr_warmup_epochs)
+        warmup_epochs=FLAGS.lr_warmup_epochs,
+        train_epochs=FLAGS.train_epochs,
+        refining_learning_rate=FLAGS.refining_learning_rate)
     optimizer = tf.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
@@ -382,14 +404,23 @@ def main(argv):
 
   train_iterator = iter(train_dataset)
   start_time = time.time()
-  for epoch in range(initial_epoch, FLAGS.train_epochs):
+  for epoch in range(initial_epoch, FLAGS.train_epochs + FLAGS.refining_epochs):
     logging.info('Starting to run epoch: %s', epoch)
+    if epoch in np.linspace(FLAGS.train_epochs,
+                            FLAGS.train_epochs + FLAGS.refining_epochs,
+                            FLAGS.num_auxiliary_variables,
+                            dtype=int):
+      logging.info('Sampling auxiliary variables with ratio %f',
+                   FLAGS.auxiliary_variance_ratio)
+      refining.sample_rank1_auxiliaries(model, FLAGS.auxiliary_variance_ratio)
+      if FLAGS.freeze_weights_during_refining:
+        refining.freeze_rank1_weights(model)
 
     for step in range(steps_per_epoch):
       train_step(train_iterator)
 
       current_step = epoch * steps_per_epoch + (step + 1)
-      max_steps = steps_per_epoch * FLAGS.train_epochs
+      max_steps = steps_per_epoch * (FLAGS.train_epochs + FLAGS.refining_epochs)
       time_elapsed = time.time() - start_time
       steps_per_sec = float(current_step) / time_elapsed
       eta_seconds = (max_steps - current_step) / steps_per_sec
@@ -397,7 +428,7 @@ def main(argv):
                  'ETA: {:.0f} min. Time elapsed: {:.0f} min'.format(
                      current_step / max_steps,
                      epoch + 1,
-                     FLAGS.train_epochs,
+                     FLAGS.train_epochs + FLAGS.refining_epochs,
                      steps_per_sec,
                      eta_seconds / 60,
                      time_elapsed / 60))
