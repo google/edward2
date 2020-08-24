@@ -20,7 +20,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def make_sign_initializer(random_sign_init):
+def _make_sign_initializer(random_sign_init):
   if random_sign_init > 0:
     return ed.initializers.RandomSign(random_sign_init)
   else:
@@ -32,69 +32,44 @@ def make_initializer(initializer, random_sign_init, dropout_rate):
   """Builds initializer with specific mean and/or stddevs."""
   if initializer == 'trainable_deterministic':
     return ed.initializers.TrainableDeterministic(
-        loc_initializer=make_sign_initializer(random_sign_init))
+        loc_initializer=_make_sign_initializer(random_sign_init))
   elif initializer == 'trainable_half_cauchy':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableHalfCauchy(
-        loc_initializer=make_sign_initializer(random_sign_init),
+        loc_initializer=_make_sign_initializer(random_sign_init),
         scale_initializer=tf.keras.initializers.Constant(stddev_init),
         scale_constraint='softplus')
   elif initializer == 'trainable_cauchy':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableCauchy(
-        loc_initializer=make_sign_initializer(random_sign_init),
+        loc_initializer=_make_sign_initializer(random_sign_init),
         scale_initializer=tf.keras.initializers.Constant(stddev_init),
         scale_constraint='softplus')
   elif initializer == 'trainable_normal':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableNormal(
-        mean_initializer=make_sign_initializer(random_sign_init),
+        mean_initializer=_make_sign_initializer(random_sign_init),
         stddev_initializer=tf.keras.initializers.TruncatedNormal(
             mean=stddev_init, stddev=0.1),
         stddev_constraint='softplus')
   elif initializer == 'trainable_log_normal':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableLogNormal(
-        loc_initializer=make_sign_initializer(random_sign_init),
+        loc_initializer=_make_sign_initializer(random_sign_init),
         scale_initializer=tf.keras.initializers.TruncatedNormal(
             mean=stddev_init, stddev=0.1),
         scale_constraint='softplus')
   elif initializer == 'trainable_normal_fixed_stddev':
     return ed.initializers.TrainableNormalFixedStddev(
         stddev=tf.sqrt(dropout_rate / (1. - dropout_rate)),
-        mean_initializer=make_sign_initializer(random_sign_init))
+        mean_initializer=_make_sign_initializer(random_sign_init))
   elif initializer == 'trainable_normal_shared_stddev':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableNormalSharedStddev(
-        mean_initializer=make_sign_initializer(random_sign_init),
+        mean_initializer=_make_sign_initializer(random_sign_init),
         stddev_initializer=tf.keras.initializers.Constant(stddev_init),
         stddev_constraint='softplus')
   return initializer
-
-
-class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
-  """KL with normal prior whose mean is fixed at the variational posterior's."""
-
-  def __init__(self, stddev=1., scale_factor=1.):
-    """Constructs regularizer."""
-    self.stddev = stddev
-    self.scale_factor = scale_factor
-
-  def __call__(self, x):
-    """Computes regularization given an ed.Normal random variable as input."""
-    if not isinstance(x, ed.RandomVariable):
-      raise ValueError('Input must be an ed.RandomVariable.')
-    prior = ed.Independent(
-        ed.Normal(loc=x.distribution.mean(), scale=self.stddev).distribution,
-        reinterpreted_batch_ndims=len(x.distribution.event_shape))
-    regularization = x.distribution.kl_divergence(prior.distribution)
-    return self.scale_factor * regularization
-
-  def get_config(self):
-    return {
-        'stddev': self.stddev,
-        'scale_factor': self.scale_factor,
-    }
 
 
 def make_regularizer(regularizer, mean, stddev):
@@ -105,7 +80,7 @@ def make_regularizer(regularizer, mean, stddev):
     return ed.regularizers.LogNormalKLDivergence(
         loc=tf.math.log(1.), scale=stddev)
   elif regularizer == 'normal_kl_divergence_with_tied_mean':
-    return NormalKLDivergenceWithTiedMean(stddev=stddev)
+    return ed.regularizers.NormalKLDivergenceWithTiedMean(stddev=stddev)
   elif regularizer == 'cauchy_kl_divergence':
     return ed.regularizers.CauchyKLDivergence(loc=mean, scale=stddev)
   elif regularizer == 'normal_empirical_bayes_kl_divergence':
