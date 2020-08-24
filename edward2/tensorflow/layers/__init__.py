@@ -20,6 +20,7 @@ from edward2.tensorflow.layers.bayesian_linear_model import BayesianLinearModel
 from edward2.tensorflow.layers.convolutional import CondConv2D
 from edward2.tensorflow.layers.convolutional import Conv1DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv1DFlipout
+from edward2.tensorflow.layers.convolutional import Conv1DRank1
 from edward2.tensorflow.layers.convolutional import Conv1DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
@@ -67,11 +68,12 @@ _allowed_symbols = [
     "BayesianLinearModel",
     "CondConv2D",
     "Conv1DBatchEnsemble",
-    "Conv2DBatchEnsemble",
     "Conv1DFlipout",
+    "Conv1DRank1",
+    "Conv1DReparameterization",
+    "Conv2DBatchEnsemble",
     "Conv2DFlipout",
     "Conv2DHierarchical",
-    "Conv1DReparameterization",
     "Conv2DRank1",
     "Conv2DReparameterization",
     "Conv2DVariationalDropout",
