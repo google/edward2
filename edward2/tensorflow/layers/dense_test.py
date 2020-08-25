@@ -299,17 +299,20 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
         gamma_initializer="he_normal",
         activation=None,
         ensemble_size=ensemble_size)
-
     batch_inputs = tf.tile(inputs, [ensemble_size, 1])
     batch_outputs = layer(batch_inputs)
-    loop_outputs = [
-        layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-        for i in range(ensemble_size)]
-    loop_outputs = tf.concat(loop_outputs, axis=0)
+
+    loop_outputs = []
+    for i in range(ensemble_size):
+      outputs = super(ed.layers.DenseBatchEnsemble, layer).call(
+          inputs * layer.alpha[i])
+      loop_outputs.append(outputs * layer.gamma[i] + layer.ensemble_bias[i])
+
+    loop_outputs_list = tf.concat(loop_outputs, axis=0)
 
     expected_shape = (ensemble_size * examples_per_model, output_dim)
     self.assertEqual(batch_outputs.shape, expected_shape)
-    self.assertAllClose(batch_outputs, loop_outputs)
+    self.assertAllClose(batch_outputs, loop_outputs_list)
 
   @parameterized.parameters(
       {"alpha_initializer": "he_normal",
