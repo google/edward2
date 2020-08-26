@@ -803,7 +803,7 @@ class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
     gamma = tf.expand_dims(gamma, axis=axis_change)
     outputs = super().call(inputs*alpha) * gamma
 
-    if self.use_bias:
+    if self.use_ensemble_bias:
       bias = tf.reshape(tf.tile(self.ensemble_bias, [1, examples_per_model]),
                         [batch_size, self.filters])
       bias = tf.expand_dims(bias, axis=axis_change)
