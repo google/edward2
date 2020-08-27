@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
-"""Spectral-normalized neural Gaussian process (SNGP)."""
+"""SNGP utilities."""
+import tensorflow as tf
 
-# pylint: disable=wildcard-import
-from experimental.sngp.gaussian_process import *  # local file import
-from experimental.sngp.normalization import *  # local file import
-from experimental.sngp.utils import *  # local file import
-# pylint: enable=wildcard-import
+
+def mean_field_logits(logits, covmat, mean_field_factor=1.):
+  """Adjust the predictive logits so its softmax approximates posterior mean."""
+  logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
+  if mean_field_factor > 0:
+    logits = logits / tf.expand_dims(logits_scale, axis=-1)
+
+  return logits
