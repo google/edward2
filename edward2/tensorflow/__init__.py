@@ -15,55 +15,43 @@
 
 """Edward2 probabilistic programming language with TensorFlow backend."""
 
-# Make the TensorFlow backend be optional. The namespace is empty if
-# TensorFlow is not available.
-# pylint: disable=g-import-not-at-top
-try:
-  import tensorflow as tf  # pylint: disable=unused-import
-  from tensorflow_probability import distributions
-except ImportError:
-  pass
-else:
-  from edward2.tensorflow import generated_random_variables
-  from edward2.tensorflow import constraints
-  from edward2.tensorflow import initializers
-  from edward2.tensorflow import layers
-  from edward2.tensorflow import regularizers
-  from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
-  from edward2.tensorflow.generated_random_variables import make_random_variable
-  from edward2.tensorflow.program_transformations import make_log_joint_fn
-  from edward2.tensorflow.random_variable import RandomVariable
-  from edward2.tensorflow.transformed_random_variable import TransformedRandomVariable
-  from edward2.trace import get_next_tracer
-  from edward2.trace import trace
-  from edward2.trace import traceable
-  from edward2.tracers import condition
-  from edward2.tracers import tape
-  from edward2.version import __version__
-  from edward2.version import VERSION
+from edward2.tensorflow import constraints
+from edward2.tensorflow import generated_random_variables
+from edward2.tensorflow import initializers
+from edward2.tensorflow import layers
+from edward2.tensorflow import regularizers
+from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
+from edward2.tensorflow.generated_random_variables import make_random_variable
+from edward2.tensorflow.program_transformations import make_log_joint_fn
+from edward2.tensorflow.random_variable import RandomVariable
+from edward2.tensorflow.transformed_random_variable import TransformedRandomVariable
+from edward2.trace import get_next_tracer
+from edward2.trace import trace
+from edward2.trace import traceable
+from edward2.tracers import condition
+from edward2.tracers import tape
+from edward2.version import __version__
+from edward2.version import VERSION
 
-  from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
+import tensorflow_probability as tfp
 
-  _allowed_symbols = [
-      "RandomVariable",
-      "TransformedRandomVariable",
-      "condition",
-      "constraints",
-      "get_next_tracer",
-      "initializers",
-      "layers",
-      "make_log_joint_fn",
-      "make_random_variable",
-      "regularizers",
-      "tape",
-      "trace",
-      "traceable",
-      "__version__",
-      "VERSION",
-  ]
-  for name in dir(generated_random_variables):
-    if name in sorted(dir(distributions)):
-      _allowed_symbols.append(name)
-
-  remove_undocumented(__name__, _allowed_symbols)
-# pylint: enable=g-import-not-at-top
+__all__ = [
+    "RandomVariable",
+    "TransformedRandomVariable",
+    "condition",
+    "constraints",
+    "get_next_tracer",
+    "initializers",
+    "layers",
+    "make_log_joint_fn",
+    "make_random_variable",
+    "regularizers",
+    "tape",
+    "trace",
+    "traceable",
+    "__version__",
+    "VERSION",
+]
+for name in dir(generated_random_variables):
+  if name in sorted(dir(tfp.distributions)):
+    __all__.append(name)

@@ -15,44 +15,29 @@
 
 """Edward2 probabilistic programming language with NumPy backend."""
 
-# Make the NumPy backend be optional. The namespace is empty if NumPy
-# is not available.
-# pylint: disable=g-import-not-at-top
-try:
-  import numpy as np  # pylint: disable=unused-import
-  from scipy import stats
-except ImportError:
-  pass
-else:
-  from edward2.numpy import generated_random_variables
-  from edward2.numpy.generated_random_variables import *  # pylint: disable=wildcard-import
-  from edward2.numpy.program_transformations import make_log_joint_fn
-  from edward2.trace import get_next_tracer
-  from edward2.trace import trace
-  from edward2.trace import traceable
-  from edward2.tracers import condition
-  from edward2.tracers import tape
-  from edward2.version import __version__
-  from edward2.version import VERSION
+from edward2.numpy import generated_random_variables
+from edward2.numpy.generated_random_variables import *  # pylint: disable=wildcard-import
+from edward2.numpy.program_transformations import make_log_joint_fn
+from edward2.trace import get_next_tracer
+from edward2.trace import trace
+from edward2.trace import traceable
+from edward2.tracers import condition
+from edward2.tracers import tape
+from edward2.version import __version__
+from edward2.version import VERSION
 
-  _allowed_symbols = [
-      "condition",
-      "get_next_tracer",
-      "make_log_joint_fn",
-      "tape",
-      "trace",
-      "traceable",
-      "__version__",
-      "VERSION",
-  ]
-  for name in dir(generated_random_variables):
-    if name in sorted(dir(stats)):
-      _allowed_symbols.append(name)
+import scipy
 
-  try:
-    from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
-  except ImportError:
-    __all__ = _allowed_symbols
-  else:
-    remove_undocumented(__name__, _allowed_symbols)
-# pylint: enable=g-import-not-at-top
+__all__ = [
+    "condition",
+    "get_next_tracer",
+    "make_log_joint_fn",
+    "tape",
+    "trace",
+    "traceable",
+    "__version__",
+    "VERSION",
+]
+for name in dir(generated_random_variables):
+  if name in sorted(dir(scipy.stats)):
+    __all__.append(name)

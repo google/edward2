@@ -61,9 +61,7 @@ from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
 
-from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
-
-_allowed_symbols = [
+__all__ = [
     "ActNorm",
     "Attention",
     "BayesianLinearModel",
@@ -110,5 +108,3 @@ _allowed_symbols = [
     "ensemble_batchnorm",
     "utils",
 ]
-
-remove_undocumented(__name__, _allowed_symbols)

@@ -25,26 +25,28 @@ For user guides, see:
 """
 
 import warnings
-from edward2 import numpy
-from edward2 import tensorflow
-from edward2.tensorflow import *  # pylint: disable=wildcard-import
-
-_allowed_symbols = [
-    "numpy",
-    "tensorflow",
-]
-# By default, `import edward2 as ed` uses the TensorFlow backend's namespace.
-for name in dir(tensorflow):
-  _allowed_symbols.append(name)
+try:
+  from edward2 import numpy
+  __all__ = ["numpy"]
+except ImportError:
+  __all__ = []
+  warnings.warn("NumPy backend for Edward2 is not available.")
 
 try:
-  from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import,g-import-not-at-top
+  from edward2 import tensorflow
+  from edward2.tensorflow import *  # pylint: disable=wildcard-import
+  # By default, `import edward2 as ed` uses the TensorFlow backend's namespace.
+  __all__ += tensorflow.__all__ + ["tensorflow"]
 except ImportError:
-  __all__ = _allowed_symbols
+  warnings.warn("TensorFlow backend for Edward2 is not available.")
+
+try:
+  numpy
+except NameError:
   try:
-    import numpy as np  # pylint: disable=g-import-not-at-top,unused-import
-  except ImportError:
-    warnings.warn("Neither NumPy nor TensorFlow backends are available for "
-                  "Edward2.")
-else:
-  remove_undocumented(__name__, _allowed_symbols)
+    tensorflow
+  except NameError:
+    raise ImportError("Neither NumPy nor TensorFlow backends are available for "
+                      "Edward2. Please install the dependencies for either of"
+                      "them.")
+# pylint: enable=g-import-not-at-top
