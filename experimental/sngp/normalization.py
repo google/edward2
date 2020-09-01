@@ -191,7 +191,6 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     self.w = self.layer.kernel
     self.w_shape = self.w.shape.as_list()
     self.strides = self.layer.strides
-    self.padding = self.layer.padding.upper()
 
     # Set the dimensions of u and v vectors.
     batch_size = input_shape[0]
@@ -209,10 +208,6 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     self.in_shape = (uv_dim, in_height, in_width, in_channel)
     self.out_shape = (uv_dim, out_height, out_width, out_channel)
     self.uv_initializer = tf.initializers.random_normal()
-
-    if self.padding != 'SAME':
-      raise ValueError("Conv2D padding must be 'SAME'. Got {}".format(
-          self.padding))
 
     self.v = self.add_weight(
         shape=self.in_shape,
@@ -252,18 +247,18 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
             self.w,
             output_shape=self.in_shape,
             strides=self.strides,
-            padding=self.padding)
+            padding='SAME')
         v_hat = tf.nn.l2_normalize(tf.reshape(v_, [1, -1]))
         v_hat = tf.reshape(v_hat, v_.shape)
 
         # Updates u.
         u_ = tf.nn.conv2d(
-            v_hat, self.w, strides=self.strides, padding=self.padding)
+            v_hat, self.w, strides=self.strides, padding='SAME')
         u_hat = tf.nn.l2_normalize(tf.reshape(u_, [1, -1]))
         u_hat = tf.reshape(u_hat, u_.shape)
 
     v_w_hat = tf.nn.conv2d(
-        v_hat, self.w, strides=self.strides, padding=self.padding)
+        v_hat, self.w, strides=self.strides, padding='SAME')
 
     sigma = tf.matmul(tf.reshape(v_w_hat, [1, -1]), tf.reshape(u_hat, [-1, 1]))
     # Convert sigma from a 1x1 matrix to a scalar.
