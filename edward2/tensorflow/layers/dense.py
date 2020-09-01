@@ -488,11 +488,11 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
         units=units,
         use_bias=False,
         activation=None,
-        kernel_initializer=kernel_initializer,
+        kernel_initializer=initializers.get(kernel_initializer),
         bias_initializer=None,
-        kernel_regularizer=kernel_regularizer,
+        kernel_regularizer=regularizers.get(kernel_regularizer),
         bias_regularizer=None,
-        activity_regularizer=activity_regularizer,
+        activity_regularizer=regularizers.get(activity_regularizer),
         kernel_constraint=kernel_constraint,
         bias_constraint=None,
         **kwargs)
@@ -600,7 +600,7 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
 
 
 @utils.add_weight
-class DenseRank1(tf.keras.layers.Layer):
+class DenseRank1(tf.keras.layers.Dense):
   """A rank-1 Bayesian neural net dense layer (Dusenberry et al., 2020).
 
   The argument ensemble_size selects the number of mixture components over all
@@ -638,34 +638,39 @@ class DenseRank1(tf.keras.layers.Layer):
                max_perturbation_value=10,
                ensemble_size=1,
                **kwargs):
-    super().__init__(**kwargs)
-    self.units = units
-    self.activation = tf.keras.activations.get(activation)
-    self.use_bias = use_bias
-    self.alpha_initializer = initializers.get(alpha_initializer)
-    self.gamma_initializer = initializers.get(gamma_initializer)
-    self.bias_initializer = initializers.get(bias_initializer)
-    self.alpha_regularizer = regularizers.get(alpha_regularizer)
-    self.gamma_regularizer = regularizers.get(gamma_regularizer)
-    self.bias_regularizer = regularizers.get(bias_regularizer)
-    self.alpha_constraint = constraints.get(alpha_constraint)
-    self.gamma_constraint = constraints.get(gamma_constraint)
-    self.bias_constraint = constraints.get(bias_constraint)
-    self.use_additive_perturbation = use_additive_perturbation
-    self.min_perturbation_value = min_perturbation_value
-    self.max_perturbation_value = max_perturbation_value
-    self.ensemble_size = ensemble_size
-    self.dense = tf.keras.layers.Dense(
+    super().__init__(
         units=units,
         use_bias=False,
         activation=None,
         kernel_initializer=kernel_initializer,
+        bias_initializer=None,
         kernel_regularizer=kernel_regularizer,
+        bias_regularizer=None,
         activity_regularizer=activity_regularizer,
-        kernel_constraint=kernel_constraint)
+        kernel_constraint=kernel_constraint,
+        bias_constraint=None,
+        **kwargs)
+    self.units = units
+    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.use_ensemble_bias = use_bias
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.ensemble_bias_initializer = initializers.get(bias_initializer)
+    self.alpha_regularizer = regularizers.get(alpha_regularizer)
+    self.gamma_regularizer = regularizers.get(gamma_regularizer)
+    self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
+    self.alpha_constraint = constraints.get(alpha_constraint)
+    self.gamma_constraint = constraints.get(gamma_constraint)
+    self.ensemble_bias_constraint = constraints.get(bias_constraint)
+    self.use_additive_perturbation = use_additive_perturbation
+    self.min_perturbation_value = min_perturbation_value
+    self.max_perturbation_value = max_perturbation_value
+    self.ensemble_size = ensemble_size
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
+    super().build(input_shape)
+
     input_dim = input_shape[-1]
     self.alpha = self.add_weight(
         name='alpha',
@@ -683,19 +688,19 @@ class DenseRank1(tf.keras.layers.Layer):
         constraint=self.gamma_constraint,
         trainable=True,
         dtype=self.dtype)
-    if self.use_bias:
-      self.bias = self.add_weight(
-          name='bias',
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
           shape=[self.ensemble_size, self.units],
-          initializer=self.bias_initializer,
-          regularizer=self.bias_regularizer,
-          constraint=self.bias_constraint,
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
           trainable=True,
           dtype=self.dtype)
-      self.bias_shape = self.bias.shape
+      self.ensemble_bias_shape = self.ensemble_bias.shape
     else:
-      self.bias = None
-      self.bias_shape = None
+      self.ensemble_bias = None
+      self.ensemble_bias_shape = None
     self.alpha_shape = self.alpha.shape
     self.gamma_shape = self.gamma.shape
     self.built = True
@@ -731,43 +736,52 @@ class DenseRank1(tf.keras.layers.Layer):
       gamma = tf.expand_dims(self.gamma, 1)
 
     if self.use_additive_perturbation:
-      outputs = self.dense(inputs + alpha) + gamma
+      outputs = super().call(inputs + alpha) + gamma
     else:
-      outputs = self.dense(inputs * alpha) * gamma
+      outputs = super().call(inputs * alpha) * gamma
 
-    if self.use_bias:
-      if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-        bias = self.bias_initializer(
-            self.bias_shape, self.dtype).distribution.sample(examples_per_model)
+    if self.use_ensemble_bias:
+      if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
+        bias = self.ensemble_bias_initializer(
+            self.ensemble_bias_shape,
+            self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])
       else:
-        bias = tf.expand_dims(self.bias, 1)
+        bias = tf.expand_dims(self.ensemble_bias, 1)
       outputs += bias
 
-    if self.activation is not None:
-      outputs = self.activation(outputs)
+    if self.ensemble_activation is not None:
+      outputs = self.ensemble_activation(outputs)
     outputs = tf.reshape(outputs, [batch_size, self.units])
     return outputs
 
   def get_config(self):
     config = {
-        'activation': tf.keras.activations.serialize(self.activation),
-        'use_bias': self.use_bias,
-        'alpha_initializer': initializers.serialize(self.alpha_initializer),
-        'gamma_initializer': initializers.serialize(self.gamma_initializer),
-        'bias_initializer': initializers.serialize(self.bias_initializer),
-        'alpha_regularizer': regularizers.serialize(self.alpha_regularizer),
-        'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
-        'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-        'alpha_constraint': constraints.serialize(self.alpha_constraint),
-        'gamma_constraint': constraints.serialize(self.gamma_constraint),
-        'bias_constraint': constraints.serialize(self.bias_constraint),
-        'use_additive_perturbation': self.use_additive_perturbation,
-        'ensemble_size': self.ensemble_size,
+        'ensemble_activation':
+            tf.keras.activations.serialize(self.ensemble_activation),
+        'use_ensemble_bias':
+            self.use_ensemble_bias,
+        'alpha_initializer':
+            initializers.serialize(self.alpha_initializer),
+        'gamma_initializer':
+            initializers.serialize(self.gamma_initializer),
+        'ensemble_bias_initializer':
+            initializers.serialize(self.ensemble_bias_initializer),
+        'alpha_regularizer':
+            regularizers.serialize(self.alpha_regularizer),
+        'gamma_regularizer':
+            regularizers.serialize(self.gamma_regularizer),
+        'ensemble_bias_regularizer':
+            regularizers.serialize(self.ensemble_bias_regularizer),
+        'alpha_constraint':
+            constraints.serialize(self.alpha_constraint),
+        'gamma_constraint':
+            constraints.serialize(self.gamma_constraint),
+        'ensemble_bias_constraint':
+            constraints.serialize(self.ensemble_bias_constraint),
+        'ensemble_size':
+            self.ensemble_size,
     }
-    base_config = super().get_config()
-    dense_config = self.dense.get_config()
-    return dict(
-        list(base_config.items()) +
-        list(dense_config.items()) +
-        list(config.items()))
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config

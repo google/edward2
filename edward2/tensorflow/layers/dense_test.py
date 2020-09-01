@@ -345,8 +345,9 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
     output = layer(batched_inputs)
     manual_output = [
-        layer.dense(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-        for i in range(ensemble_size)]
+        super(ed.layers.DenseRank1, layer).call(inputs * layer.alpha[i]) *
+        layer.gamma[i] + layer.ensemble_bias[i] for i in range(ensemble_size)
+    ]
     manual_output = tf.concat(manual_output, axis=0)
 
     expected_shape = (ensemble_size*examples_per_model, output_dim)

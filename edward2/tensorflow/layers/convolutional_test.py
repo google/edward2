@@ -284,8 +284,9 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
 
     output = layer(batched_inputs)
     manual_output = [
-        layer.conv2d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-        for i in range(ensemble_size)]
+        super(ed.layers.Conv2DRank1, layer).call(inputs * layer.alpha[i]) *
+        layer.gamma[i] + layer.ensemble_bias[i] for i in range(ensemble_size)
+    ]
     manual_output = tf.concat(manual_output, axis=0)
     self.assertEqual(output.shape,
                      (ensemble_size*examples_per_model, 4, 4, output_dim))
@@ -408,8 +409,9 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
 
     output = layer(batched_inputs)
     manual_output = [
-        layer.conv1d(inputs*layer.alpha[i]) * layer.gamma[i] + layer.bias[i]
-        for i in range(ensemble_size)]
+        super(ed.layers.Conv1DRank1, layer).call(inputs * layer.alpha[i]) *
+        layer.gamma[i] + layer.ensemble_bias[i] for i in range(ensemble_size)
+    ]
     manual_output = tf.concat(manual_output, axis=0)
     self.assertEqual(output.shape,
                      (ensemble_size*examples_per_model, 4, output_dim))
