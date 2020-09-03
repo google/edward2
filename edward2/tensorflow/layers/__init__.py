@@ -58,6 +58,8 @@ from edward2.tensorflow.layers.normalization import ensemble_batchnorm
 from edward2.tensorflow.layers.normalization import EnsembleSyncBatchNorm
 from edward2.tensorflow.layers.normalization import SpectralNormalization
 from edward2.tensorflow.layers.normalization import SpectralNormalizationConv2D
+from edward2.tensorflow.layers.random_feature import LaplaceRandomFeatureCovariance
+from edward2.tensorflow.layers.random_feature import RandomFeatureGaussianProcess
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
@@ -93,6 +95,7 @@ __all__ = [
     "EmbeddingReparameterization",
     "EnsembleSyncBatchNorm",
     "GaussianProcess",
+    "LaplaceRandomFeatureCovariance",
     "LinearKernel",
     "LSTMCellFlipout",
     "LSTMCellRank1",
@@ -103,6 +106,7 @@ __all__ = [
     "NCPNormalOutput",
     "NCPNormalPerturb",
     "NeuralProcess",
+    "RandomFeatureGaussianProcess",
     "Reverse",
     "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
