@@ -56,6 +56,8 @@ from edward2.tensorflow.layers.noise import NCPNormalPerturb
 from edward2.tensorflow.layers.normalization import ActNorm
 from edward2.tensorflow.layers.normalization import ensemble_batchnorm
 from edward2.tensorflow.layers.normalization import EnsembleSyncBatchNorm
+from edward2.tensorflow.layers.normalization import SpectralNormalization
+from edward2.tensorflow.layers.normalization import SpectralNormalizationConv2D
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
@@ -104,6 +106,8 @@ __all__ = [
     "Reverse",
     "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
+    "SpectralNormalization",
+    "SpectralNormalizationConv2D",
     "Zeros",
     "ensemble_batchnorm",
     "utils",

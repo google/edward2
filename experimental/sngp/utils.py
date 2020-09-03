@@ -14,13 +14,14 @@
 # limitations under the License.
 
 """SNGP utilities."""
-import tensorflow as tf
+import warnings
+import edward2 as ed
 
 
-def mean_field_logits(logits, covmat, mean_field_factor=1.):
+def mean_field_logits(*args, **kwargs):
   """Adjust the predictive logits so its softmax approximates posterior mean."""
-  logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
-  if mean_field_factor > 0:
-    logits = logits / tf.expand_dims(logits_scale, axis=-1)
+  warnings.warn(
+      'Please use `edward2.layers.utils.mean_field_logits` instead.',
+      category=DeprecationWarning, stacklevel=2)
 
-  return logits
+  return ed.layers.utils.mean_field_logits(*args, **kwargs)

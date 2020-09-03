@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Layer utilities."""
+"""Layer utilities.
+
+## References:
+
+[1]: Zhiyun Lu, Eugene Ie, Fei Sha. Uncertainty Estimation with Infinitesimal
+     Jackknife.  _arXiv preprint arXiv:2006.07584_, 2020.
+     https://arxiv.org/abs/2006.07584
+"""
 
 import functools
 import numpy as np
@@ -336,3 +343,24 @@ def smart_constant_value(pred):
     raise TypeError('`pred` must be a Tensor, or a Python bool, or 1 or 0. '
                     'Found instead: %s' % pred)
   return pred_value
+
+
+def mean_field_logits(logits, covmat, mean_field_factor=1.):
+  """Adjust the SNGP logits so its softmax approximates posterior mean [1].
+
+  Arguments:
+    logits: A float tensor of shape (batch_size, num_classes).
+    covmat: A float tensor of shape (batch_size, batch_size).
+    mean_field_factor: The scale factor for mean-field approximation, used to
+      adjust the influence of posterior variance in posterior mean
+      approximation.
+
+  Returns:
+    True or False if `pred` has a constant boolean value, None otherwise.
+
+  """
+  logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
+  if mean_field_factor > 0:
+    logits = logits / tf.expand_dims(logits_scale, axis=-1)
+
+  return logits
