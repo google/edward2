@@ -26,6 +26,9 @@ from edward2.tensorflow.layers import utils
 import tensorflow as tf
 
 
+LAMBDA_TYPE = ('l2_kernel', 'l2_bias', 'dr')  # used by HyperBatchEnsemble
+
+
 @utils.add_weight
 class Conv2DReparameterization(tf.keras.layers.Conv2D):
   """2D convolution layer (e.g. spatial convolution over images).
@@ -598,6 +601,9 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
     self.ensemble_activation = tf.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
 
+  def _build_parent(self, input_shape):
+    super().build(input_shape)
+
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     super().build(input_shape)
@@ -835,6 +841,437 @@ class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
     new_config = super().get_config()
     new_config.update(config)
     return new_config
+
+
+class _Conv2DBatchEnsembleNoFastWeights(Conv2DBatchEnsemble):
+  """Version of Conv2DBatchEnsemble that does not create fast weights."""
+
+  def __init__(self,
+               filters,
+               kernel_size,
+               rank=1,
+               ensemble_size=4,
+               strides=(1, 1),
+               padding='valid',
+               data_format=None,
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+
+    super().__init__(
+        filters=filters,
+        kernel_size=kernel_size,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        alpha_initializer=None,
+        gamma_initializer=None,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=activation,
+        use_bias=use_bias,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.alpha = None
+    self.gamma = None
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    super()._build_parent(input_shape)
+
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
+          shape=[self.ensemble_size, self.filters],
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.ensemble_bias = None
+    self.built = True
+
+
+class Conv2DHyperBatchEnsemble(tf.keras.layers.Layer):
+  """Conv2D Hyper-BatchEnsemble layer that self-tunes hyperparameters.
+
+  * Image of size (height, width, c)
+  * f, number of filters (=output channels)
+  * K, K', kernels of size (ks, ks, c, f) with ks = kernel size
+  * b_k, b'_k, of size (f,) with k in {1,..., ensemble size}.
+  * e(lambdas) = [e1(lambdas), e2(lambdas)] of size (f, 1) and (f, 1)
+
+  The expression is, with k in {1,..., ensemble size},
+    * r_k, u_k in R^c and s_k, v_k in R^f
+    * the kernels: K * (r_k s_k^T) + e1(lambdas) * K' * (u_k v_k^T)
+    * the bias: b_jk + e2(lambdas)_j * b'_jk for j=1..f
+  The rank-1 factors broadcast along the in channel (c) and the filters (f).
+  The rank-1 perturbations are taken from ed.layers.Conv2DBatchEnsemble.
+
+  Importantly, in https://arxiv.org/abs/1903.03088, the e models are taken
+  to be only *linear* and *without bias*.
+
+  If fast_weights_eq_contraint == True:
+    * We impose the equality constraint (r_k, s_k) = (u_k, v_k)
+
+  If regularize_fast_weights == True, we have:
+    * Assuming lambdas_ik and L2 coefficients h_ik
+      (i in {1, ..., n} and k in {1, ..., ensemble_size}).
+    * Denoting W_ik = (K * (r_k s_k^T)) + (e1(lambdas_ik) * (K' u_k v_k^T))
+
+    1/(n*ensemble_size) sum_i,k h_ik || W_ij ||^2.
+
+  Else (regularize_fast_weights == False) we have
+    * Denoting Q_ik = K + (e1(lambdas_ik) * K')
+
+    1/(n*ensemble_size) sum_i,k h_ik || Q_ik ||^2.
+
+  """
+
+  def __init__(self,
+               lambda_key_to_index,
+               filters,
+               kernel_size,
+               rank=1,
+               ensemble_size=4,
+               alpha_initializer='ones',
+               gamma_initializer='ones',
+               strides=(1, 1),
+               padding='valid',
+               data_format=None,
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               regularize_fast_weights=True,
+               fast_weights_eq_contraint=False,
+               **kwargs):
+
+    super().__init__(**kwargs)
+
+    assert rank == 1, 'Self-tuned layers only support rank-1 fast weights.'
+    assert_msg = 'Self-tuned layers handle their regularization seperately.'
+    assert kernel_regularizer is None, assert_msg
+    assert bias_regularizer is None, assert_msg
+
+    self.lambda_key_to_index = lambda_key_to_index
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.activation = tf.keras.activations.get(activation)
+    self.regularize_fast_weights = regularize_fast_weights
+    self.fast_weights_eq_contraint = fast_weights_eq_contraint
+
+    self.conv2d = _Conv2DBatchEnsembleNoFastWeights(
+        filters=filters,
+        kernel_size=kernel_size,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=None,
+        use_bias=use_bias,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.delta_conv2d = _Conv2DBatchEnsembleNoFastWeights(
+        filters=filters,
+        kernel_size=kernel_size,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=None,
+        use_bias=False,  # bias of self-tuned part handled separately
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.data_format = self.conv2d.data_format
+    self.ensemble_size = self.conv2d.ensemble_size
+    self.filters = self.conv2d.filters
+    self.use_bias = use_bias
+    self.bias_initializer = self.conv2d.bias_initializer
+
+  def _add_weight(self, name, shape):
+    assert ('alpha' in name) or ('gamma' in name)
+    return self.add_weight(
+        name=name,
+        shape=shape,
+        initializer=self.alpha_initializer
+        if 'alpha' in name else self.gamma_initializer,
+        trainable=True,
+        dtype=self.dtype)
+
+  def build(self, input_shape):
+
+    # input_shape = [(None, data_dim), (None, lambdas_dim), (None, e_dim)]
+    input_shape = tf.TensorShape(input_shape[0])
+    if self.data_format == 'channels_first':
+      input_channel = input_shape[1]
+    elif self.data_format == 'channels_last':
+      input_channel = input_shape[-1]
+
+    alpha_shape = [self.ensemble_size, input_channel]
+    gamma_shape = [self.ensemble_size, self.filters]
+
+    self.conv2d.alpha = self._add_weight('alpha', alpha_shape)
+    self.conv2d.gamma = self._add_weight('gamma', gamma_shape)
+
+    if self.fast_weights_eq_contraint:
+      self.delta_conv2d.alpha = self.conv2d.alpha
+      self.delta_conv2d.gamma = self.conv2d.gamma
+    else:
+      # we follow the keras naming convention with '_1'
+      self.delta_conv2d.alpha = self._add_weight('alpha_1', alpha_shape)
+      self.delta_conv2d.gamma = self._add_weight('gamma_1', gamma_shape)
+
+    if self.use_bias:
+      self.bias = self.add_weight(
+          name='bias',
+          shape=[self.ensemble_size, self.filters],
+          initializer=self.bias_initializer,
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.bias = None
+    self.built = True
+
+  def call(self, inputs):
+
+    data, lambdas, e = inputs
+
+    e1, e2 = e[:, :self.filters], e[:, self.filters:]
+
+    output = self.conv2d(data)
+    delta_kernel = self.delta_conv2d(data)
+    delta_kernel = delta_kernel * tf.expand_dims(tf.expand_dims(e1, 1), 1)
+    output += delta_kernel
+
+    batch_size = tf.shape(data)[0]
+    self.add_loss(self._get_mean_l2_regularizer(lambdas, e1, e2, batch_size))
+
+    if self.use_bias:
+      ex_per_model = batch_size // self.ensemble_size
+
+      e2 = tf.reshape(e2, (self.ensemble_size, ex_per_model, self.filters))
+      delta_bias = tf.expand_dims(self.bias, 1) * e2
+      # (ens_size, ex_per_model, filters) --> (batch_size, filters)
+      delta_bias = tf.reshape(delta_bias, (batch_size, self.filters))
+      delta_bias = tf.expand_dims(tf.expand_dims(delta_bias, 1), 1)
+      output += delta_bias
+
+    if self.activation is not None:
+      return self.activation(output)
+
+    return output
+
+  def _get_equivalent_kernels(self, kernel, alpha, gamma):
+    """Compute equivalent kernels for all ensemble members."""
+    k = tf.expand_dims(kernel, 0)  # (1, ks, ks, c, filters), ks=kernel size
+
+    if self.regularize_fast_weights:
+      a = tf.expand_dims(alpha, -1)  # (ens_size, c, 1)
+      a = tf.expand_dims(a, 1)  # (ens_size, 1, c, 1)
+      a = tf.expand_dims(a, 1)  # (ens_size, 1, 1, c, 1)
+
+      g = tf.expand_dims(gamma, 1)  # (ens_size, 1, filters)
+      g = tf.expand_dims(g, 1)  # (ens_size, 1, 1, filters)
+      g = tf.expand_dims(g, 1)  # (ens_size, 1, 1, 1, filters)
+
+      kernels = k * a * g  # (ens_size, ks, ks, c, filters)
+    else:
+      kernels = tf.tile(k, [self.ensemble_size, 1, 1, 1, 1])
+
+    return kernels
+
+  def _get_mean_l2_regularizer(self, lambdas, e1, e2, batch_size):
+
+    # l2 regularization term for the kernel
+    l2_k = get_lambda(
+        lambdas,
+        lambda_type='l2_kernel',
+        layer_name=self.name,
+        lambda_key_to_index=self.lambda_key_to_index)
+
+    ex_per_model = batch_size // self.ensemble_size
+
+    conv2d_kernel = self.conv2d.kernel
+    k = self._get_equivalent_kernels(conv2d_kernel,
+                                     self.conv2d.alpha,
+                                     self.conv2d.gamma)
+    k = tf.reshape(k, (self.ensemble_size, -1, self.filters))
+
+    delta_conv2d_kernel = self.delta_conv2d.kernel
+    delta_k = self._get_equivalent_kernels(delta_conv2d_kernel,
+                                           self.delta_conv2d.alpha,
+                                           self.delta_conv2d.gamma)
+    delta_k = tf.reshape(delta_k, (self.ensemble_size, -1, self.filters))
+
+    e1 = tf.reshape(e1, (self.ensemble_size, ex_per_model, self.filters))
+    l2_k = tf.reshape(l2_k, (self.ensemble_size, ex_per_model, 1))
+
+    l2_regularizer = self._get_mean_l2_regularizer_helper(k, delta_k, e1, l2_k)
+
+    if self.use_bias:
+      # l2 regularization term for the bias
+      l2_bias = get_lambda(
+          lambdas,
+          lambda_type='l2_bias',
+          layer_name=self.name,
+          lambda_key_to_index=self.lambda_key_to_index)
+
+      e2 = tf.reshape(e2, (self.ensemble_size, ex_per_model, self.filters))
+      l2_bias = tf.reshape(l2_bias, (self.ensemble_size, ex_per_model, 1))
+
+      bias = tf.expand_dims(self.conv2d.ensemble_bias,
+                            1)  # (ens_size, 1, filters)
+      delta_bias = tf.expand_dims(self.bias, 1)  # (ens_size, 1, filters)
+
+      l2_regularizer += self._get_mean_l2_regularizer_helper(
+          bias, delta_bias, e2, l2_bias)
+
+    return l2_regularizer
+
+  def _get_mean_l2_regularizer_helper(self, w, u, e, l2):
+    """Compute 1/n sum_i^n 1/k sum_j^k l2_{i,j} | w_j + u_j*e_{i,j} |_2^2."""
+
+    # The arguments have the form:
+    #   w in R^{k x a x b} with w_j in R^{a x b}
+    #   u in R^{k x a x b} with u_j in R^{a x b}
+    #   e in R^{k x n x b} with e_{i,j} in R^{1 x b}
+    #   l2 in R^{k x n x 1}
+
+    sq_w = tf.reduce_sum(tf.square(w), [1, 2], keepdims=True)  # (k, 1, 1)
+    term1 = tf.reduce_mean(sq_w * l2)
+
+    mean_e_l2 = tf.reduce_mean(e * l2, 1, keepdims=True)  # (k, 1, b)
+    v = u * mean_e_l2
+    wtv = tf.reduce_mean(tf.matmul(w, v, transpose_a=True), 0)  # (b, b)
+    term2 = 2. * tf.linalg.trace(wtv)
+
+    sq_u = tf.square(u)  # (k, a, b)
+    mean_sq_e_l2 = tf.reduce_mean(
+        tf.square(e) * l2, 1, keepdims=True)  # (k,1,b)
+    term3 = tf.reduce_mean(tf.reduce_sum(sq_u * mean_sq_e_l2, [1, 2]))
+
+    output = term1 + term2 + term3
+    return output
+
+  def get_config(self):
+    config = {
+        'lambda_key_to_index':
+            self.lambda_key_to_index,
+        'filters':
+            self.filters,
+        'kernel_size':
+            self.conv2d.kernel_size,
+        'rank':
+            self.conv2d.rank,
+        'ensemble_size':
+            self.ensemble_size,
+        'alpha_initializer':
+            initializers.serialize(self.alpha_initializer),
+        'gamma_initializer':
+            initializers.serialize(self.gamma_initializer),
+        'strides':
+            self.conv2d.strides,
+        'padding':
+            self.conv2d.padding,
+        'data_format':
+            self.data_format,
+        'activation':
+            tf.keras.activations.serialize(self.activation),
+        'use_bias':
+            self.use_bias,
+        'kernel_initializer':
+            initializers.serialize(self.conv2d.kernel_initializer),
+        'bias_initializer':
+            initializers.serialize(self.bias_initializer),
+        'kernel_regularizer':
+            regularizers.serialize(self.conv2d.kernel_regularizer),
+        'bias_regularizer':
+            regularizers.serialize(self.conv2d.bias_regularizer),
+        'activity_regularizer':
+            regularizers.serialize(self.activity_regularizer),
+        'kernel_constraint':
+            constraints.serialize(self.conv2d.kernel_constraint),
+        'bias_constraint':
+            constraints.serialize(self.conv2d.bias_constraint),
+        'regularize_fast_weights':
+            self.regularize_fast_weights,
+        'fast_weights_eq_contraint':
+            self.fast_weights_eq_contraint
+    }
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
+
+
+def get_layer_name_identifier(layer_name):
+  """Converts the layer name into a identifier to access lambda_key_to_index.
+
+  As identifier the layer_name is used, but the part encapsulated by the
+  character '/' is ignored. Useful if the Hyper-BatchEnsemble should use the
+   same hyperparameter for a group of self tuned layers.
+
+  Example:
+    * layer_name='conv_2' returns 'conv_2'
+    * layer_name='group_1/conv_3/' returns 'group_1'
+
+  Args:
+    layer_name: string.
+
+  Returns:
+    identifier: string, to be used to access lambda_key_to_index.
+  """
+  ignore_start = layer_name.find('/')
+  ignore_end = layer_name.find('/', ignore_start+1)
+  if ignore_start > -1 and ignore_end > -1:
+    layer_name = layer_name[:ignore_start] + layer_name[ignore_end+1:]
+
+  return layer_name
+
+
+def get_lambda(lambdas, lambda_type, layer_name, lambda_key_to_index):
+  """Extract the column in lambdas corresponding to the requested HP."""
+  assert lambda_type in LAMBDA_TYPE
+
+  identifier = get_layer_name_identifier(layer_name)
+  index = lambda_key_to_index[identifier + '_' + lambda_type]
+  return tf.reshape(lambdas[:, index], (-1, 1))
 
 
 @utils.add_weight

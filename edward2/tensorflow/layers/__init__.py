@@ -25,6 +25,7 @@ from edward2.tensorflow.layers.convolutional import Conv1DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DFlipout
 from edward2.tensorflow.layers.convolutional import Conv2DHierarchical
+from edward2.tensorflow.layers.convolutional import Conv2DHyperBatchEnsemble
 from edward2.tensorflow.layers.convolutional import Conv2DRank1
 from edward2.tensorflow.layers.convolutional import Conv2DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DVariationalDropout
@@ -34,6 +35,7 @@ from edward2.tensorflow.layers.dense import DenseBatchEnsemble
 from edward2.tensorflow.layers.dense import DenseDVI
 from edward2.tensorflow.layers.dense import DenseFlipout
 from edward2.tensorflow.layers.dense import DenseHierarchical
+from edward2.tensorflow.layers.dense import DenseHyperBatchEnsemble
 from edward2.tensorflow.layers.dense import DenseRank1
 from edward2.tensorflow.layers.dense import DenseReparameterization
 from edward2.tensorflow.layers.dense import DenseVariationalDropout
@@ -77,6 +79,7 @@ __all__ = [
     "Conv2DBatchEnsemble",
     "Conv2DFlipout",
     "Conv2DHierarchical",
+    "Conv2DHyperBatchEnsemble",
     "Conv2DRank1",
     "Conv2DReparameterization",
     "Conv2DVariationalDropout",
@@ -84,6 +87,7 @@ __all__ = [
     "DenseDVI",
     "DenseFlipout",
     "DenseHierarchical",
+    "DenseHyperBatchEnsemble",
     "DenseReparameterization",
     "DenseRank1",
     "DenseVariationalDropout",

@@ -15,6 +15,7 @@
 
 """Tests for Bayesian dense layers."""
 
+import itertools
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
@@ -313,6 +314,110 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     expected_shape = (ensemble_size * examples_per_model, output_dim)
     self.assertEqual(batch_outputs.shape, expected_shape)
     self.assertAllClose(batch_outputs, loop_outputs_list)
+
+  @parameterized.parameters(
+      itertools.product([True, False], [True, False], [True, False]))
+  def testDenseHyperBatchEnsemble(self, use_bias, regularize_fast_weights,
+                                  fast_weights_eq_constraint):
+    tf.random.set_seed(1)
+
+    units = 5
+    lambda_key_to_index = {"self_dense_l2_kernel": 0, "self_dense_l2_bias": 1}
+    ens_size = 3
+
+    layer = ed.layers.DenseHyperBatchEnsemble(
+        units,
+        lambda_key_to_index,
+        ensemble_size=ens_size,
+        name="self_dense",
+        activation=None,
+        use_bias=use_bias,
+        kernel_initializer="glorot_uniform",
+        bias_initializer="glorot_uniform",
+        alpha_initializer="glorot_uniform",
+        gamma_initializer="glorot_uniform",
+        regularize_fast_weights=regularize_fast_weights,
+        fast_weights_eq_contraint=fast_weights_eq_constraint)
+
+    n = 6
+    e = tf.random.normal((n * ens_size, 2*units))
+    lambdas = tf.random.uniform((n * ens_size, 2))
+
+    dim_x = 4
+    x = tf.random.normal((n, dim_x))
+    tile_x = tf.tile(x, [ens_size, 1])
+
+    outputs = layer([tile_x, lambdas, e])
+
+    dense_kernel = layer.dense.kernel
+    delta_dense_kernel = layer.delta_dense.kernel
+
+    expected_outputs = []
+    for k, ek in zip(range(ens_size), tf.split(e, ens_size)):
+
+      r_k = tf.reshape(layer.dense.alpha[k, :], (dim_x, 1))
+      s_k = tf.reshape(layer.dense.gamma[k, :], (1, units))
+
+      u_k = tf.reshape(layer.delta_dense.alpha[k, :], (dim_x, 1))
+      v_k = tf.reshape(layer.delta_dense.gamma[k, :], (1, units))
+
+      if fast_weights_eq_constraint:
+        self.assertAllClose(r_k, u_k)
+        self.assertAllClose(s_k, v_k)
+
+      for x_i, e_i in zip(x, ek):
+        x_i = tf.reshape(x_i, (1, dim_x))
+        e1_i = tf.reshape(e_i[:units], (1, units))
+        e2_i = tf.reshape(e_i[units:], (units,))
+
+        kernel_i = dense_kernel * r_k * s_k
+        delta_kernel_i = (delta_dense_kernel * u_k * v_k) * e1_i
+
+        expected_outputs_i = tf.matmul(x_i, kernel_i + delta_kernel_i)
+
+        if use_bias:
+          bias_i = layer.dense.ensemble_bias[k, :]
+          delta_bias_i = layer.bias[k, :] * e2_i
+          expected_outputs_i += bias_i + delta_bias_i
+
+        expected_outputs.append(expected_outputs_i)
+
+    self.assertAllClose(outputs, tf.concat(expected_outputs, 0))
+
+    mean_l2_regularizer = 0.
+    for k, ek, lambdask in zip(
+        range(ens_size), tf.split(e, ens_size), tf.split(lambdas, ens_size)):
+
+      r_k = tf.reshape(layer.dense.alpha[k, :], (dim_x, 1))
+      s_k = tf.reshape(layer.dense.gamma[k, :], (1, units))
+
+      u_k = tf.reshape(layer.delta_dense.alpha[k, :], (dim_x, 1))
+      v_k = tf.reshape(layer.delta_dense.gamma[k, :], (1, units))
+
+      for lambdas_i, e_i in zip(lambdask, ek):
+        l2_kernel, l2_bias = lambdas_i[0], lambdas_i[1]
+        e1_i = tf.reshape(e_i[:units], (1, units))
+        e2_i = tf.reshape(e_i[units:], (units,))
+
+        if regularize_fast_weights:
+          kernel_i = dense_kernel * r_k * s_k
+          delta_kernel_i = (delta_dense_kernel * u_k * v_k) * e1_i
+        else:
+          kernel_i = dense_kernel
+          delta_kernel_i = delta_dense_kernel * e1_i
+
+        mean_l2_regularizer += l2_kernel * tf.reduce_sum(
+            tf.square(kernel_i + delta_kernel_i))
+
+        if use_bias:
+          bias_i = layer.dense.ensemble_bias[k, :]
+          delta_bias_i = layer.bias[k, :] * e2_i
+          mean_l2_regularizer += l2_bias * tf.reduce_sum(
+              tf.square(bias_i + delta_bias_i))
+
+    mean_l2_regularizer *= 1. / (n * ens_size)
+
+    self.assertAllClose(float(mean_l2_regularizer), float(layer.losses[0]))
 
   @parameterized.parameters(
       {"alpha_initializer": "he_normal",

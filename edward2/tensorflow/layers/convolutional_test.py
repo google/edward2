@@ -15,6 +15,7 @@
 
 """Tests for Bayesian convolutional layers."""
 
+import itertools
 from absl.testing import parameterized
 import edward2 as ed
 import numpy as np
@@ -291,6 +292,107 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(output.shape,
                      (ensemble_size*examples_per_model, 4, 4, output_dim))
     self.assertAllClose(output, manual_output)
+
+  @parameterized.parameters(
+      itertools.product([True, False], [True, False], [True, False]))
+  def testConv2DHyperBatchEnsemble(self, use_bias, regularize_fast_weights,
+                                   fast_weights_eq_constraint):
+
+    lambda_key_to_index = {"self_conv2d_l2_kernel": 0, "self_conv2d_l2_bias": 1}
+
+    tf.random.set_seed(1)
+
+    n = 8
+    ens_size = 3
+    in_channels = 3
+    x_dim = (4, 5, in_channels)
+    filters = 6
+
+    e = tf.random.normal((n * ens_size, filters * 2))
+    lambdas = tf.random.uniform((n * ens_size, 2))
+    x = tf.random.normal((n,) + x_dim)
+    tile_x = tf.tile(x, [ens_size, 1, 1, 1])
+
+    layer = ed.layers.Conv2DHyperBatchEnsemble(
+        lambda_key_to_index,
+        filters=filters,
+        ensemble_size=ens_size,
+        kernel_size=3,
+        strides=1,
+        use_bias=use_bias,
+        padding="same",
+        name="self_conv2d",
+        bias_initializer="glorot_uniform",
+        alpha_initializer="glorot_uniform",
+        gamma_initializer="glorot_uniform",
+        regularize_fast_weights=regularize_fast_weights,
+        fast_weights_eq_contraint=fast_weights_eq_constraint)
+
+    outputs = layer([tile_x, lambdas, e])
+
+    kernel = layer.conv2d.kernel
+    delta_kernel = layer.delta_conv2d.kernel
+
+    if use_bias:
+      bias = layer.conv2d.ensemble_bias
+
+    expected_outputs = []
+    for k, ek in zip(range(ens_size), tf.split(e, ens_size)):
+
+      # kernel has shape (ks, ks, in_channels, filters), ks=kernel size
+      r_k = tf.reshape(layer.conv2d.alpha[k, :], (1, 1, in_channels, 1))
+      s_k = tf.reshape(layer.conv2d.gamma[k, :], (1, 1, 1, filters))
+      u_k = tf.reshape(layer.delta_conv2d.alpha[k, :], (1, 1, in_channels, 1))
+      v_k = tf.reshape(layer.delta_conv2d.gamma[k, :], (1, 1, 1, filters))
+
+      if fast_weights_eq_constraint:
+        self.assertAllClose(r_k, u_k)
+        self.assertAllClose(s_k, v_k)
+
+      for i in range(n):
+        x_i = tf.reshape(x[i, ::], (1,)+x_dim)
+        e1_i = tf.reshape(ek[i, :filters], (1, 1, 1, filters))
+        e2_i = tf.reshape(ek[i, filters:], (filters,))
+
+        kernel_i = kernel * r_k * s_k + delta_kernel * u_k * v_k * e1_i
+        out_i = tf.nn.conv2d(x_i, kernel_i, strides=1, padding="SAME")
+
+        if use_bias:
+          bias_i = bias[k, :] + layer.bias[k, :] * e2_i
+          out_i = tf.nn.bias_add(out_i, bias_i)
+
+        expected_outputs.append(out_i)
+
+    self.assertAllClose(outputs, tf.concat(expected_outputs, 0))
+
+    mean_l2_regularizer = 0.
+    for k, ek, lambdask in zip(
+        range(ens_size), tf.split(e, ens_size), tf.split(lambdas, ens_size)):
+
+      r_k = tf.reshape(layer.conv2d.alpha[k, :], (1, 1, in_channels, 1))
+      s_k = tf.reshape(layer.conv2d.gamma[k, :], (1, 1, 1, filters))
+      u_k = tf.reshape(layer.delta_conv2d.alpha[k, :], (1, 1, in_channels, 1))
+      v_k = tf.reshape(layer.delta_conv2d.gamma[k, :], (1, 1, 1, filters))
+
+      for i in range(n):
+        l2_kernel, l2_bias = lambdask[i, 0], lambdask[i, 1]
+        x_i = tf.reshape(x[i, ::], (1,)+x_dim)
+        e1_i = tf.reshape(ek[i, :filters], (1, 1, 1, filters))
+        e2_i = tf.reshape(ek[i, filters:], (filters,))
+
+        if regularize_fast_weights:
+          kernel_i = kernel * r_k * s_k + delta_kernel * u_k * v_k * e1_i
+        else:
+          kernel_i = kernel + delta_kernel * e1_i
+        mean_l2_regularizer += l2_kernel * tf.reduce_sum(tf.square(kernel_i))
+
+        if use_bias:
+          bias_i = bias[k, :] + layer.bias[k, :] * e2_i
+          mean_l2_regularizer += l2_bias * tf.reduce_sum(tf.square(bias_i))
+
+    mean_l2_regularizer *= 1./(n * ens_size)
+
+    self.assertAllClose(float(mean_l2_regularizer), float(layer.losses[0]))
 
   @parameterized.parameters(
       {"alpha_initializer": "he_normal",

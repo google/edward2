@@ -27,6 +27,9 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 
+LAMBDA_TYPE = ('l2_kernel', 'l2_bias', 'dr')  # used by HyperBatchEnsemble
+
+
 @utils.add_weight
 class DenseReparameterization(tf.keras.layers.Dense):
   """Bayesian densely-connected layer estimated via reparameterization.
@@ -506,6 +509,9 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
     self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
     self.ensemble_bias_constraint = constraints.get(bias_constraint)
 
+  def _build_parent(self, input_shape):
+    super().build(input_shape)
+
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
     super().build(input_shape)
@@ -597,6 +603,386 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
     new_config = super().get_config()
     new_config.update(config)
     return new_config
+
+
+class _DenseBatchEnsembleNoFastWeights(DenseBatchEnsemble):
+  """Version of DenseBatchEnsemble that does not create fast weights."""
+
+  def __init__(self,
+               units,
+               rank=1,
+               ensemble_size=4,
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+
+    super().__init__(
+        units,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        activation=activation,
+        use_bias=use_bias,
+        alpha_initializer=None,
+        gamma_initializer=None,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.alpha = None
+    self.gamma = None
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    super()._build_parent(input_shape)
+    if self.use_ensemble_bias:
+      self.ensemble_bias = self.add_weight(
+          name='ensemble_bias',
+          shape=[self.ensemble_size, self.units],
+          initializer=self.ensemble_bias_initializer,
+          regularizer=self.ensemble_bias_regularizer,
+          constraint=self.ensemble_bias_constraint,
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.ensemble_bias = None
+    self.built = True
+
+
+class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
+  """Dense Hyper-BatchEnsemble layer that self-tunes hyperparameters.
+
+  * W, W' of size (d_in, d_out)
+  * b_j, b'_j of size (d_out,) for j in {1, ..., ensemble_size}.
+  * e(lambdas) = [e1(lambdas), e2(lambdas)] of size (d_out, 1) and (d_out, 1)
+  * input x of size (d_in,)
+
+  The expression is:
+    * the weights: x (W * (r_j s_j^T)) + x (e1(lambdas) * (W' u_j v_j^T)
+    * the bias: b_j + (e2(lambdas) * b'_j)
+  with j in {1, ..., ensemble_size}.
+
+  The rank-1 perturbations are taken from ed.layers.DenseBatchEnsemble.
+
+  Importantly, in https://arxiv.org/pdf/1903.03088.pdf, the e models are taken
+  to be only *linear* and *without bias*.
+
+  If fast_weights_eq_contraint == True:
+    * We impose the equality constraint (r_j, s_j) = (u_j, v_j)
+
+  If regularize_fast_weights == True, we have:
+    * Assuming lambdas_ij and L2 coefficients h_ij
+      (i in {1, ..., n} and j in {1, ..., ensemble_size}).
+    * Denoting K_ij = (W * (r_j s_j^T)) + (e1(lambdas_ij) * (W' u_j v_j^T))
+
+    1/(n*ensemble_size) sum_i,j h_ij || K_ij ||^2.
+
+  Else (regularize_fast_weights == False) we have
+    * Denoting Q_ij = W + (e1(lambdas_ij) * W')
+
+    1/(n*ensemble_size) sum_i,j h_ij || Q_ij ||^2.
+
+  """
+
+  def __init__(self,
+               units,
+               lambda_key_to_index,
+               rank=1,
+               ensemble_size=4,
+               activation=None,
+               use_bias=True,
+               alpha_initializer='ones',
+               gamma_initializer='ones',
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               regularize_fast_weights=True,
+               fast_weights_eq_contraint=False,
+               **kwargs):
+
+    super().__init__(**kwargs)
+
+    assert rank == 1, 'Self-tuned layers only support rank-1 fast weights.'
+    assert_msg = 'Self-tuned layers handle their regularization seperately.'
+    assert kernel_regularizer is None, assert_msg
+    assert bias_regularizer is None, assert_msg
+
+    self.lambda_key_to_index = lambda_key_to_index
+    self.alpha_initializer = initializers.get(alpha_initializer)
+    self.gamma_initializer = initializers.get(gamma_initializer)
+    self.activation = tf.keras.activations.get(activation)
+    self.regularize_fast_weights = regularize_fast_weights
+    self.fast_weights_eq_contraint = fast_weights_eq_contraint
+
+    self.dense = _DenseBatchEnsembleNoFastWeights(
+        units,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        activation=None,
+        use_bias=use_bias,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.delta_dense = _DenseBatchEnsembleNoFastWeights(
+        units,
+        rank=rank,
+        ensemble_size=ensemble_size,
+        activation=None,
+        use_bias=False,  # bias of self-tuned part handled separately
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+
+    self.ensemble_size = self.dense.ensemble_size
+    self.units = self.dense.units
+    self.use_bias = use_bias
+    self.bias_initializer = self.dense.bias_initializer
+
+  def _add_weight(self, name, shape):
+    assert ('alpha' in name) or ('gamma' in name)
+    return self.add_weight(
+        name=name,
+        shape=shape,
+        initializer=self.alpha_initializer
+        if 'alpha' in name else self.gamma_initializer,
+        trainable=True,
+        dtype=self.dtype)
+
+  def build(self, input_shape):
+
+    # input_shape = [(None, data_dim), (None, lambdas_dim), (None, e_dim)]
+    input_shape = tf.TensorShape(input_shape[0])
+    input_dim = input_shape[-1]
+    alpha_shape = [self.ensemble_size, input_dim]
+    gamma_shape = [self.ensemble_size, self.units]
+
+    self.dense.alpha = self._add_weight('alpha', alpha_shape)
+    self.dense.gamma = self._add_weight('gamma', gamma_shape)
+
+    if self.fast_weights_eq_contraint:
+      self.delta_dense.alpha = self.dense.alpha
+      self.delta_dense.gamma = self.dense.gamma
+    else:
+      # we follow the keras naming convention with '_1'
+      self.delta_dense.alpha = self._add_weight('alpha_1', alpha_shape)
+      self.delta_dense.gamma = self._add_weight('gamma_1', gamma_shape)
+
+    if self.use_bias:
+      self.bias = self.add_weight('bias',
+                                  shape=(self.ensemble_size, self.units),
+                                  initializer=self.bias_initializer,
+                                  trainable=True,
+                                  dtype=self.dtype)
+    self.built = True
+
+  def call(self, inputs):
+
+    data, lambdas, e = inputs
+    e1, e2 = e[:, :self.units], e[:, self.units:]
+
+    output = self.dense(data)
+    delta_kernel = self.delta_dense(data) * e1
+    output += delta_kernel
+
+    batch_size = tf.shape(data)[0]
+    self.add_loss(self._get_mean_l2_regularizer(lambdas, e1, e2, batch_size))
+
+    if self.use_bias:
+      examples_per_model = batch_size // self.ensemble_size
+
+      e2 = tf.reshape(e2, (self.ensemble_size, examples_per_model, self.units))
+      delta_bias = tf.expand_dims(self.bias, 1) * e2
+      delta_bias = tf.reshape(delta_bias, (batch_size, self.units))
+      output += delta_bias
+
+    if self.activation is not None:
+      return self.activation(output)
+
+    return output
+
+  def _get_equivalent_kernels(self, kernel, alpha, gamma):
+    """Compute equivalent kernels for all ensemble members."""
+    k = tf.expand_dims(kernel, 0)  # (1, in_dim, units)
+    if self.regularize_fast_weights:
+      a = tf.expand_dims(alpha, -1)  # (ens_size, in_dim, 1)
+      g = tf.expand_dims(gamma, 1)  # (ens_size, 1, units)
+      kernels = k * a * g  # (ens_size, in_dim, units)
+    else:
+      kernels = tf.tile(k, [self.ensemble_size, 1, 1])
+    return kernels
+
+  def _get_mean_l2_regularizer_helper(self, w, u, e, l2):
+    """Compute 1/n sum_i^n 1/k sum_j^k l2_{i,j} | w_j + u_j*e_{i,j} |_2^2."""
+
+    # The arguments have the form:
+    #   w in R^{k x a x b} with w_j in R^{a x b}
+    #   u in R^{k x a x b} with u_j in R^{a x b}
+    #   e in R^{k x n x b} with e_{i,j} in R^{1 x b}
+    #   l2 in R^{k x n x 1}
+
+    sq_w = tf.reduce_sum(tf.square(w), [1, 2], keepdims=True)  # (k, 1, 1)
+    term1 = tf.reduce_mean(sq_w * l2)
+
+    mean_e_l2 = tf.reduce_mean(e * l2, 1, keepdims=True)  # (k, 1, b)
+    v = u * mean_e_l2
+    wtv = tf.reduce_mean(tf.matmul(w, v, transpose_a=True), 0)  # (b, b)
+    term2 = 2. * tf.linalg.trace(wtv)
+
+    sq_u = tf.square(u)  # (k, a, b)
+    mean_sq_e_l2 = tf.reduce_mean(
+        tf.square(e) * l2, 1, keepdims=True)  # (k,1,b)
+    term3 = tf.reduce_mean(tf.reduce_sum(sq_u * mean_sq_e_l2, [1, 2]))
+
+    output = term1 + term2 + term3
+    return output
+
+  def _get_mean_l2_regularizer(self, lambdas, e1, e2, batch_size):
+
+    # l2 regularization term for the kernel
+    l2_k = get_lambda(
+        lambdas,
+        lambda_type='l2_kernel',
+        layer_name=self.name,
+        lambda_key_to_index=self.lambda_key_to_index)
+
+    examples_per_model = batch_size // self.ensemble_size
+
+    dense_kernel = self.dense.kernel
+    kernels = self._get_equivalent_kernels(dense_kernel,
+                                           self.dense.alpha,
+                                           self.dense.gamma)
+
+    delta_dense_kernel = self.delta_dense.kernel
+    delta_kernels = self._get_equivalent_kernels(delta_dense_kernel,
+                                                 self.delta_dense.alpha,
+                                                 self.delta_dense.gamma)
+
+    e1 = tf.reshape(e1, (self.ensemble_size, examples_per_model, self.units))
+    l2_k = tf.reshape(l2_k, (self.ensemble_size, examples_per_model, 1))
+
+    l2_regularizer = self._get_mean_l2_regularizer_helper(
+        kernels, delta_kernels, e1, l2_k)
+
+    if not self.use_bias:
+      return l2_regularizer
+
+    # l2 regularization term for the bias
+    l2_bias = get_lambda(
+        lambdas,
+        lambda_type='l2_bias',
+        layer_name=self.name,
+        lambda_key_to_index=self.lambda_key_to_index)
+
+    bias = tf.expand_dims(self.dense.ensemble_bias, 1)  # (ens_size, 1, units)
+    delta_bias = tf.expand_dims(self.bias, 1)  # (ens_size, 1, units)
+    e2 = tf.reshape(e2, (self.ensemble_size, examples_per_model, self.units))
+    l2_bias = tf.reshape(l2_bias, (self.ensemble_size, examples_per_model, 1))
+
+    l2_regularizer += self._get_mean_l2_regularizer_helper(
+        bias, delta_bias, e2, l2_bias)
+
+    return l2_regularizer
+
+  def get_config(self):
+    config = {
+        'units':
+            self.units,
+        'lambda_key_to_index':
+            self.lambda_key_to_index,
+        'rank':
+            self.dense.rank,
+        'ensemble_size':
+            self.ensemble_size,
+        'activation':
+            tf.keras.activations.serialize(self.activation),
+        'use_bias':
+            self.use_bias,
+        'alpha_initializer':
+            initializers.serialize(self.alpha_initializer),
+        'gamma_initializer':
+            initializers.serialize(self.gamma_initializer),
+        'kernel_initializer':
+            initializers.serialize(self.dense.kernel_initializer),
+        'bias_initializer':
+            initializers.serialize(self.bias_initializer),
+        'kernel_regularizer':
+            regularizers.serialize(self.dense.kernel_regularizer),
+        'bias_regularizer':
+            regularizers.serialize(self.dense.bias_regularizer),
+        'activity_regularizer':
+            regularizers.serialize(self.activity_regularizer),
+        'kernel_constraint':
+            constraints.serialize(self.dense.kernel_constraint),
+        'bias_constraint':
+            constraints.serialize(self.dense.bias_constraint),
+        'regularize_fast_weights':
+            self.regularize_fast_weights,
+        'fast_weights_eq_contraint':
+            self.fast_weights_eq_contraint
+    }
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
+
+
+def get_layer_name_identifier(layer_name):
+  """Converts the layer name into a identifier to access lambda_key_to_index.
+
+  As identifier the layer_name is used, but the part encapsulated by the
+  character '/' is ignored. Useful if the Hyper-BatchEnsemble should use the
+   same hyperparameter for a group of self tuned layers.
+
+  Example:
+    * layer_name='conv_2' returns 'conv_2'
+    * layer_name='group_1/conv_3/' returns 'group_1'
+
+  Args:
+    layer_name: string.
+
+  Returns:
+    identifier: string, to be used to access lambda_key_to_index.
+  """
+  ignore_start = layer_name.find('/')
+  ignore_end = layer_name.find('/', ignore_start+1)
+  if ignore_start > -1 and ignore_end > -1:
+    layer_name = layer_name[:ignore_start] + layer_name[ignore_end+1:]
+
+  return layer_name
+
+
+def get_lambda(lambdas, lambda_type, layer_name, lambda_key_to_index):
+  """Extract the column in lambdas corresponding to the requested HP."""
+  assert lambda_type in LAMBDA_TYPE
+
+  identifier = get_layer_name_identifier(layer_name)
+  index = lambda_key_to_index[identifier + '_' + lambda_type]
+  return tf.reshape(lambdas[:, index], (-1, 1))
 
 
 @utils.add_weight
