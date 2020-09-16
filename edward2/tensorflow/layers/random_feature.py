@@ -199,7 +199,8 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
   def make_precision_matrix_update_op(self, gp_feature, precision_matrix):
     """Defines update op for the precision matrix of feature weights."""
-    batch_size, _ = gp_feature.shape.as_list()
+    batch_size = tf.shape(gp_feature)[0]
+    batch_size = tf.cast(batch_size, dtype=gp_feature.dtype)
 
     # compute batch-specific normalized precision matrix.
     precision_matrix_minibatch = tf.matmul(
