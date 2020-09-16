@@ -251,11 +251,14 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     batch_size = tf.shape(inputs)[0]
     training = self._get_training_value(training)
 
+    # Define the update op for feature precision matrix.
+    precision_matrix_update_op = self.make_precision_matrix_update_op(
+        gp_feature=inputs, precision_matrix=self.precision_matrix)
+
     if training:
-      # Define and register the update op for feature precision matrix.
-      precision_matrix_update_op = self.make_precision_matrix_update_op(
-          gp_feature=inputs, precision_matrix=self.precision_matrix)
+      # Register the update op for feature precision matrix.
       self.add_update(precision_matrix_update_op)
+
       # Return null estimate during training.
       return tf.eye(batch_size, dtype=self.dtype)
     else:
