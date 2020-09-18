@@ -335,7 +335,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     self.uv_initializer = tf.initializers.random_normal()
 
     self.v = self.add_weight(
-        shape=(1, tf.math.reduce_prod(self.w_shape[:-1])),
+        shape=(1, np.prod(self.w_shape[:-1])),
         initializer=self.uv_initializer,
         trainable=False,
         name='v',
@@ -353,9 +353,16 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     super(SpectralNormalization, self).build()
 
   def call(self, inputs):
-    self.update_weights()
+    u_update_op, v_update_op, w_update_op = self.update_weights()
     output = self.layer(inputs)
-    self.restore_weights()
+    w_restore_op = self.restore_weights()
+
+    # Register update ops.
+    self.add_update(u_update_op)
+    self.add_update(v_update_op)
+    self.add_update(w_update_op)
+    self.add_update(w_restore_op)
+
     return output
 
   def update_weights(self):
@@ -370,18 +377,19 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
         u_hat = tf.nn.l2_normalize(tf.matmul(v_hat, w_reshaped))
 
     sigma = tf.matmul(tf.matmul(v_hat, w_reshaped), tf.transpose(u_hat))
-    self.u.assign(u_hat)
-    self.v.assign(v_hat)
+    u_update_op = self.u.assign(u_hat)
+    v_update_op = self.v.assign(v_hat)
 
     # Bound spectral norm to be not larger than self.norm_multiplier.
     w_norm = tf.cond((self.norm_multiplier / sigma) < 1, lambda:  # pylint:disable=g-long-lambda
                      (self.norm_multiplier / sigma) * self.w, lambda: self.w)
 
-    self.layer.kernel.assign(w_norm)
+    w_update_op = self.layer.kernel.assign(w_norm)
+    return u_update_op, v_update_op, w_update_op
 
   def restore_weights(self):
     """Restores layer weights to maintain gradient update (See Alg 1 of [1])."""
-    self.layer.kernel.assign(self.w)
+    return self.layer.kernel.assign(self.w)
 
 
 class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
@@ -475,9 +483,16 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     super(SpectralNormalizationConv2D, self).build()
 
   def call(self, inputs):
-    self.update_weights()
+    u_update_op, v_update_op, w_update_op = self.update_weights()
     output = self.layer(inputs)
-    self.restore_weights()
+    w_restore_op = self.restore_weights()
+
+    # Register update ops.
+    self.add_update(u_update_op)
+    self.add_update(v_update_op)
+    self.add_update(w_update_op)
+    self.add_update(w_restore_op)
+
     return output
 
   def update_weights(self):
@@ -509,14 +524,16 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     # Convert sigma from a 1x1 matrix to a scalar.
     sigma = tf.reshape(sigma, [])
 
-    self.u.assign(u_hat)
-    self.v.assign(v_hat)
+    u_update_op = self.u.assign(u_hat)
+    v_update_op = self.v.assign(v_hat)
 
     w_norm = tf.cond((self.norm_multiplier / sigma) < 1, lambda:      # pylint:disable=g-long-lambda
                      (self.norm_multiplier / sigma) * self.w, lambda: self.w)
 
-    self.layer.kernel.assign(w_norm)
+    w_update_op = self.layer.kernel.assign(w_norm)
+
+    return u_update_op, v_update_op, w_update_op
 
   def restore_weights(self):
     """Restores layer weights to maintain gradient update (See Alg 1 of [1])."""
-    self.layer.kernel.assign(self.w)
+    return self.layer.kernel.assign(self.w)
