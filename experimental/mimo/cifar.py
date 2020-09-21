@@ -154,7 +154,8 @@ def main(argv):
         depth=28,
         width_multiplier=FLAGS.width_multiplier,
         num_classes=num_classes,
-        ensemble_size=FLAGS.ensemble_size)
+        ensemble_size=FLAGS.ensemble_size,
+        l2=FLAGS.l2)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -240,15 +241,17 @@ def main(argv):
         negative_log_likelihood = tf.reduce_mean(tf.reduce_sum(
             tf.keras.losses.sparse_categorical_crossentropy(
                 labels, logits, from_logits=True), axis=1))
-        filtered_variables = []
-        for var in model.trainable_variables:
-          # Apply l2 on the BN parameters and bias terms.
-          if ('kernel' in var.name or 'batch_norm' in var.name or
-              'bias' in var.name):
-            filtered_variables.append(tf.reshape(var, (-1,)))
+        # filtered_variables = []
+        # for var in model.trainable_variables:
+        #   # Apply l2 on the BN parameters and bias terms.
+        #   if ('kernel' in var.name or 'batch_norm' in var.name or
+        #       'bias' in var.name):
+        #     filtered_variables.append(tf.reshape(var, (-1,)))
 
-        l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
-            tf.concat(filtered_variables, axis=0))
+        # l2_loss = FLAGS.l2 * 2 * tf.nn.l2_loss(
+        #     tf.concat(filtered_variables, axis=0))
+
+        l2_loss = sum(model.losses)
 
         # Scale the loss given the TPUStrategy will reduce sum all gradients.
         loss = negative_log_likelihood + l2_loss

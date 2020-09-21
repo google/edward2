@@ -19,10 +19,14 @@ import functools
 from experimental.mimo import layers  # local file import
 import tensorflow as tf
 
+BATCHNORM_L2 = 3e-4
+
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
     tf.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
-    momentum=0.9)
+    momentum=0.9,
+    beta_regularizer=tf.keras.regularizers.l2(BATCHNORM_L2),
+    gamma_regularizer=tf.keras.regularizers.l2(BATCHNORM_L2))
 Conv2D = functools.partial(  # pylint: disable=invalid-name
     tf.keras.layers.Conv2D,
     kernel_size=3,
@@ -31,34 +35,37 @@ Conv2D = functools.partial(  # pylint: disable=invalid-name
     kernel_initializer='he_normal')
 
 
-def basic_block(inputs, filters, strides):
+def basic_block(inputs, filters, strides, l2=0.):
   """Basic residual block of two 3x3 convs."""
 
   x = inputs
   y = inputs
   y = BatchNormalization()(y)
   y = tf.keras.layers.Activation('relu')(y)
-  y = Conv2D(filters, strides=strides)(y)
+  y = Conv2D(filters, strides=strides,
+             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
   y = BatchNormalization()(y)
   y = tf.keras.layers.Activation('relu')(y)
-  y = Conv2D(filters, strides=1)(y)
+  y = Conv2D(filters, strides=1,
+             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
   if not x.shape.is_compatible_with(y.shape):
-    x = Conv2D(filters, kernel_size=1, strides=strides)(x)
+    x = Conv2D(filters, kernel_size=1, strides=strides,
+               kernel_regularizer=tf.keras.regularizers.l2(l2))(x)
 
   x = tf.keras.layers.add([x, y])
   return x
 
 
-def group(inputs, filters, strides, num_blocks, **kwargs):
+def group(inputs, filters, strides, num_blocks, l2=0., **kwargs):
   """Group of residual blocks."""
-  x = basic_block(inputs, filters=filters, strides=strides, **kwargs)
+  x = basic_block(inputs, filters=filters, strides=strides, l2=l2, **kwargs)
   for _ in range(num_blocks - 1):
-    x = basic_block(x, filters=filters, strides=1, **kwargs)
+    x = basic_block(x, filters=filters, strides=1, l2=l2, **kwargs)
   return x
 
 
 def wide_resnet(input_shape, depth, width_multiplier, num_classes,
-                ensemble_size):
+                ensemble_size, l2=0.):
   """Builds Wide ResNet with Sparse BatchEnsemble.
 
   Following Zagoruyko and Komodakis (2016), it accepts a width multiplier on the
@@ -75,6 +82,7 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
       in WRN-n-k.
     num_classes: Number of output classes.
     ensemble_size: Number of ensemble members.
+    l2: L2 regularization value.
 
   Returns:
     tf.keras.Model.
@@ -89,21 +97,28 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     raise ValueError('the first dimension of input_shape must be ensemble_size')
   x = tf.keras.layers.Reshape(input_shape[1:-1] +
                               [input_shape[-1] * ensemble_size])(x)
-  x = Conv2D(16, strides=1)(x)
+  # since the first conv layer and the last dense layer have ensemble_size more
+  # weights, we multiply l2 by that amount
+  rescaled_l2 = l2 * ensemble_size
+  x = Conv2D(16, strides=1,
+             kernel_regularizer=tf.keras.regularizers.l2(rescaled_l2))(x)
   for strides, filters in zip([1, 2, 2], [16, 32, 64]):
     x = group(
         x,
         filters=filters * width_multiplier,
         strides=strides,
-        num_blocks=num_blocks)
+        num_blocks=num_blocks,
+        l2=l2)
 
   x = BatchNormalization()(x)
   x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = layers.DenseMultihead(
+  x = multihead_layers.DenseMultihead(
       num_classes,
       kernel_initializer='he_normal',
       activation=None,
-      ensemble_size=ensemble_size)(x)
+      ensemble_size=ensemble_size,
+      kernel_regularizer=tf.keras.regularizers.l2(rescaled_l2),
+      bias_regularizer=tf.keras.regularizers.l2(rescaled_l2))(x)
   return tf.keras.Model(inputs=inputs, outputs=x)
