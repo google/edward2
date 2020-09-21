@@ -197,6 +197,10 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
   def build(self, input_shape):
     gp_feature_dim = input_shape[-1]
 
+    # Convert gp_feature_dim to int value for TF1 compatibility.
+    if isinstance(gp_feature_dim, tf.compat.v1.Dimension):
+      gp_feature_dim = gp_feature_dim.value
+
     # Posterior precision matrix for the GP' random feature coefficients.
     self.precision_matrix = (
         self.add_weight(
