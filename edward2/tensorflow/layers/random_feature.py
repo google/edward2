@@ -28,6 +28,14 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
   standard deviation, which is equivalent to approximating the posterior mean
   of the predictive probability via the mean-field approximation.
 
+  User can specify different types of random features by setting
+  `use_custom_random_features=True`, and change the initializer and activations
+  of the custom random features. For example:
+
+    Linear Kernel: initializer='Identity', activation=tf.identity
+    MLP Kernel: initializer='random_normal', activation=tf.nn.relu
+    RBF Kernel: initializer='random_normal', activation=tf.math.cos
+
   Attributes:
     units: (int) The dimensionality of layer.
     num_inducing: (iny) The number of random features for the approximation.
@@ -50,6 +58,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                scale_random_features=True,
                return_random_features=False,
                use_custom_random_features=False,
+               custom_random_features_initializer='random_normal',
                custom_random_features_activation=tf.math.cos,
                l2_regularization=0.,
                dtype=None,
@@ -81,6 +90,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       return_random_features: (bool) Whether to also return random features.
       use_custom_random_features: (bool) Whether to use custom random
         features implemented using tf.keras.layers.Dense.
+      custom_random_features_initializer: (str or callable) Initializer for
+        the random features. Default to random normal which approximates a RBF
+        kernel function if activation function is cos.
       custom_random_features_activation: (callable) Activation function for the
         random feature layer. Default to cosine which approximates a RBF
         kernel function.
@@ -107,7 +119,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           units=self.num_inducing,
           use_bias=True,
           activation=custom_random_features_activation,
-          kernel_initializer='random_normal',
+          kernel_initializer=custom_random_features_initializer,
           bias_initializer=random_features_bias_initializer,
           trainable=False)
     else:
