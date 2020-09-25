@@ -228,7 +228,7 @@ target_log_prob = None
 grads_target_log_prob = None
 for _ in range(1000):
   [
-      [coeffs, intercepts],
+      [coeffs, intercept],
       target_log_prob,
       grads_target_log_prob,
   ] = no_u_turn_sampler.kernel(
