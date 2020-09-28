@@ -44,7 +44,7 @@ flags.DEFINE_integer('lr_warmup_epochs', 1,
                      'Number of epochs for a linear warmup to the initial '
                      'learning rate. Use 0 to do no warmup.')
 flags.DEFINE_float('lr_decay_ratio', 0.2, 'Amount to decay learning rate.')
-flags.DEFINE_list('lr_decay_epochs', ['60', '120', '160'],
+flags.DEFINE_list('lr_decay_epochs', [60, 120, 160],
                   'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 2e-4, 'L2 regularization coefficient.')
 flags.DEFINE_enum('dataset', 'cifar10',
@@ -86,6 +86,8 @@ flags.DEFINE_bool('use_bfloat16', False, 'Whether to use mixed precision.')
 flags.DEFINE_integer('num_cores', 8, 'Number of TPU cores or number of GPUs.')
 flags.DEFINE_string('tpu', None,
                     'Name of the TPU. Only used if use_gpu is False.')
+flags.DEFINE_float('label_smoothing', 0., 'Label smoothing.')
+
 FLAGS = flags.FLAGS
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
@@ -336,6 +338,7 @@ def main(argv):
       'augmix_depth': FLAGS.augmix_depth,
       'augmix_prob_coeff': FLAGS.augmix_prob_coeff,
       'augmix_width': FLAGS.augmix_width,
+      'label_smoothing': FLAGS.label_smoothing,
       'ensemble_size': FLAGS.ensemble_size,
       'mixup_alpha': FLAGS.mixup_alpha,
       'random_augment': FLAGS.random_augment,
@@ -509,7 +512,7 @@ def main(argv):
       if FLAGS.cifar_class is not None:
         labels = tf.cast(labels == FLAGS.cifar_class, tf.float32)
 
-      if FLAGS.mixup_alpha > 0:
+      if FLAGS.mixup_alpha > 0 or FLAGS.label_smoothing > 0:
         split_inputs = True
         if not FLAGS.augmix and not FLAGS.adaptive_mixup:
           labels = tf.tile(labels, [FLAGS.ensemble_size, 1])
@@ -528,6 +531,12 @@ def main(argv):
               tf.keras.losses.categorical_crossentropy(labels,
                                                        logits,
                                                        from_logits=True))
+        elif FLAGS.label_smoothing > 0:
+          negative_log_likelihood = tf.reduce_mean(
+              tf.keras.losses.categorical_crossentropy(labels,
+                                                       logits,
+                                                       from_logits=True,
+                                                       label_smoothing=FLAGS.label_smoothing))
         else:
           negative_log_likelihood = tf.reduce_mean(
               tf.keras.losses.sparse_categorical_crossentropy(labels,
@@ -546,7 +555,7 @@ def main(argv):
       optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
       probs = tf.nn.softmax(logits)
-      if FLAGS.mixup_alpha > 0:
+      if FLAGS.mixup_alpha > 0 or FLAGS.label_smoothing > 0:
         labels = tf.argmax(labels, axis=-1)
       metrics['train/ece'].update_state(labels, probs)
       metrics['train/loss'].update_state(loss)

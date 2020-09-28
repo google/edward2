@@ -358,11 +358,18 @@ def main(argv):
         logits = model(images, training=True)
         if FLAGS.use_bfloat16:
           logits = tf.cast(logits, tf.float32)
-        if FLAGS.mixup_alpha > 0 or FLAGS.label_smoothing > 0 or FLAGS.cutmix:
+        if FLAGS.mixup_alpha > 0 or FLAGS.cutmix:
           negative_log_likelihood = tf.reduce_mean(
               tf.keras.losses.categorical_crossentropy(labels,
                                                        logits,
                                                        from_logits=True))
+        elif FLAGS.label_smoothing > 0:
+          negative_log_likelihood = tf.reduce_mean(
+              tf.keras.losses.categorical_crossentropy(labels,
+                                                       logits,
+                                                       from_logits=True,
+                                                       label_smoothing=FLAGS.label_smoothing))
+
         else:
           negative_log_likelihood = tf.reduce_mean(
               tf.keras.losses.sparse_categorical_crossentropy(labels,
