@@ -40,6 +40,11 @@ flags.DEFINE_integer('per_core_batch_size', 128, 'Batch size per TPU core/GPU.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_float('base_learning_rate', 0.1,
                    'Base learning rate when train batch size is 256.')
+flags.DEFINE_integer(
+    'lr_warmup_epochs', 5,
+    'Number of epochs for a linear warmup to the initial learning rate.')
+flags.DEFINE_list('lr_decay_epochs', ['30', '60', '80'],
+                  'Epochs to decay learning rate by.')
 flags.DEFINE_float('l2', 1e-4, 'L2 coefficient.')
 flags.DEFINE_string('data_dir', None, 'Path to training and testing data.')
 flags.mark_flag_as_required('data_dir')
@@ -65,10 +70,6 @@ APPROX_IMAGENET_TRAIN_IMAGES = 1281167
 # Number of images in eval dataset.
 IMAGENET_VALIDATION_IMAGES = 50000
 NUM_CLASSES = 1000
-
-_LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
-    (1.0, 5), (0.1, 30), (0.01, 60), (0.001, 80)
-]
 
 
 def main(argv):
@@ -125,10 +126,16 @@ def main(argv):
     logging.info('Model number of weights: %s', model.count_params())
     # Scale learning rate and decay epochs by vanilla settings.
     base_lr = FLAGS.base_learning_rate * train_batch_size / 256
+    lr_schedule = [    # (multiplier, epoch to start) tuples
+        (1.0, FLAGS.lr_warmup_epochs),
+        (0.1, int(FLAGS.lr_decay_epochs[0])),
+        (0.01, int(FLAGS.lr_decay_epochs[1])),
+        (0.001, int(FLAGS.lr_decay_epochs[2]))
+    ]
     learning_rate = utils.LearningRateSchedule(steps_per_epoch,
                                                base_lr,
                                                FLAGS.train_epochs,
-                                               _LR_SCHEDULE)
+                                               lr_schedule)
     optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate,
                                         momentum=0.9,
                                         nesterov=True)
