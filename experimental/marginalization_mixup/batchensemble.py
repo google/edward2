@@ -84,7 +84,9 @@ flags.DEFINE_float('augmix_prob_coeff', 0.5, 'Augmix probability coefficient.')
 flags.DEFINE_integer('augmix_depth', -1,
                      'Augmix depth, -1 meaning sampled depth.')
 flags.DEFINE_integer('augmix_width', 3, 'Augmix width.')
-flags.DEFINE_float('mixup_alpha', 0., 'Mixup hyperparameter, 0. to diable.')
+flags.DEFINE_float('mixup_alpha', 0.,
+                   'Mixup hyperparameter, 0. to disable. Note 1. also disables '
+                   'Mixup if adaptive_mixup is True.')
 flags.DEFINE_bool('adaptive_mixup', False, 'Whether to use adaptive mixup.')
 flags.DEFINE_bool('use_ensemble_bn', False, 'Whether to use ensemble bn.')
 flags.DEFINE_float('label_smoothing', 0., 'Label smoothing.')
@@ -723,6 +725,9 @@ def main(argv):
   final_checkpoint_name = checkpoint.save(
       os.path.join(FLAGS.output_dir, 'checkpoint'))
   logging.info('Saved last checkpoint to %s', final_checkpoint_name)
+  final_save_name = os.path.join(FLAGS.output_dir, 'model')
+  model.save(final_save_name)
+  logging.info('Saved model to %s', final_save_name)
 
 if __name__ == '__main__':
   app.run(main)
