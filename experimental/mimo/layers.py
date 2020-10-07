@@ -18,6 +18,7 @@
 import tensorflow as tf
 
 
+# TODO(trandustin): Move into ed.layers.
 class DenseMultihead(tf.keras.layers.Dense):
   """Multiheaded output layer."""
 
