@@ -295,6 +295,14 @@ def main(argv):
     tf.tpu.experimental.initialize_tpu_system(resolver)
     strategy = tf.distribute.experimental.TPUStrategy(resolver)
 
+  ds_info = tfds.builder(FLAGS.dataset).info
+  batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
+  steps_per_epoch = ds_info.splits['train'].num_examples // batch_size
+  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
+  num_classes = ds_info.features['label'].num_classes
+  if FLAGS.cifar_class is not None:
+    num_classes = 2
+
   aug_params = {
       'augmix': FLAGS.augmix,
       'aug_count': FLAGS.aug_count,
@@ -323,29 +331,21 @@ def main(argv):
   }
   if FLAGS.corruptions_interval > 0:
     if FLAGS.dataset == 'cifar10':
-      load_c_input_fn = utils.load_cifar10_c_input_fn
+      load_c_dataset = utils.load_cifar10_c
     else:
-      load_c_input_fn = functools.partial(utils.load_cifar100_c_input_fn,
-                                          path=FLAGS.cifar100_c_path)
+      load_c_dataset = functools.partial(utils.load_cifar100_c,
+                                         path=FLAGS.cifar100_c_path)
     corruption_types, max_intensity = utils.load_corrupted_test_info(
         FLAGS.dataset)
     for corruption in corruption_types:
       for intensity in range(1, max_intensity + 1):
-        input_fn = load_c_input_fn(
+        dataset = load_c_dataset(
             corruption_name=corruption,
             corruption_intensity=intensity,
-            batch_size=FLAGS.per_core_batch_size,
+            batch_size=batch_size,
             use_bfloat16=FLAGS.use_bfloat16)
         test_datasets['{0}_{1}'.format(corruption, intensity)] = (
-            strategy.experimental_distribute_datasets_from_function(input_fn))
-
-  ds_info = tfds.builder(FLAGS.dataset).info
-  batch_size = FLAGS.per_core_batch_size * FLAGS.num_cores
-  steps_per_epoch = ds_info.splits['train'].num_examples // batch_size
-  steps_per_eval = ds_info.splits['test'].num_examples // batch_size
-  num_classes = ds_info.features['label'].num_classes
-  if FLAGS.cifar_class is not None:
-    num_classes = 2
+            strategy.experimental_distribute_dataset(dataset))
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')

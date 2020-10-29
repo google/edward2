@@ -173,21 +173,21 @@ def main(argv):
   }
   if FLAGS.corruptions_interval > 0:
     if FLAGS.dataset == 'cifar10':
-      load_c_input_fn = utils.load_cifar10_c_input_fn
+      load_c_dataset = utils.load_cifar10_c
     else:
-      load_c_input_fn = functools.partial(utils.load_cifar100_c_input_fn,
-                                          path=FLAGS.cifar100_c_path)
+      load_c_dataset = functools.partial(utils.load_cifar100_c,
+                                         path=FLAGS.cifar100_c_path)
     corruption_types, max_intensity = utils.load_corrupted_test_info(
         FLAGS.dataset)
     for corruption in corruption_types:
       for intensity in range(1, max_intensity + 1):
-        input_fn = load_c_input_fn(
+        dataset = load_c_dataset(
             corruption_name=corruption,
             corruption_intensity=intensity,
-            batch_size=FLAGS.per_core_batch_size // FLAGS.ensemble_size,
+            batch_size=batch_size,
             use_bfloat16=FLAGS.use_bfloat16)
         test_datasets['{0}_{1}'.format(corruption, intensity)] = (
-            strategy.experimental_distribute_datasets_from_function(input_fn))
+            strategy.experimental_distribute_dataset(dataset))
 
   ds_info = tfds.builder(FLAGS.dataset).info
   num_train_examples = ds_info.splits['train'].num_examples
