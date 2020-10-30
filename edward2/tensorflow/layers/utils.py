@@ -345,7 +345,10 @@ def smart_constant_value(pred):
   return pred_value
 
 
-def mean_field_logits(logits, covmat, mean_field_factor=1.):
+def mean_field_logits(logits,
+                      covmat,
+                      mean_field_factor=1.,
+                      likelihood='logistic'):
   """Adjust the SNGP logits so its softmax approximates posterior mean [1].
 
   Arguments:
@@ -354,13 +357,24 @@ def mean_field_logits(logits, covmat, mean_field_factor=1.):
     mean_field_factor: The scale factor for mean-field approximation, used to
       adjust the influence of posterior variance in posterior mean
       approximation.
+    likelihood: Likelihood for integration in Gaussian-approximated latent
+      posterior.
 
   Returns:
     True or False if `pred` has a constant boolean value, None otherwise.
 
   """
-  logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
-  if mean_field_factor > 0:
-    logits = logits / tf.expand_dims(logits_scale, axis=-1)
+  if likelihood not in ('logistic', 'poisson'):
+    raise ValueError(
+        f'Likelihood" must be one of (\'logistic\', \'poisson\'), got {likelihood}.'
+    )
+  if likelihood == 'poisson':
+    logits_scale = tf.exp(tf.linalg.diag_part(covmat) * mean_field_factor)
+    if mean_field_factor > 0:
+      logits = logits * logits_scale
+  else:
+    logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
+    if mean_field_factor > 0:
+      logits = logits / tf.expand_dims(logits_scale, axis=-1)
 
   return logits
