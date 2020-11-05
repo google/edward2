@@ -24,7 +24,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
   During training, the model updates the maximum a posteriori (MAP) logits
   estimates and posterior precision matrix using minibatch statistics. During
-  inference, the model divides the MAP logit estiamtes by the predictive
+  inference, the model divides the MAP logit estimates by the predictive
   standard deviation, which is equivalent to approximating the posterior mean
   of the predictive probability via the mean-field approximation.
 
@@ -38,7 +38,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
   Attributes:
     units: (int) The dimensionality of layer.
-    num_inducing: (iny) The number of random features for the approximation.
+    num_inducing: (int) The number of random features for the approximation.
     is_training: (tf.bool) Whether the layer is set in training mode. If so the
       layer updates the Gaussian process' variance estimate using statistics
       computed from the incoming minibatches.
@@ -61,6 +61,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                custom_random_features_initializer='random_normal',
                custom_random_features_activation=tf.math.cos,
                l2_regularization=0.,
+               gp_cov_likelihood='gaussian',
                dtype=None,
                name='random_feature_gaussian_process',
                **gp_output_kwargs):
@@ -98,6 +99,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         kernel function.
       l2_regularization: (float) The strength of l2 regularization on the output
         weights.
+      gp_cov_likelihood: (string) Likelihood to use when updating precision
+        matrix.
       dtype: (tf.DType) Input data type.
       name: (string) Layer name.
       **gp_output_kwargs: Additional keyword arguments to dense output layer.
@@ -133,6 +136,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self._gp_cov_layer = LaplaceRandomFeatureCovariance(
         momentum=gp_cov_momentum,
         ridge_penalty=gp_cov_ridge_penalty,
+        likelihood=gp_cov_likelihood,
         dtype=self.dtype)
     self._gp_output_layer = tf.keras.layers.Dense(
         units=self.units,
@@ -147,9 +151,6 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         name='gp_output_bias')
 
   def call(self, inputs, global_step=None, training=None):
-    # define scaling factor
-    gp_feature_scale = tf.cast(tf.sqrt(2 / self.num_inducing), inputs.dtype)
-
     # compute random feature
     gp_inputs = inputs
     if self.normalize_input:
@@ -157,6 +158,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     gp_feature = self._random_feature(gp_inputs)
     if self.scale_random_features:
+      # define scaling factor
+      gp_feature_scale = tf.cast(tf.sqrt(2 / self.num_inducing), inputs.dtype)
       gp_feature = gp_feature * gp_feature_scale
 
     # compute posterior center (i.e., MAP estimate) and variance.
@@ -188,10 +191,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
   def __init__(self,
                momentum=0.999,
                ridge_penalty=1e-6,
+               likelihood='gaussian',
                dtype=None,
                name='laplace_covariance'):
+    if likelihood not in ('binary_logistic', 'poisson', 'gaussian'):
+      raise ValueError(
+          f'Likelihood" must be one of (\'binary_logistic\', \'poisson\', \'gaussian\'), got {likelihood}.'
+      )
     self.ridge_penalty = ridge_penalty
     self.momentum = momentum
+    self.likelihood = likelihood
     super(LaplaceRandomFeatureCovariance, self).__init__(dtype=dtype, name=name)
 
   def build(self, input_shape):
@@ -213,14 +222,28 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
     super(LaplaceRandomFeatureCovariance, self).build(input_shape)
 
-  def make_precision_matrix_update_op(self, gp_feature, precision_matrix):
+  def make_precision_matrix_update_op(self,
+                                      gp_feature,
+                                      logits,
+                                      precision_matrix,
+                                      likelihood='gaussian'):
     """Defines update op for the precision matrix of feature weights."""
     batch_size = tf.shape(gp_feature)[0]
     batch_size = tf.cast(batch_size, dtype=gp_feature.dtype)
 
     # compute batch-specific normalized precision matrix.
-    precision_matrix_minibatch = tf.matmul(
-        gp_feature, gp_feature, transpose_a=True)
+    if likelihood == 'binary_logistic':
+      prob = tf.squeeze(tf.sigmoid(logits))
+      precision_matrix_minibatch = tf.matmul(
+          gp_feature, gp_feature, transpose_a=True) * prob * (1. - prob)
+    elif likelihood == 'poisson':
+      prob = tf.squeeze(tf.exp(logits))
+      precision_matrix_minibatch = tf.matmul(
+          gp_feature, gp_feature, transpose_a=True) * prob
+    else:
+      precision_matrix_minibatch = tf.matmul(
+          gp_feature, gp_feature, transpose_a=True)
+
     precision_matrix_minibatch = precision_matrix_minibatch / batch_size
 
     # update population-wise precision matrix
@@ -251,12 +274,14 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
     return training
 
-  def call(self, inputs, training=None):
+  def call(self, inputs, logits=None, training=None):
     """Minibatch updates the GP's posterior precision matrix estimate.
 
     Args:
       inputs: (tf.Tensor) GP random features, shape (batch_size,
         gp_hidden_size).
+      logits: (tf.Tensor) logits whose corresponding predictions may be
+        used in updating precision matrix.
       training: (tf.bool) whether or not the layer is in training mode. If in
         training mode, the gp_weight covariance is updated using gp_feature.
 
@@ -270,7 +295,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     if training:
       # Define and register the update op for feature precision matrix.
       precision_matrix_update_op = self.make_precision_matrix_update_op(
-          gp_feature=inputs, precision_matrix=self.precision_matrix)
+          gp_feature=inputs,
+          logits=logits,
+          precision_matrix=self.precision_matrix)
       self.add_update(precision_matrix_update_op)
       # Return null estimate during training.
       return tf.eye(batch_size, dtype=self.dtype)
