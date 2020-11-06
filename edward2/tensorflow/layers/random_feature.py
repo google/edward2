@@ -176,6 +176,17 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         trainable=gp_output_bias_trainable,
         name='gp_output_bias')
 
+  def reset_covariance_matrix(self):
+    """Resets covariance matrix of the GP layer.
+
+    This function is useful for reseting the model's covariance matrix at the
+    begining of a new epoch.
+    """
+    self._gp_cov_layer = LaplaceRandomFeatureCovariance(
+        momentum=self.gp_cov_momentum,
+        ridge_penalty=self.gp_cov_ridge_penalty,
+        dtype=self.dtype)
+
   def call(self, inputs, global_step=None, training=None):
     # Computes random features.
     gp_inputs = inputs
@@ -215,7 +226,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
   Attributes:
     momentum: (float) A discount factor used to compute the moving average for
       posterior precision matrix. Analogous to the momentum factor in batch
-      normalization.
+      normalization. If -1 then update covariance matrix using a naive sum
+      without momentum, which is desirable if the goal is to compute the exact
+      covariance matrix by passing through data once (say in the final epoch).
     ridge_penalty: (float) Initial Ridge penalty to weight covariance matrix.
       This value is used to stablize the eigenvalues of weight covariance
       estimate so that the matrix inverse can be computed for Cov = inv(t(X) * X
@@ -273,9 +286,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     batch_size = tf.cast(batch_size, dtype=gp_feature.dtype)
 
     # Computes batch-specific normalized precision matrix.
-    feature_outer_product = tf.matmul(
-        gp_feature, gp_feature, transpose_a=True) / batch_size
-
+    feature_outer_product = tf.matmul(gp_feature, gp_feature, transpose_a=True)
     if likelihood == 'binary_logistic':
       prob = tf.squeeze(tf.sigmoid(logits))
       precision_matrix_minibatch = feature_outer_product * prob * (1. - prob)
@@ -285,10 +296,18 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     else:
       precision_matrix_minibatch = feature_outer_product
 
-    # update population-wise precision matrix
-    precision_matrix_new = (
-        self.momentum * precision_matrix +
-        (1. - self.momentum) * precision_matrix_minibatch)
+    # Updates the population-wise precision matrix.
+    if self.momentum > 0:
+      # Use moving-average updates to accumulate batch-specific precision
+      # matrices.
+      precision_matrix_minibatch = precision_matrix_minibatch / batch_size
+      precision_matrix_new = (
+          self.momentum * precision_matrix +
+          (1. - self.momentum) * precision_matrix_minibatch)
+    else:
+      # Compute exact population-wise covariance without momentum.
+      # If use this option, make sure to pass through data only once.
+      precision_matrix_new = precision_matrix + precision_matrix_minibatch
 
     # Returns the update op.
     return precision_matrix.assign(precision_matrix_new)
@@ -301,7 +320,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     random feature Phi_ts (batch_size, num_hidden). The predictive covariance
     matrix is computed as (assuming Gaussian likelihood):
 
-    Phi_ts @ inv(t(Phi_tr) * Phi_tr + s * I) @ t(Phi_ts),
+    s * Phi_ts @ inv(t(Phi_tr) * Phi_tr + s * I) @ t(Phi_ts),
 
     where s is the ridge factor to be used for stablizing the inverse, and I is
     the identity matrix with shape (num_hidden, num_hidden).
@@ -318,7 +337,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
     # Computes the covariance matrix of the gp prediction.
     cov_feature_product = tf.matmul(
-        feature_cov_matrix, gp_feature, transpose_b=True)
+        feature_cov_matrix, gp_feature, transpose_b=True) * self.ridge_penalty
     gp_cov_matrix = tf.matmul(gp_feature, cov_feature_product)
     return gp_cov_matrix
 
