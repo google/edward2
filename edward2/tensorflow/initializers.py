@@ -28,6 +28,12 @@ a projection (the constraint) after each gradient update. To stay in line with
 probabilistic literature, trainable initializers apply constraints on the
 `tf.Variables` themselves (i.e., a constrained parameterization) and do not
 apply projections during optimization.
+
+## References:
+
+[1]: Felix Xinnan Yu et al. Orthogonal Random Features. In _Neural Information
+     Processing Systems_, 2016.
+     https://papers.nips.cc/paper/6246-orthogonal-random-features.pdf
 """
 
 import math
@@ -747,6 +753,79 @@ class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
     }
 
 
+class OrthogonalRandomFeatures(tf.keras.initializers.Orthogonal):
+  """Generates a orthogonal Gaussian matrix for a random feature Dense layer.
+
+  Generates a 2D matrix of form W = stddev * Q @ S [1], where Q is a random
+  orthogonal matrix of shape (num_rows, num_cols), and S is a diagonal matrix
+  of i.i.d. random variables following chi(df = num_rows) distribution that
+  imitates the column norm of a random Gaussian matrix.
+  """
+
+  def __init__(self, stddev=1.0, random_norm=True, seed=None):
+    """Initializer.
+
+    Args:
+      stddev: (float) The standard deviation of the random matrix.
+      random_norm: (bool) Whether to sample the norms of the random matrix
+        columns from a chi(df=num_cols) distribution, or fix it to
+        sqrt(num_cols). These two options corresponds to the construction in
+        Theorem 1 and Theorem 2 of [1].
+      seed: (int) Random seed.
+    """
+    super(OrthogonalRandomFeatures, self).__init__(gain=stddev, seed=seed)
+    self.stddev = stddev
+    self.random_norm = random_norm
+
+  def _sample_orthogonal_matrix(self, shape, dtype):
+    return super(OrthogonalRandomFeatures, self).__call__(shape, dtype=dtype)
+
+  def __call__(self, shape, dtype=tf.float32, **kwargs):
+    # Sample orthogonal matrices.
+    num_rows, num_cols = shape
+    if num_rows < num_cols:
+      # When num_row < num_col, sample multiple (num_row, num_row) matrices and
+      # then concatenate following [1].
+      ortho_mat_list = []
+      num_cols_sampled = 0
+
+      while num_cols_sampled < num_cols:
+        ortho_mat_square = self._sample_orthogonal_matrix(
+            (num_rows, num_rows), dtype=dtype)
+        ortho_mat_list.append(ortho_mat_square)
+        num_cols_sampled += num_rows
+
+      # Reshape the matrix to the target shape (num_rows, num_cols)
+      ortho_mat = tf.concat(ortho_mat_list, axis=-1)
+      ortho_mat = ortho_mat[:, :num_cols]
+    else:
+      ortho_mat = self._sample_orthogonal_matrix(shape, dtype=dtype)
+
+    # Sample random feature norms.
+    if self.random_norm:
+      # Construct Monte-Carlo estimate of squared column norm of a random
+      # Gaussian matrix.
+      feature_norms_square = tf.random.normal(shape=ortho_mat.shape)**2
+    else:
+      # Use mean of the squared column norm (i.e., E(z**2)=1) instead.
+      feature_norms_square = tf.ones(shape=ortho_mat.shape)
+
+    feature_norms = tf.reduce_sum(feature_norms_square, axis=0)
+    feature_norms = tf.sqrt(feature_norms)
+
+    # Returns the random feature matrix with orthogonal column and Gaussian-like
+    # column norms.
+    return ortho_mat * feature_norms
+
+  def get_config(self):
+    config = {
+        'stddev': self.stddev,
+        'random_norm': self.random_norm,
+    }
+    new_config = super(OrthogonalRandomFeatures, self).get_config()
+    config.update(new_config)
+    return config
+
 # Compatibility aliases, following tf.keras
 
 # pylint: disable=invalid-name
@@ -762,6 +841,7 @@ trainable_normal_shared_stddev = TrainableNormalSharedStddev
 trainable_normal_fixed_stddev = TrainableNormalFixedStddev
 trainable_mixture_of_deltas = TrainableMixtureOfDeltas
 random_sign = RandomSign
+orthogonal_random_features = OrthogonalRandomFeatures
 # pylint: enable=invalid-name
 
 # Utility functions, following tf.keras

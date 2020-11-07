@@ -102,6 +102,36 @@ class InitializersTest(tf.test.TestCase):
     self.assertAllClose(tf.convert_to_tensor(loc), tf.zeros_like(loc), atol=1.)
     self.assertEqual(rv.shape, shape)
 
+  def testOrthogonalRandomFeatures(self):
+    tf.random.set_seed(42)
+    stddev = 0.125
+    num_rows = 512
+    num_cols = 2 * num_rows
+    shape = (num_rows, num_cols)
+
+    initializer = ed.initializers.OrthogonalRandomFeatures(
+        stddev=stddev, random_norm=False)
+    orthogonal_matrix = initializer(shape=shape)
+
+    # Verify matrix shape.
+    self.assertEqual(orthogonal_matrix.shape, tf.TensorShape(shape))
+
+    # Verify column norm.
+    squared_column_norm = num_rows * stddev**2
+    norm_vector_expected = [squared_column_norm] * num_cols
+    norm_vector_observed = tf.reduce_sum(orthogonal_matrix**2, axis=0)
+    self.assertAllClose(norm_vector_expected, norm_vector_observed, atol=1e-5)
+
+    # Verify orthogonal_matrix is a concatenation of two orthogonal matrices.
+    inner_prod_expected = tf.eye(num_rows) * squared_column_norm
+
+    orth_mat1 = orthogonal_matrix[:, :num_rows]
+    orth_mat2 = orthogonal_matrix[:, num_rows:]
+    inner_prod_observed1 = tf.matmul(orth_mat1, tf.transpose(orth_mat1))
+    inner_prod_observed2 = tf.matmul(orth_mat2, tf.transpose(orth_mat2))
+    self.assertAllClose(inner_prod_observed1, inner_prod_expected, atol=1e-3)
+    self.assertAllClose(inner_prod_observed2, inner_prod_expected, atol=1e-3)
+
   def testInitializersGet(self):
     self.assertIsInstance(ed.initializers.get('trainable_normal'),
                           ed.initializers.TrainableNormal)
