@@ -364,12 +364,12 @@ def mean_field_logits(logits,
     True or False if `pred` has a constant boolean value, None otherwise.
 
   """
-  if likelihood not in ('logistic', 'poisson'):
+  if likelihood not in ('logistic', 'binary_logistic', 'poisson'):
     raise ValueError(
-        f'Likelihood" must be one of (\'logistic\', \'poisson\'), got {likelihood}.'
+        f'Likelihood" must be one of (\'logistic\', \'binary_logistic\', \'poisson\'), got {likelihood}.'
     )
   if likelihood == 'poisson':
-    logits_scale = tf.exp(tf.linalg.diag_part(covmat) * mean_field_factor)
+    logits_scale = tf.exp(tf.linalg.diag_part(covmat) * mean_field_factor / 2.)
     if mean_field_factor > 0:
       logits = logits * logits_scale
   else:
