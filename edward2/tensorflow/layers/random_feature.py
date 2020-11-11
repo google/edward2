@@ -185,6 +185,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self._gp_cov_layer = LaplaceRandomFeatureCovariance(
         momentum=self.gp_cov_momentum,
         ridge_penalty=self.gp_cov_ridge_penalty,
+        likelihood=self.gp_cov_likelihood,
         dtype=self.dtype)
 
   def call(self, inputs, global_step=None, training=None):
@@ -210,7 +211,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     # Computes posterior center (i.e., MAP estimate) and variance.
     gp_output = self._gp_output_layer(gp_feature) + self._gp_output_bias
-    gp_covmat = self._gp_cov_layer(gp_feature, training)
+    gp_covmat = self._gp_cov_layer(gp_feature, gp_output, training)
 
     if self.return_random_features:
       return gp_output, gp_covmat, gp_feature
@@ -276,25 +277,33 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
   def make_precision_matrix_update_op(self,
                                       gp_feature,
                                       logits,
-                                      precision_matrix,
-                                      likelihood='gaussian'):
+                                      precision_matrix):
     """Defines update op for the precision matrix of feature weights."""
-    if logits is None and likelihood != 'gaussian':
-      raise ValueError(f'"logits" cannot be None when likelihood={likelihood}')
+    if self.likelihood != 'gaussian':
+      if logits is None:
+        raise ValueError(
+            f'"logits" cannot be None when likelihood={self.likelihood}')
+
+      if logits.shape[-1] != 1:
+        raise ValueError(
+            f'likelihood={self.likelihood} only support univariate logits.'
+            f'Got logits dimension: {logits.shape[-1]}')
 
     batch_size = tf.shape(gp_feature)[0]
     batch_size = tf.cast(batch_size, dtype=gp_feature.dtype)
 
     # Computes batch-specific normalized precision matrix.
-    feature_outer_product = tf.matmul(gp_feature, gp_feature, transpose_a=True)
-    if likelihood == 'binary_logistic':
-      prob = tf.squeeze(tf.sigmoid(logits))
-      precision_matrix_minibatch = feature_outer_product * prob * (1. - prob)
-    elif likelihood == 'poisson':
-      prob = tf.squeeze(tf.exp(logits))
-      precision_matrix_minibatch = feature_outer_product * prob
+    if self.likelihood == 'binary_logistic':
+      prob = tf.sigmoid(logits)
+      prob_multiplier = prob * (1. - prob)
+    elif self.likelihood == 'poisson':
+      prob_multiplier = tf.exp(logits)
     else:
-      precision_matrix_minibatch = feature_outer_product
+      prob_multiplier = 1.
+
+    gp_feature_adjusted = tf.sqrt(prob_multiplier) * gp_feature
+    precision_matrix_minibatch = tf.matmul(
+        gp_feature_adjusted, gp_feature_adjusted, transpose_a=True)
 
     # Updates the population-wise precision matrix.
     if self.momentum > 0:
