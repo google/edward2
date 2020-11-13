@@ -182,11 +182,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     This function is useful for reseting the model's covariance matrix at the
     begining of a new epoch.
     """
-    self._gp_cov_layer = LaplaceRandomFeatureCovariance(
-        momentum=self.gp_cov_momentum,
-        ridge_penalty=self.gp_cov_ridge_penalty,
-        likelihood=self.gp_cov_likelihood,
-        dtype=self.dtype)
+    self._gp_cov_layer.reset_precision_matrix()
 
   def call(self, inputs, global_step=None, training=None):
     # Computes random features.
@@ -263,12 +259,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       gp_feature_dim = gp_feature_dim.value
 
     # Posterior precision matrix for the GP' random feature coefficients.
+    self.initial_precision_matrix = (
+        self.ridge_penalty * tf.eye(gp_feature_dim, dtype=self.dtype))
+
     self.precision_matrix = (
         self.add_weight(
             name='gp_precision_matrix',
             shape=(gp_feature_dim, gp_feature_dim),
             dtype=self.dtype,
-            initializer=tf.keras.initializers.Identity(self.ridge_penalty),
+            initializer=tf.keras.initializers.Constant(
+                value=self.initial_precision_matrix),
             trainable=False,
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
 
@@ -320,6 +320,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
     # Returns the update op.
     return precision_matrix.assign(precision_matrix_new)
+
+  def reset_precision_matrix(self):
+    """Resets precision matrix to its initial value.
+
+    This function is useful for reseting the model's covariance matrix at the
+    begining of a new epoch.
+    """
+    precision_matrix_reset_op = self.precision_matrix.assign(
+        self.initial_precision_matrix)
+    self.add_update(precision_matrix_reset_op)
 
   def compute_predictive_covariance(self, gp_feature):
     """Computes posterior predictive variance.
