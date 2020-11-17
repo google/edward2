@@ -267,8 +267,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
             name='gp_precision_matrix',
             shape=(gp_feature_dim, gp_feature_dim),
             dtype=self.dtype,
-            initializer=tf.keras.initializers.Constant(
-                value=self.initial_precision_matrix),
+            initializer=tf.keras.initializers.Identity(self.ridge_penalty),
             trainable=False,
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
 
