@@ -132,7 +132,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.gp_cov_likelihood = gp_cov_likelihood
 
     # Defines module layers.
-    self._input_norm_layer = tf.keras.layers.LayerNormalization()
+    self._input_norm_layer = tf.keras.layers.LayerNormalization(
+        name='gp_input_normalization')
 
     if use_custom_random_features:
       # Use classific Random Fourier Feature by default.
@@ -150,14 +151,16 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           activation=custom_random_features_activation,
           kernel_initializer=custom_random_features_initializer,
           bias_initializer=random_features_bias_initializer,
-          trainable=False)
+          trainable=False,
+          name='gp_random_feature')
     else:
       self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
           output_dim=self.num_inducing,
           kernel_initializer=gp_kernel_type,
           scale=gp_kernel_scale,
           trainable=gp_kernel_scale_trainable,
-          dtype=self.dtype)
+          dtype=self.dtype,
+          name='gp_random_feature')
 
     self._gp_cov_layer = LaplaceRandomFeatureCovariance(
         momentum=self.gp_cov_momentum,
@@ -169,6 +172,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         use_bias=False,
         kernel_regularizer=tf.keras.regularizers.l2(l2_regularization),
         dtype=self.dtype,
+        name='gp_output_weights',
         **gp_output_kwargs)
     self._gp_output_bias = tf.Variable(
         initial_value=[gp_output_bias] * self.units,
