@@ -123,62 +123,89 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.gp_input_scale = 1. / tf.sqrt(gp_kernel_scale)
     self.gp_feature_scale = 2. / tf.sqrt(float(num_inducing))
 
-    self.use_custom_random_features = use_custom_random_features
     self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
+
+    self.gp_kernel_type = gp_kernel_type
+    self.gp_kernel_scale = gp_kernel_scale
+    self.gp_output_bias = gp_output_bias
+    self.gp_kernel_scale_trainable = gp_kernel_scale_trainable
+    self.gp_output_bias_trainable = gp_output_bias_trainable
+
+    self.use_custom_random_features = use_custom_random_features
+    self.custom_random_features_initializer = custom_random_features_initializer
+    self.custom_random_features_activation = custom_random_features_activation
+
+    self.l2_regularization = l2_regularization
+    self.gp_output_kwargs = gp_output_kwargs
 
     self.gp_cov_momentum = gp_cov_momentum
     self.gp_cov_ridge_penalty = gp_cov_ridge_penalty
     self.gp_cov_likelihood = gp_cov_likelihood
 
-    # Defines module layers.
-    self._input_norm_layer = tf.keras.layers.LayerNormalization(
-        name='gp_input_normalization')
-
-    if use_custom_random_features:
-      # Use classific Random Fourier Feature by default.
-      random_features_bias_initializer = tf.random_uniform_initializer(
+    if self.use_custom_random_features:
+      # Use classic Random Fourier Feature by default.
+      self.random_features_bias_initializer = tf.random_uniform_initializer(
           minval=0., maxval=2. * math.pi)
-      if custom_random_features_initializer is None:
-        custom_random_features_initializer = tf.initializers.RandomNormal(
+      if self.custom_random_features_initializer is None:
+        self.custom_random_features_initializer = tf.initializers.random_normal(
             stddev=1.)
-      if custom_random_features_activation is None:
-        custom_random_features_activation = tf.math.cos
+      if self.custom_random_features_activation is None:
+        self.custom_random_features_activation = tf.math.cos
 
-      self._random_feature = tf.keras.layers.Dense(
+    self.dense_layer = tf.keras.layers.Dense
+    self.input_normalization_layer = tf.keras.layers.LayerNormalization
+
+  def build(self, input_shape):
+    self._build_sublayer_classes()
+
+    if self.normalize_input:
+      self._input_norm_layer = self.input_normalization_layer(
+          name='gp_input_normalization')
+
+    if self.use_custom_random_features:
+      self._random_feature = self.dense_layer(
           units=self.num_inducing,
           use_bias=True,
-          activation=custom_random_features_activation,
-          kernel_initializer=custom_random_features_initializer,
-          bias_initializer=random_features_bias_initializer,
+          activation=self.custom_random_features_activation,
+          kernel_initializer=self.custom_random_features_initializer,
+          bias_initializer=self.random_features_bias_initializer,
           trainable=False,
           name='gp_random_feature')
     else:
       self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
           output_dim=self.num_inducing,
-          kernel_initializer=gp_kernel_type,
-          scale=gp_kernel_scale,
-          trainable=gp_kernel_scale_trainable,
+          kernel_initializer=self.gp_kernel_type,
+          scale=self.gp_kernel_scale,
+          trainable=self.gp_kernel_scale_trainable,
           dtype=self.dtype,
           name='gp_random_feature')
 
-    self._gp_cov_layer = LaplaceRandomFeatureCovariance(
+    self._gp_cov_layer = self.covariance_layer(
         momentum=self.gp_cov_momentum,
         ridge_penalty=self.gp_cov_ridge_penalty,
         likelihood=self.gp_cov_likelihood,
-        dtype=self.dtype)
-    self._gp_output_layer = tf.keras.layers.Dense(
+        dtype=self.dtype,
+        name='gp_covariance')
+    self._gp_output_layer = self.dense_layer(
         units=self.units,
         use_bias=False,
-        kernel_regularizer=tf.keras.regularizers.l2(l2_regularization),
+        kernel_regularizer=tf.keras.regularizers.l2(self.l2_regularization),
         dtype=self.dtype,
         name='gp_output_weights',
-        **gp_output_kwargs)
-    self._gp_output_bias = tf.Variable(
-        initial_value=[gp_output_bias] * self.units,
+        **self.gp_output_kwargs)
+    self._gp_output_bias = self.bias_layer(
+        initial_value=[self.gp_output_bias] * self.units,
         dtype=self.dtype,
-        trainable=gp_output_bias_trainable,
+        trainable=self.gp_output_bias_trainable,
         name='gp_output_bias')
+
+  def _build_sublayer_classes(self):
+    """Defines sublayer classes."""
+    self.bias_layer = tf.Variable
+    self.dense_layer = tf.keras.layers.Dense
+    self.covariance_layer = LaplaceRandomFeatureCovariance
+    self.input_normalization_layer = tf.keras.layers.LayerNormalization
 
   def reset_covariance_matrix(self):
     """Resets covariance matrix of the GP layer.
