@@ -121,7 +121,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     self.normalize_input = normalize_input
     self.gp_input_scale = 1. / tf.sqrt(gp_kernel_scale)
-    self.gp_feature_scale = 2. / tf.sqrt(float(num_inducing))
+    self.gp_feature_scale = tf.sqrt(2. / float(num_inducing))
 
     self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
@@ -152,9 +152,6 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
             stddev=1.)
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
-
-    self.dense_layer = tf.keras.layers.Dense
-    self.input_normalization_layer = tf.keras.layers.LayerNormalization
 
   def build(self, input_shape):
     self._build_sublayer_classes()
