@@ -23,7 +23,10 @@
      https://people.eecs.berkeley.edu/~brecht/papers/07.rah.rec.nips.pdf
 """
 import math
+from edward2.tensorflow import initializers
+
 import tensorflow.compat.v2 as tf
+
 
 _SUPPORTED_LIKELIHOOD = ('binary_logistic', 'poisson', 'gaussian')
 
@@ -66,7 +69,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                gp_cov_ridge_penalty=1e-6,
                scale_random_features=True,
                return_random_features=False,
-               use_custom_random_features=False,
+               use_custom_random_features=True,
                custom_random_features_initializer=None,
                custom_random_features_activation=None,
                l2_regularization=0.,
@@ -121,7 +124,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     self.normalize_input = normalize_input
     self.gp_input_scale = 1. / tf.sqrt(gp_kernel_scale)
-    self.gp_feature_scale = 2. / tf.sqrt(float(num_inducing))
+    self.gp_feature_scale = tf.sqrt(2. / float(num_inducing))
 
     self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
@@ -144,12 +147,12 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.gp_cov_likelihood = gp_cov_likelihood
 
     if self.use_custom_random_features:
-      # Use classic Random Fourier Feature by default.
+      # Use orthogonal random features by default.
       self.random_features_bias_initializer = tf.random_uniform_initializer(
           minval=0., maxval=2. * math.pi)
       if self.custom_random_features_initializer is None:
-        self.custom_random_features_initializer = tf.initializers.random_normal(
-            stddev=1.)
+        self.custom_random_features_initializer = (
+            initializers.OrthogonalRandomFeatures(stddev=1.0))
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
 
@@ -289,7 +292,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     if isinstance(gp_feature_dim, tf.compat.v1.Dimension):
       gp_feature_dim = gp_feature_dim.value
 
-    # Posterior precision matrix for the GP' random feature coefficients.
+    # Posterior precision matrix for the GP's random feature coefficients.
     self.initial_precision_matrix = (
         self.ridge_penalty * tf.eye(gp_feature_dim, dtype=self.dtype))
 
