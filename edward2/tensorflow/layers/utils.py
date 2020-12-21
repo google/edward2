@@ -346,17 +346,19 @@ def smart_constant_value(pred):
 
 
 def mean_field_logits(logits,
-                      covmat,
+                      covmat=None,
                       mean_field_factor=1.,
                       likelihood='logistic'):
-  """Adjust the SNGP logits so its softmax approximates posterior mean [1].
+  """Adjust the model logits so its softmax approximates the posterior mean [1].
 
   Arguments:
     logits: A float tensor of shape (batch_size, num_classes).
-    covmat: A float tensor of shape (batch_size, batch_size).
+    covmat: A float tensor of shape (batch_size, batch_size). If None then it
+      assumes the covmat is an identity matrix.
     mean_field_factor: The scale factor for mean-field approximation, used to
       adjust the influence of posterior variance in posterior mean
-      approximation.
+      approximation. If covmat=None then it is used as the scaling parameter for
+      temperature scaling.
     likelihood: Likelihood for integration in Gaussian-approximated latent
       posterior.
 
@@ -368,13 +370,24 @@ def mean_field_logits(logits,
     raise ValueError(
         f'Likelihood" must be one of (\'logistic\', \'binary_logistic\', \'poisson\'), got {likelihood}.'
     )
-  if likelihood == 'poisson':
-    logits_scale = tf.exp(tf.linalg.diag_part(covmat) * mean_field_factor / 2.)
-    if mean_field_factor > 0:
-      logits = logits * logits_scale
-  else:
-    logits_scale = tf.sqrt(1. + tf.linalg.diag_part(covmat) * mean_field_factor)
-    if mean_field_factor > 0:
-      logits = logits / tf.expand_dims(logits_scale, axis=-1)
 
-  return logits
+  if mean_field_factor < 0:
+    return logits
+
+  # Compute standard deviation.
+  if covmat is None:
+    variances = 1.
+  else:
+    variances = tf.linalg.diag_part(covmat)
+
+  # Compute scaling coefficient for mean-field approximation.
+  if likelihood == 'poisson':
+    logits_scale = tf.exp(- variances * mean_field_factor / 2.)
+  else:
+    logits_scale = tf.sqrt(1. + variances * mean_field_factor)
+
+  # Cast logits_scale to compatible dimension.
+  if logits.ndim > 1:
+    logits_scale = tf.expand_dims(logits_scale, axis=-1)
+
+  return logits / logits_scale

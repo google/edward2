@@ -198,6 +198,48 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     result_matching = ed.layers.utils.soft_to_hard_permutation(identity)
     self.assertAllEqual(result_matching[0], np.eye(dims))
 
+  def testMeanFieldLogitsLikelihood(self):
+    """Tests if scaling is correct under different likelihood."""
+    batch_size = 10
+    num_classes = 12
+    variance = 1.5
+    mean_field_factor = 2.
+
+    rng = np.random.RandomState(0)
+    tf.random.set_seed(1)
+    logits = rng.randn(batch_size, num_classes)
+    covmat = tf.linalg.diag([variance] * batch_size)
+
+    logits_logistic = ed.layers.utils.mean_field_logits(
+        logits, covmat, mean_field_factor=mean_field_factor)
+    logits_poisson = ed.layers.utils.mean_field_logits(
+        logits, covmat, mean_field_factor=mean_field_factor,
+        likelihood='poisson')
+
+    self.assertAllClose(logits_logistic, logits / 2., atol=1e-4)
+    self.assertAllClose(logits_poisson, logits * np.exp(1.5), atol=1e-4)
+
+  def testMeanFieldLogitsTemperatureScaling(self):
+    """Tests using mean_field_logits as temperature scaling method."""
+    batch_size = 10
+    num_classes = 12
+
+    rng = np.random.RandomState(0)
+    tf.random.set_seed(1)
+    logits = rng.randn(batch_size, num_classes)
+
+    # Test if there's no change to logits when mean_field_factor < 0.
+    logits_no_change = ed.layers.utils.mean_field_logits(
+        logits, covmat=None, mean_field_factor=-1)
+
+    # Test if mean_field_logits functions as a temperature scaling method when
+    # mean_field_factor > 0, with temperature = sqrt(1. + mean_field_factor).
+    logits_scale_by_two = ed.layers.utils.mean_field_logits(
+        logits, covmat=None, mean_field_factor=3.)
+
+    self.assertAllClose(logits_no_change, logits, atol=1e-4)
+    self.assertAllClose(logits_scale_by_two, logits / 2., atol=1e-4)
+
 
 if __name__ == '__main__':
   tf.test.main()
