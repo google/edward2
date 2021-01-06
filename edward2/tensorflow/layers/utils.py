@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 The Edward2 Authors.
+# Copyright 2021 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -387,7 +387,7 @@ def mean_field_logits(logits,
     logits_scale = tf.sqrt(1. + variances * mean_field_factor)
 
   # Cast logits_scale to compatible dimension.
-  if logits.ndim > 1:
+  if len(logits.shape) > 1:
     logits_scale = tf.expand_dims(logits_scale, axis=-1)
 
   return logits / logits_scale
