@@ -65,20 +65,20 @@ def test_cases():
           'model_type': 'MCSigmoidDenseFAPE'
       },
       {
-          'testcase_name': '_MCSoftmaxDense_logit_noise_normal_2',
+          'testcase_name': '_MCSigmoidDenseFA_logit_noise_normal_2',
           'logit_noise': tfp.distributions.Normal,
           'num_classes': 2,
-          'model_type': 'MCSoftmaxDense'
+          'model_type': 'MCSigmoidDenseFA'
       }, {
-          'testcase_name': '_MCSoftmaxDense_logit_noise_logistic_2',
+          'testcase_name': '_MCSigmoidDenseFA_logit_noise_logistic_2',
           'logit_noise': tfp.distributions.Logistic,
           'num_classes': 2,
-          'model_type': 'MCSoftmaxDense'
+          'model_type': 'MCSigmoidDenseFA'
       }, {
-          'testcase_name': '_MCSoftmaxDense_logit_noise_gumbel_2',
+          'testcase_name': '_MCSigmoidDenseFA_logit_noise_gumbel_2',
           'logit_noise': tfp.distributions.Gumbel,
           'num_classes': 2,
-          'model_type': 'MCSoftmaxDense'
+          'model_type': 'MCSigmoidDenseFA'
       },
       {
           'testcase_name': '_Exact_logit_noise_normal_2',
@@ -131,7 +131,9 @@ class Classifier(tf.keras.Model):
           num_classes, num_factors=max(num_classes//2, 2), **kwargs)
     elif model_type == 'MCSigmoidDenseFA':
       self.classifier = SigmoidDenseFAClassifier(
-          num_classes, num_factors=max(num_classes//2, 2), **kwargs)
+          num_classes,
+          num_factors=max(num_classes//2, 2) if num_classes > 2 else 0,
+          **kwargs)
     elif model_type == 'MCSoftmaxDenseFAPE':
       self.classifier = DenseFAClassifier(
           num_classes, num_factors=max(num_classes//2, 2),
@@ -298,7 +300,7 @@ class SigmoidDenseFAClassifier(tf.keras.Model):
 
     self.hidden_layer = tf.keras.layers.Dense(16)
     self.output_layer = ed.layers.MCSigmoidDenseFA(
-        num_classes, num_factors=num_factors,
+        1 if num_classes == 2 else num_classes, num_factors=num_factors,
         temperature=temperature, parameter_efficient=parameter_efficient,
         train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,

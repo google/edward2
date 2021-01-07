@@ -32,7 +32,8 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
 
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
                temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False, name='MCSoftmaxOutputLayerBase'):
+               compute_pred_variance=False, share_samples_across_batch=False,
+               logits_only=False, eps=1e-7, name='MCSoftmaxOutputLayerBase'):
     """Creates an instance of MCSoftmaxOutputLayerBase.
 
     Args:
@@ -49,6 +50,15 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
+      share_samples_across_batch: Boolean. If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference, setting = True may solve.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Useful when a single output Tensor is required e.g.
+        tf.keras.Sequential models require a single output Tensor.
+      eps: Float. Clip probabilities into [eps, 1.0] softmax or
+        [eps, 1.0 - eps] sigmoid before applying log (softmax), or inverse
+        sigmoid.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -71,6 +81,9 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     self._train_mc_samples = train_mc_samples
     self._test_mc_samples = test_mc_samples
     self._compute_pred_variance = compute_pred_variance
+    self._share_samples_across_batch = share_samples_across_batch
+    self._logits_only = logits_only
+    self._eps = eps
     self._name = name
 
   def _compute_noise_samples(self, scale, num_samples, seed):
@@ -78,16 +91,24 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
 
     Args:
       scale: Tensor of shape
-        [batch_size, ..., 1 if num_classes == 2 else num_classes].
+        [batch_size, 1 if num_classes == 2 else num_classes].
         Scale parameters of the distributions to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      Tensor. Logit noise samples of shape: [batch_size, num_samples, ...,
+      Tensor. Logit noise samples of shape: [batch_size, num_samples,
         1 if num_classes == 2 else num_classes].
     """
-    dist = self._logit_noise(loc=tf.zeros_like(scale), scale=scale)
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(scale)[0]
+
+    dist = self._logit_noise(
+        loc=tf.zeros([num_noise_samples, self._num_classes], dtype=scale.dtype),
+        scale=tf.ones([num_noise_samples, self._num_classes],
+                      dtype=scale.dtype))
 
     tf.random.set_seed(seed)
     noise_samples = dist.sample(num_samples, seed=seed)
@@ -95,25 +116,23 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     # dist.sample(total_mc_samples) returns Tensor of shape
     # [total_mc_samples, batch_size, d], here we reshape to
     # [batch_size, total_mc_samples, d]
-    return tf.transpose(
-        noise_samples,
-        tf.concat([[1, 0], tf.range(2, tf.rank(noise_samples))], 0))
+    return tf.transpose(noise_samples, [1, 0, 2]) * tf.expand_dims(scale, 1)
 
   def _compute_mc_samples(self, locs, scale, num_samples, seed):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
     Args:
-      locs: Tensor of shape [batch_size, total_mc_samples, ...,
+      locs: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Location parameters of the
         distributions to be sampled.
-      scale: Tensor of shape [batch_size, total_mc_samples, ...,
+      scale: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Scale parameters of the
         distributions to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      Tensor of shape [batch_size, num_samples, ...,
+      Tensor of shape [batch_size, num_samples,
         1 if num_classes == 2 else num_classes]. All of the MC samples.
     """
     locs = tf.expand_dims(locs, axis=1)
@@ -128,17 +147,17 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     """Utility function to compute the estimated predictive distribution.
 
     Args:
-      locs: Tensor of shape [batch_size, total_mc_samples, ...,
+      locs: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Location parameters of the
         distributions to be sampled.
-      scale: Tensor of shape [batch_size, total_mc_samples, ...,
+      scale: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Scale parameters of the
         distributions to be sampled.
       total_mc_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      Tensor of shape [batch_size, ..., 1 if num_classes == 2 else num_classes]
+      Tensor of shape [batch_size, 1 if num_classes == 2 else num_classes]
       - the mean of the MC samples.
     """
     if self._compute_pred_variance and seed is None:
@@ -152,20 +171,20 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     """Utility function to compute the per class predictive variance.
 
     Args:
-      mean: Tensor of shape [batch_size, total_mc_samples, ...,
+      mean: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Estimated predictive
         distribution.
-      locs: Tensor of shape [batch_size, total_mc_samples, ...,
+      locs: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Location parameters of the
         distributions to be sampled.
-      scale: Tensor of shape [batch_size, total_mc_samples, ...,
+      scale: Tensor of shape [batch_size, total_mc_samples,
         1 if num_classes == 2 else num_classes]. Scale parameters of the
         distributions to be sampled.
       seed: Python integer for seeding the random number generator.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
-      Tensor of shape: [batch_size, num_samples, ...,
+      Tensor of shape: [batch_size, num_samples,
         1 if num_classes == 2 else num_classes]. Estimated predictive variance.
     """
     mean = tf.expand_dims(mean, axis=1)
@@ -182,7 +201,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_classes].
+      Tensor of shape [batch_size, num_classes].
     """
     return
 
@@ -193,7 +212,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_classes].
+      Tensor of shape [batch_size, num_classes].
     """
     return
 
@@ -209,7 +228,8 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      Tuple of (logits, log_probs, probs, predictive_variance). For multi-class
+      Tensor logits if logits_only = True. Otherwise,
+      tuple of (logits, log_probs, probs, predictive_variance). For multi-class
       classification i.e. num_classes > 2 logits = log_probs and logits can be
       used with the standard tf.nn.sparse_softmax_cross_entropy_with_logits loss
       function. For binary classification i.e. num_classes = 2, logits
@@ -242,18 +262,36 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
         pred_variance = self._compute_predictive_variance(
             probs_mean, locs, scale, seed, total_mc_samples)
 
-      eps = 1e-7
-      probs_mean = tf.clip_by_value(probs_mean, eps, 1.0)
+      probs_mean = tf.clip_by_value(probs_mean, self._eps, 1.0)
       log_probs = tf.math.log(probs_mean)
 
       if self._num_classes == 2:
         # inverse sigmoid
-        probs_mean = tf.clip_by_value(probs_mean, eps, 1.0 - eps)
+        probs_mean = tf.clip_by_value(probs_mean, self._eps, 1.0 - self._eps)
         logits = log_probs - tf.math.log(1.0 - probs_mean)
       else:
         logits = log_probs
 
+      if self._logits_only:
+        return logits
+
       return logits, log_probs, probs_mean, pred_variance
+
+  def get_config(self):
+    config = {
+        'num_classes': self._num_classes,
+        'logit_noise': self._logit_noise,
+        'temperature': self._temperature,
+        'train_mc_samples': self._train_mc_samples,
+        'test_mc_samples': self._test_mc_samples,
+        'compute_pred_variance': self._compute_pred_variance,
+        'share_samples_across_batch': self._share_samples_across_batch,
+        'logits_only': self._logits_only,
+        'name': self._name,
+    }
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
 
 
 class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
@@ -261,8 +299,9 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
 
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
                temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               loc_regularizer=None,
-               compute_pred_variance=False, name='MCSoftmaxDense'):
+               loc_regularizer=None, compute_pred_variance=False,
+               share_samples_across_batch=False, logits_only=False,
+               eps=1e-7, dtype=None, name='MCSoftmaxDense'):
     """Creates an instance of MCSoftmaxDense.
 
     This is a MC softmax heteroscedastic drop in replacement for a
@@ -295,6 +334,14 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
+      share_samples_across_batch: Boolean. If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      eps: Float. Clip probabilities into [eps, 1.0] before applying log.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -309,14 +356,16 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
     super(MCSoftmaxDense, self).__init__(
         num_classes, logit_noise=logit_noise, temperature=temperature,
         train_mc_samples=train_mc_samples, test_mc_samples=test_mc_samples,
-        compute_pred_variance=compute_pred_variance, name=name)
+        compute_pred_variance=compute_pred_variance,
+        share_samples_across_batch=share_samples_across_batch,
+        logits_only=logits_only, eps=eps, name=name)
 
     self._loc_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes, activation=None,
-        kernel_regularizer=loc_regularizer, name='loc_layer')
+        kernel_regularizer=loc_regularizer, name='loc_layer', dtype=dtype)
     self._scale_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes,
-        activation=tf.math.softplus, name='scale_layer')
+        activation=tf.math.softplus, name='scale_layer', dtype=dtype)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -325,7 +374,7 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_classes].
+      Tensor of shape [batch_size, num_classes].
     """
     return self._loc_layer(inputs)
 
@@ -336,9 +385,18 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_classes].
+      Tensor of shape [batch_size, num_classes].
     """
     return self._scale_layer(inputs) + MIN_SCALE_MONTE_CARLO
+
+  def get_config(self):
+    config = {
+        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
+        'scale_layer': tf.keras.layers.serialize(self._scale_layer),
+    }
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
 
 
 class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
@@ -347,7 +405,9 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
   def __init__(self, num_classes, num_factors, temperature=1.0,
                parameter_efficient=False, train_mc_samples=1000,
                test_mc_samples=1000, loc_regularizer=None,
-               compute_pred_variance=False, name='MCSoftmaxDenseFA'):
+               compute_pred_variance=False, share_samples_across_batch=False,
+               logits_only=False, eps=1e-7, dtype=None,
+               name='MCSoftmaxDenseFA'):
     """Creates an instance of MCSoftmaxDenseFA.
 
     if we assume:
@@ -401,6 +461,14 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
+      share_samples_across_batch: Boolean. If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      eps: Float. Clip probabilities into [eps, 1.0] before applying log.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -415,24 +483,27 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         temperature=temperature, train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
-        name=name)
+        share_samples_across_batch=share_samples_across_batch,
+        logits_only=logits_only, eps=eps, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
 
     if parameter_efficient:
       self._scale_layer_homoscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_homoscedastic')
+          num_classes, name='scale_layer_homoscedastic', dtype=dtype)
       self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_heteroscedastic')
+          num_classes, name='scale_layer_heteroscedastic', dtype=dtype)
     else:
       self._scale_layer = tf.keras.layers.Dense(
-          num_classes * num_factors, name='scale_layer')
+          num_classes * num_factors, name='scale_layer', dtype=dtype)
 
     self._loc_layer = tf.keras.layers.Dense(
-        num_classes, kernel_regularizer=loc_regularizer, name='loc_layer')
+        num_classes, kernel_regularizer=loc_regularizer, name='loc_layer',
+        dtype=dtype)
     self._diag_layer = tf.keras.layers.Dense(
-        num_classes, activation=tf.math.softplus, name='diag_layer')
+        num_classes, activation=tf.math.softplus, name='diag_layer',
+        dtype=dtype)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -441,7 +512,7 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_classes].
+      Tensor of shape [batch_size, num_classes].
     """
     return self._loc_layer(inputs)
 
@@ -452,8 +523,8 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tuple of tensors of shape ([batch_size, ..., num_classes * num_factors],
-      [batch_size, ..., num_classes]).
+      Tuple of tensors of shape ([batch_size, num_classes * num_factors],
+      [batch_size, num_classes]).
     """
     if self._parameter_efficient:
       return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
@@ -465,17 +536,25 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     """Compute samples of the diagonal elements logit noise.
 
     Args:
-      diag_scale: `Tensor` of shape [batch_size, ..., num_classes]. Diagonal
+      diag_scale: `Tensor` of shape [batch_size, num_classes]. Diagonal
         elements of scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Logit noise samples of shape: [batch_size, num_samples, ...,
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
         1 if num_classes == 2 else num_classes].
     """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(diag_scale)[0]
+
     dist = tfp.distributions.Normal(
-        loc=tf.zeros_like(diag_scale), scale=diag_scale)
+        loc=tf.zeros([num_noise_samples, self._num_classes],
+                     dtype=diag_scale.dtype),
+        scale=tf.ones([num_noise_samples, self._num_classes],
+                      dtype=diag_scale.dtype))
 
     tf.random.set_seed(seed)
     diag_noise_samples = dist.sample(num_samples, seed=seed)
@@ -483,11 +562,9 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     # dist.sample(total_mc_samples) returns Tensor of shape
     # [total_mc_samples, batch_size, d], here we reshape to
     # [batch_size, total_mc_samples, d]
-    diag_noise_samples = tf.transpose(
-        diag_noise_samples,
-        tf.concat([[1, 0], tf.range(2, tf.rank(diag_noise_samples))], 0))
+    diag_noise_samples = tf.transpose(diag_noise_samples, [1, 0, 2])
 
-    return diag_noise_samples
+    return diag_noise_samples * tf.expand_dims(diag_scale, 1)
 
   def _compute_standard_normal_samples(self, factor_loadings, num_samples,
                                        seed):
@@ -495,17 +572,24 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
 
     Args:
       factor_loadings: `Tensor` of shape
-        [batch_size, ..., num_classes * num_factors]. Factor loadings for scale
+        [batch_size, num_classes * num_factors]. Factor loadings for scale
         parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Samples of shape: [batch_size, num_samples, ..., num_factors].
+      `Tensor`. Samples of shape: [batch_size, num_samples, num_factors].
     """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(factor_loadings)[0]
+
     dist = tfp.distributions.Normal(
-        loc=tf.zeros_like(factor_loadings[:, :self._num_factors]),
-        scale=tf.ones_like(factor_loadings[:, :self._num_factors]))
+        loc=tf.zeros([num_noise_samples, self._num_factors],
+                     dtype=factor_loadings.dtype),
+        scale=tf.ones([num_noise_samples, self._num_factors],
+                      dtype=factor_loadings.dtype))
 
     tf.random.set_seed(seed)
     standard_normal_samples = dist.sample(num_samples, seed=seed)
@@ -513,9 +597,12 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     # dist.sample(total_mc_samples) returns Tensor of shape
     # [total_mc_samples, batch_size, d], here we reshape to
     # [batch_size, total_mc_samples, d]
-    standard_normal_samples = tf.transpose(
-        standard_normal_samples,
-        tf.concat([[1, 0], tf.range(2, tf.rank(standard_normal_samples))], 0))
+    standard_normal_samples = tf.transpose(standard_normal_samples, [1, 0, 2])
+
+    if self._share_samples_across_batch:
+      standard_normal_samples = tf.tile(standard_normal_samples,
+                                        [tf.shape(factor_loadings)[0], 1, 1])
+
     return standard_normal_samples
 
   def _compute_noise_samples(self, scale, num_samples, seed):
@@ -523,14 +610,14 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
 
     Args:
       scale: Tuple of tensors of shape (
-        [batch_size, ..., num_classes * num_factors],
-        [batch_size, ..., num_classes]). Factor loadings and diagonal elements
+        [batch_size, num_classes * num_factors],
+        [batch_size, num_classes]). Factor loadings and diagonal elements
         for scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Logit noise samples of shape: [batch_size, num_samples, ...,
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
         1 if num_classes == 2 else num_classes].
     """
     factor_loadings, diag_scale = scale
@@ -549,14 +636,32 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
           self._scale_layer_heteroscedastic(factor_loadings), 1)
     else:
       # reshape scale vector into factor loadings matrix
-      factor_loadings = tf.cast(
-          tf.reshape(factor_loadings,
-                     [-1, self._num_classes, self._num_factors]),
-          standard_normal_samples.dtype)
+      factor_loadings = tf.reshape(factor_loadings,
+                                   [-1, self._num_classes, self._num_factors])
 
       # transform standard normal into ~ full rank covariance Gaussian samples
       res = tf.einsum('ijk,iak->iaj', factor_loadings, standard_normal_samples)
     return res + diag_noise_samples
+
+  def get_config(self):
+    config = {
+        'loc_layer': self._loc_layer.get_config(),
+        'diag_layer': self._diag_layer.get_config(),
+        'num_factors': self._num_factors,
+        'parameter_efficient': self._parameter_efficient,
+    }
+
+    if self._parameter_efficient:
+      config['scale_layer_homoscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_homoscedastic)
+      config['scale_layer_heteroscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_heteroscedastic)
+    else:
+      config['scale_layer'] = tf.keras.layers.serialize(self._scale_layer)
+
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
 
 
 class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
@@ -565,7 +670,9 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
   def __init__(self, num_outputs, num_factors=0, temperature=1.0,
                parameter_efficient=False, train_mc_samples=1000,
                test_mc_samples=1000, loc_regularizer=None,
-               compute_pred_variance=False, name='MCSigmoidDenseFA'):
+               compute_pred_variance=False, share_samples_across_batch=False,
+               logits_only=False, eps=1e-7, dtype=None,
+               name='MCSigmoidDenseFA'):
     """Creates an instance of MCSigmoidDenseFA.
 
     if we assume:
@@ -620,6 +727,15 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
+      share_samples_across_batch: Boolean. If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      eps: Float. Clip probabilities into [eps, 1.0 - eps] before applying
+        inverse sigmoid.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -632,28 +748,30 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         temperature=temperature, train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
-        name=name)
+        share_samples_across_batch=share_samples_across_batch,
+        logits_only=logits_only, eps=eps, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
     self._num_outputs = num_outputs
 
     self._loc_layer = tf.keras.layers.Dense(
-        num_outputs, kernel_regularizer=loc_regularizer, name='loc_layer')
+        num_outputs, kernel_regularizer=loc_regularizer, name='loc_layer',
+        dtype=dtype)
 
     if num_factors > 0:
       if parameter_efficient:
         self._scale_layer_homoscedastic = tf.keras.layers.Dense(
-            num_outputs, name='scale_layer_homoscedastic')
+            num_outputs, name='scale_layer_homoscedastic', dtype=dtype)
         self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
-            num_outputs, name='scale_layer_heteroscedastic')
+            num_outputs, name='scale_layer_heteroscedastic', dtype=dtype)
       else:
         self._scale_layer = tf.keras.layers.Dense(
-            num_outputs * num_factors, name='scale_layer')
+            num_outputs * num_factors, name='scale_layer', dtype=dtype)
 
     self._diag_layer = tf.keras.layers.Dense(
         num_outputs, activation=tf.math.softplus, name='diag_layer',
-        bias_initializer='zeros')
+        bias_initializer='zeros', dtype=dtype)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -662,7 +780,7 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tensor of shape [batch_size, ..., num_outputs].
+      Tensor of shape [batch_size, num_outputs].
     """
     return self._loc_layer(inputs)
 
@@ -673,8 +791,8 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       inputs: Tensor. The input to the heteroscedastic output layer.
 
     Returns:
-      Tuple of tensors of shape ([batch_size, ..., num_outputs * num_factors],
-      [batch_size, ..., num_outputs]).
+      Tuple of tensors of shape ([batch_size, num_outputs * num_factors],
+      [batch_size, num_outputs]).
     """
     if self._num_factors > 0:
       if self._parameter_efficient:
@@ -689,17 +807,23 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     """Compute samples of the diagonal elements logit noise.
 
     Args:
-      diag_scale: `Tensor` of shape [batch_size, ..., num_outputs]. Diagonal
+      diag_scale: `Tensor` of shape [batch_size, num_outputs]. Diagonal
         elements of scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Logit noise samples of shape: [batch_size, num_samples, ...,
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
         num_outputs].
     """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(diag_scale)[0]
+
     dist = tfp.distributions.Normal(
-        loc=tf.zeros_like(diag_scale), scale=tf.ones_like(diag_scale))
+        loc=tf.zeros([num_noise_samples, self._num_outputs], diag_scale.dtype),
+        scale=tf.ones([num_noise_samples, self._num_outputs], diag_scale.dtype))
 
     tf.random.set_seed(seed)
     diag_noise_samples = dist.sample(num_samples, seed=seed)
@@ -707,13 +831,9 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     # dist.sample(total_mc_samples) returns Tensor of shape
     # [total_mc_samples, batch_size, d], here we reshape to
     # [batch_size, total_mc_samples, d]
-    diag_noise_samples = tf.transpose(
-        diag_noise_samples,
-        tf.concat([[1, 0], tf.range(2, tf.rank(diag_noise_samples))], 0))
+    diag_noise_samples = tf.transpose(diag_noise_samples, [1, 0, 2])
 
-    diag_noise_samples = tf.expand_dims(diag_scale, axis=1) * diag_noise_samples
-
-    return diag_noise_samples
+    return diag_noise_samples * tf.expand_dims(diag_scale, axis=1)
 
   def _compute_standard_normal_samples(self, factor_loadings, num_samples,
                                        seed):
@@ -721,17 +841,24 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
 
     Args:
       factor_loadings: `Tensor` of shape
-        [batch_size, ..., num_outputs * num_factors]. Factor loadings for scale
+        [batch_size, num_outputs * num_factors]. Factor loadings for scale
         parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Samples of shape: [batch_size, num_samples, ..., num_factors].
+      `Tensor`. Samples of shape: [batch_size, num_samples, num_factors].
     """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(factor_loadings)[0]
+
     dist = tfp.distributions.Normal(
-        loc=tf.zeros_like(factor_loadings[:, :self._num_factors]),
-        scale=tf.ones_like(factor_loadings[:, :self._num_factors]))
+        loc=tf.zeros([num_noise_samples, self._num_factors],
+                     dtype=factor_loadings.dtype),
+        scale=tf.ones([num_noise_samples, self._num_factors],
+                      dtype=factor_loadings.dtype))
 
     tf.random.set_seed(seed)
     standard_normal_samples = dist.sample(num_samples, seed=seed)
@@ -739,9 +866,11 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     # dist.sample(total_mc_samples) returns Tensor of shape
     # [total_mc_samples, batch_size, d], here we reshape to
     # [batch_size, total_mc_samples, d]
-    standard_normal_samples = tf.transpose(
-        standard_normal_samples,
-        tf.concat([[1, 0], tf.range(2, tf.rank(standard_normal_samples))], 0))
+    standard_normal_samples = tf.transpose(standard_normal_samples, [1, 0, 2])
+
+    if self._share_samples_across_batch:
+      standard_normal_samples = tf.tile(standard_normal_samples,
+                                        [tf.shape(factor_loadings)[0], 1, 1])
 
     return standard_normal_samples
 
@@ -750,14 +879,14 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
 
     Args:
       scale: Tuple of tensors of shape (
-        [batch_size, ..., num_outputs * num_factors],
-        [batch_size, ..., num_outputs]). Factor loadings and diagonal elements
+        [batch_size, num_outputs * num_factors],
+        [batch_size, num_outputs]). Factor loadings and diagonal elements
         for scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
       seed: Python integer for seeding the random number generator.
 
     Returns:
-      `Tensor`. Logit noise samples of shape: [batch_size, num_samples, ...,
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
         num_outputs].
     """
     factor_loadings, diag_scale = scale
@@ -780,10 +909,8 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       return noise_samples + diag_noise_samples
     else:
       # reshape scale vector into factor loadings matrix
-      factor_loadings = tf.cast(
-          tf.reshape(factor_loadings,
-                     [-1, self._num_outputs, self._num_factors]),
-          standard_normal_samples.dtype)
+      factor_loadings = tf.reshape(factor_loadings,
+                                   [-1, self._num_outputs, self._num_factors])
 
       # transform standard normal into ~ full rank covariance Gaussian samples
       noise_samples = tf.einsum('ijk,iak->iaj', factor_loadings,
@@ -791,12 +918,34 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
 
       return noise_samples + diag_noise_samples
 
+  def get_config(self):
+    config = {
+        'num_outputs': self._num_outputs,
+        'num_factors': self._num_factors,
+        'parameter_efficient': self._parameter_efficient,
+        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
+        'diag_layer': tf.keras.layers.serialize(self._diag_layer),
+    }
+
+    if self._parameter_efficient:
+      config['scale_layer_homoscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_homoscedastic)
+      config['scale_layer_heteroscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_heteroscedastic)
+    else:
+      config['scale_layer'] = tf.keras.layers.serialize(self._scale_layer)
+
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
+
 
 class ExactSigmoidDense(tf.keras.layers.Layer):
   """Exact diagonal covariance method for binary/multilabel classification."""
 
   def __init__(self, num_outputs, logit_noise=tfp.distributions.Normal,
-               min_scale=1e-2, name='ExactSigmoidDense'):
+               min_scale=1e-2, logits_only=False, dtype=None,
+               name='ExactSigmoidDense'):
     """Creates an instance of ExactSigmoidDense.
 
     In the case of binary classification or multilabel classification with
@@ -826,6 +975,10 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
       min_scale: Float. Minimum value for the scale parameter on the
         latent distribution. If experiencing numerical instability during
         training, increasing this value may help.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -841,14 +994,17 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
                            tfp.distributions.Logistic):
       raise ValueError('logit_noise must be Normal or Logistic')
 
-    self._loc_layer = tf.keras.layers.Dense(num_outputs, name='loc_layer')
+    self._loc_layer = tf.keras.layers.Dense(num_outputs, name='loc_layer',
+                                            dtype=dtype)
 
     self._diag_layer = tf.keras.layers.Dense(
-        num_outputs, activation=tf.math.softplus, name='diag_layer')
+        num_outputs, activation=tf.math.softplus, name='diag_layer',
+        dtype=dtype)
 
     self._num_outputs = num_outputs
     self._logit_noise = logit_noise
     self._min_scale = min_scale
+    self._logits_only = logits_only
     self._name = name
 
   def __call__(self, inputs, training=True):
@@ -859,6 +1015,7 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
       training: Boolean. Whether we are training or not.
 
     Returns:
+      Tensor logits if logits_only = True. Otherwise,
       Tuple of (logits, log_probs, probs). Logits can be used with the
       tf.nn.sigmoid_cross_entropy_with_logits loss function.
     """
@@ -882,7 +1039,24 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
         log_probs = tf.math.log_sigmoid(loc / scale)
         logits = loc / scale
 
+      if self._logits_only:
+        return logits
+
       return logits, log_probs, probs
+
+  def get_config(self):
+    config = {
+        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
+        'diag_layer': tf.keras.layers.serialize(self._diag_layer),
+        'num_outputs': self._num_outputs,
+        'logit_noise': self._logit_noise,
+        'min_scale': self._min_scale,
+        'logits_only': self._logits_only,
+        'name': self._name,
+    }
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
 
 
 class EnsembleHeteroscedasticOutputs(tf.keras.layers.Layer):
