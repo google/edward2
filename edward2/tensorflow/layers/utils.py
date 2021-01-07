@@ -23,6 +23,7 @@
 """
 
 import functools
+import random
 import numpy as np
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
@@ -391,3 +392,7 @@ def mean_field_logits(logits,
     logits_scale = tf.expand_dims(logits_scale, axis=-1)
 
   return logits / logits_scale
+
+
+def gen_int_seed():
+  return random.randrange(2**63 - 1)

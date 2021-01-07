@@ -49,6 +49,11 @@ from edward2.tensorflow.layers.gaussian_process import GaussianProcess
 from edward2.tensorflow.layers.gaussian_process import LinearKernel
 from edward2.tensorflow.layers.gaussian_process import SparseGaussianProcess
 from edward2.tensorflow.layers.gaussian_process import Zeros
+from edward2.tensorflow.layers.heteroscedastic import EnsembleHeteroscedasticOutputs
+from edward2.tensorflow.layers.heteroscedastic import ExactSigmoidDense
+from edward2.tensorflow.layers.heteroscedastic import MCSigmoidDenseFA
+from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDense
+from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFA
 from edward2.tensorflow.layers.made import MADE
 from edward2.tensorflow.layers.neural_process import Attention
 from edward2.tensorflow.layers.neural_process import NeuralProcess
@@ -98,6 +103,8 @@ __all__ = [
     "ExponentiatedQuadratic",
     "EmbeddingReparameterization",
     "EnsembleSyncBatchNorm",
+    "EnsembleHeteroscedasticOutputs",
+    "ExactSigmoidDense",
     "GaussianProcess",
     "LaplaceRandomFeatureCovariance",
     "LinearKernel",
@@ -105,6 +112,9 @@ __all__ = [
     "LSTMCellRank1",
     "LSTMCellReparameterization",
     "MADE",
+    "MCSigmoidDenseFA",
+    "MCSoftmaxDense",
+    "MCSoftmaxDenseFA",
     "MixtureLogistic",
     "NCPCategoricalPerturb",
     "NCPNormalOutput",
