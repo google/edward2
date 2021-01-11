@@ -377,6 +377,8 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
         u_hat = tf.nn.l2_normalize(tf.matmul(v_hat, w_reshaped))
 
     sigma = tf.matmul(tf.matmul(v_hat, w_reshaped), tf.transpose(u_hat))
+    # Convert sigma from a 1x1 matrix to a scalar.
+    sigma = tf.reshape(sigma, [])
     u_update_op = self.u.assign(u_hat)
     v_update_op = self.v.assign(v_hat)
 
