@@ -31,6 +31,7 @@ from edward2.tensorflow.layers.convolutional import Conv2DReparameterization
 from edward2.tensorflow.layers.convolutional import Conv2DVariationalDropout
 from edward2.tensorflow.layers.convolutional import DepthwiseCondConv2D
 from edward2.tensorflow.layers.convolutional import DepthwiseConv2DBatchEnsemble
+from edward2.tensorflow.layers.dense import CondDense
 from edward2.tensorflow.layers.dense import DenseBatchEnsemble
 from edward2.tensorflow.layers.dense import DenseDVI
 from edward2.tensorflow.layers.dense import DenseFlipout
@@ -70,6 +71,7 @@ from edward2.tensorflow.layers.random_feature import RandomFeatureGaussianProces
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
+from edward2.tensorflow.layers.routing import RoutingLayer
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
 
 __all__ = [
@@ -77,6 +79,7 @@ __all__ = [
     "Attention",
     "BayesianLinearModel",
     "CondConv2D",
+    "CondDense",
     "Conv1DBatchEnsemble",
     "Conv1DFlipout",
     "Conv1DRank1",
@@ -122,6 +125,7 @@ __all__ = [
     "NeuralProcess",
     "RandomFeatureGaussianProcess",
     "Reverse",
+    "RoutingLayer",
     "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
     "SpectralNormalization",
