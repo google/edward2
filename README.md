@@ -274,7 +274,7 @@ In general, we recommend citing the following article.
 > [Simple, Distributed, and Accelerated Probabilistic Programming](https://arxiv.org/abs/1811.02091).
 > In _Neural Information Processing Systems_.
 
-```none
+```bibtex
 @inproceedings{tran2018simple,
   author = {Dustin Tran and Matthew D. Hoffman and Dave Moore and Christopher Suter and Srinivas Vasudevan and Alexey Radul and Matthew Johnson and Rif A. Saurous},
   title = {Simple, Distributed, and Accelerated Probabilistic Programming},
@@ -289,7 +289,7 @@ If you'd like to cite the layers module specifically, use the following article.
 > [Bayesian Layers: A Module for Neural Network Uncertainty](https://arxiv.org/abs/1812.03973).
 > In _Neural Information Processing Systems_.
 
-```none
+```bibtex
 @inproceedings{tran2019bayesian,
   author = {Dustin Tran and Michael W. Dusenberry and Danijar Hafner and Mark van der Wilk},
   title={Bayesian {L}ayers: A module for neural network uncertainty},
