@@ -549,6 +549,25 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       self.assertNotAllClose(outputs1, outputs2)
     model.get_config()
 
+  def testCondConv(self):
+    tf.keras.backend.set_learning_phase(1)  # training time
+    features = np.random.rand(5, 12).astype(np.float32)
+    routing_weights = np.random.rand(5, 3).astype(np.float32)
+    model = ed.layers.CondDense(10, num_experts=3)
+    predictions = model(features, routing_weights)
+    self.assertEqual(predictions.shape, (5, 10))
+    conddense_kernel = model.trainable_weights[0]
+    expert_kernels = tf.reshape(conddense_kernel, [3, 12, 10])
+    expert_outputs = []
+    for idx in range(3):
+      expert_outputs.append(tf.linalg.matmul(features, expert_kernels[idx]))
+    expert_outputs = tf.stack(expert_outputs, axis=1)
+    routing_weights_3d = tf.expand_dims(routing_weights, 1)  # [5, 1, 3]
+    manual_predictions = tf.linalg.matmul(routing_weights_3d, expert_outputs)
+    manual_predictions = tf.squeeze(manual_predictions)  # [5, 10]
+    self.assertEqual(predictions.shape, manual_predictions.shape)
+    self.assertAllClose(predictions, manual_predictions)
+
 
 if __name__ == "__main__":
   tf.test.main()

@@ -1340,6 +1340,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
                filters,
                kernel_size,
                num_experts,
+               batch_size,
                strides=(1, 1),
                padding='valid',
                data_format=None,
@@ -1378,6 +1379,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
       self.converted_data_format = 'NCHW'
     else:
       self.converted_data_format = 'NHWC'
+    self.batch_size = batch_size
 
   def build(self, input_shape):
     if len(input_shape) != 4:
@@ -1433,7 +1435,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
   def call(self, inputs, routing_weights):
     # Compute example dependent kernels
     kernels = tf.matmul(routing_weights, self.condconv_kernel)
-    batch_size = inputs.shape[0].value
+    batch_size = self.batch_size
     inputs = tf.split(inputs, batch_size, 0)
     kernels = tf.split(kernels, batch_size, 0)
     # Apply example-dependent convolution to each example in the batch
@@ -1450,7 +1452,6 @@ class CondConv2D(tf.keras.layers.Conv2D):
               dilations=self.dilation_rate,
               data_format=self.converted_data_format))
     outputs = tf.concat(outputs_list, 0)
-
     if self.use_bias:
       # Compute example-dependent biases
       biases = tf.matmul(routing_weights, self.condconv_bias)

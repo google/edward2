@@ -72,7 +72,10 @@ def get_condconv_initializer(initializer, num_experts, expert_shape):
           'CondConv variables must have shape [num_experts, num_params]'))
     flattened_kernels = []
     for _ in range(num_experts):
-      kernel = initializer(expert_shape, dtype, partition)
+      if partition is None:  # partition is not defined for a given initializer
+        kernel = initializer(expert_shape, dtype)
+      else:
+        kernel = initializer(expert_shape, dtype, partition)
       flattened_kernels.append(tf.reshape(kernel, [-1]))
     return tf.stack(flattened_kernels)
 

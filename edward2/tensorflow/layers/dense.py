@@ -26,7 +26,6 @@ from edward2.tensorflow.layers import utils
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-
 LAMBDA_TYPE = ('l2_kernel', 'l2_bias', 'dr')  # used by HyperBatchEnsemble
 
 
@@ -969,9 +968,9 @@ def get_layer_name_identifier(layer_name):
     identifier: string, to be used to access lambda_key_to_index.
   """
   ignore_start = layer_name.find('/')
-  ignore_end = layer_name.find('/', ignore_start+1)
+  ignore_end = layer_name.find('/', ignore_start + 1)
   if ignore_start > -1 and ignore_end > -1:
-    layer_name = layer_name[:ignore_start] + layer_name[ignore_end+1:]
+    layer_name = layer_name[:ignore_start] + layer_name[ignore_end + 1:]
 
   return layer_name
 
@@ -1171,3 +1170,115 @@ class DenseRank1(tf.keras.layers.Dense):
     new_config = super().get_config()
     new_config.update(config)
     return new_config
+
+
+@utils.add_weight
+class CondDense(tf.keras.layers.Dense):
+  """Conditional dense layer.
+
+  This layer extends the base dense layer to compute example-dependent
+  parameters. A CondDense layer has 'num_experts` kernels and biases. It
+  computes a kernel and bias for each example as a weighted sum of experts
+  using the input example-dependent routing weights, then applies matrix
+  multiplication to each example.
+
+  Attributes:
+    activation: Activation function to use. If you don't specify anything, no
+      activation is applied
+      (ie. "linear" activation: `a(x) = x`).
+    use_bias: Boolean, whether the layer uses a bias vector.
+    kernel_initializer: Initializer for the `kernel` weights matrix.
+    bias_initializer: Initializer for the bias vector.
+    kernel_regularizer: Regularizer function applied to the `kernel` weights
+      matrix.
+    bias_regularizer: Regularizer function applied to the bias vector.
+    activity_regularizer: Regularizer function applied to the output of the
+      layer (its "activation")..
+    kernel_constraint: Constraint function applied to the kernel matrix.
+    bias_constraint: Constraint function applied to the bias vector.
+  """
+
+  def __init__(self,
+               units,
+               num_experts=1,
+               activation=None,
+               use_bias=True,
+               kernel_initializer='glorot_uniform',
+               bias_initializer='zeros',
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               activity_regularizer=None,
+               kernel_constraint=None,
+               bias_constraint=None,
+               **kwargs):
+    super().__init__(
+        units=units,
+        activation=activation,
+        use_bias=use_bias,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        **kwargs)
+    if num_experts < 1:
+      raise ValueError('A CondDense layer must have at least one expert.')
+    self.num_experts = num_experts
+
+  def build(self, input_shape):
+    input_shape = tf.TensorShape(input_shape)
+    self.input_dim = int(input_shape[-1])
+    self.kernel_shape = [self.input_dim, self.units]
+    cond_dense_kernel_shape = (self.num_experts, self.input_dim * self.units)
+    self.cond_dense_kernel = self.add_weight(
+        name='cond_dense_kernel',
+        shape=cond_dense_kernel_shape,
+        initializer=initializers.get_condconv_initializer(
+            self.kernel_initializer, self.num_experts, self.kernel_shape),
+        regularizer=self.kernel_regularizer,
+        constraint=self.kernel_constraint,
+        trainable=True,
+        dtype=self.dtype)
+
+    if self.use_bias:
+      self.bias_shape = (self.units,)
+      cond_dense_bias_shape = (self.num_experts, self.units)
+      self.cond_dense_bias = self.add_weight(
+          name='cond_dense_bias',
+          shape=cond_dense_bias_shape,
+          initializer=initializers.get_condconv_initializer(
+              self.bias_initializer, self.num_experts, self.bias_shape),
+          regularizer=self.bias_regularizer,
+          constraint=self.bias_constraint,
+          trainable=True,
+          dtype=self.dtype)
+    else:
+      self.bias = None
+
+    self.built = True
+
+  def call(self, inputs, routing_weights):
+    # Compute example dependent kernels
+    inputs = tf.expand_dims(inputs, 1)  # shape = [batch_size, 1, input_dim]
+    # routing_weights is of shape [batch_size, num_experts]
+    # self.cond_dense_kernel is of shape [num_experts, input_dim * hidden_dim]
+    kernels = tf.linalg.matmul(routing_weights, self.cond_dense_kernel)
+    # kernels is of shape [batch_size, input_dim, hidden_dim]
+    kernels = tf.reshape(kernels,
+                         [-1, self.input_dim, self.units])
+    outputs = tf.linalg.matmul(inputs, kernels)  # [batch, 1, hidden_dim]
+    outputs = tf.reshape(outputs, [-1, self.units])  # [batch, hidden_dim]
+    if self.use_bias:
+      # Compute example-dependent biases
+      biases = tf.linalg.matmul(routing_weights, self.cond_dense_bias)
+      outputs += biases
+    if self.activation is not None:
+      return self.activation(outputs)
+    return outputs
+
+  def get_config(self):
+    config = {'num_experts': self.num_experts}
+    base_config = super().get_config()
+    return dict(list(base_config.items()) + list(config.items()))
