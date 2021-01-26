@@ -715,6 +715,17 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
     new_config.update(config)
     return new_config
 
+  def compute_output_shape(self, input_shape):
+    # This layer inherits from Conv2D but the way it modifies it inputs
+    # does not match the implementation of `Conv2D.compute_output_shape`,
+    # which is used for static shape inference in cases where shape information
+    # is lost by certain TF ops.
+    output_shape = tf.TensorShape(input_shape).as_list()
+    output_shape[1] = None
+    output_shape[2] = None
+    output_shape[3] = None
+    return tf.TensorShape(output_shape)
+
 
 class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
   """A batch ensemble convolutional layer."""
