@@ -104,11 +104,11 @@ class LinearKernel(object):
     return {
         'variance': self.variance,
         'bias': self.bias,
-        'encoder': tf.keras.utils.serialize_keras_object(self.encoder),
+        'encoder': tf.python.keras.utils.serialize_keras_object(self.encoder),
     }
 
 
-class GaussianProcess(tf.keras.layers.Layer):
+class GaussianProcess(tf.python.keras.layers.Layer):
   r"""Gaussian process layer.
 
   The layer represents a distribution over functions, where a
@@ -170,7 +170,7 @@ class GaussianProcess(tf.keras.layers.Layer):
     self.conditional_outputs = conditional_outputs
 
     self.supports_masking = True
-    self.input_spec = tf.keras.layers.InputSpec(min_ndim=2)
+    self.input_spec = tf.python.keras.layers.InputSpec(min_ndim=2)
 
   def build(self, input_shape=None):
     # Don't track trainable variables such as in the kernel. The user should
@@ -190,7 +190,7 @@ class GaussianProcess(tf.keras.layers.Layer):
       knm = self.covariance_fn(inputs, self.conditional_inputs)
       kmm = self.covariance_fn(self.conditional_inputs, self.conditional_inputs)
       kmm = tf.linalg.set_diag(
-          kmm, tf.linalg.diag_part(kmm) + tf.keras.backend.epsilon())
+          kmm, tf.linalg.diag_part(kmm) + tf.python.keras.backend.epsilon())
       kmm_tril = tf.linalg.cholesky(kmm)
       kmm_tril_operator = tf.linalg.LinearOperatorLowerTriangular(kmm_tril)
       knm_operator = tf.linalg.LinearOperatorFullMatrix(knm)
@@ -216,7 +216,7 @@ class GaussianProcess(tf.keras.layers.Layer):
 
     covariance_matrix = tf.linalg.set_diag(
         covariance_matrix,
-        tf.linalg.diag_part(covariance_matrix) + tf.keras.backend.epsilon())
+        tf.linalg.diag_part(covariance_matrix) + tf.python.keras.backend.epsilon())
 
     # Form a multivariate normal random variable with batch_shape units and
     # event_shape batch_size. Then make it be independent across the units
@@ -250,8 +250,8 @@ class GaussianProcess(tf.keras.layers.Layer):
   def get_config(self):
     config = {
         'units': self.units,
-        'mean_fn': tf.keras.utils.serialize_keras_object(self.mean_fn),
-        'covariance_fn': tf.keras.utils.serialize_keras_object(
+        'mean_fn': tf.python.keras.utils.serialize_keras_object(self.mean_fn),
+        'covariance_fn': tf.python.keras.utils.serialize_keras_object(
             self.covariance_fn),
         'conditional_inputs': None,  # don't serialize as it can be large
         'conditional_outputs': None,  # don't serialize as it can be large
@@ -310,8 +310,8 @@ class SparseGaussianProcess(GaussianProcess):
   dataset_size = 10000
   features, labels = load_spatial_data(batch_size)
 
-  model = tf.keras.Sequential([
-    tf.keras.layers.Flatten(),
+  model = tf.python.keras.Sequential([
+    tf.python.keras.layers.Flatten(),
     layers.SparseGaussianProcess(256, num_inducing=512),
     layers.SparseGaussianProcess(256, num_inducing=512),
     layers.SparseGaussianProcess(10, num_inducing=512),
@@ -404,10 +404,10 @@ class SparseGaussianProcess(GaussianProcess):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.inducing_inputs_initializer, tf.keras.layers.Layer):
+    if isinstance(self.inducing_inputs_initializer, tf.python.keras.layers.Layer):
       self.conditional_inputs = self.inducing_inputs_initializer(
           self.conditional_inputs.shape, self.dtype)
-    if isinstance(self.inducing_outputs_initializer, tf.keras.layers.Layer):
+    if isinstance(self.inducing_outputs_initializer, tf.python.keras.layers.Layer):
       self.conditional_outputs = self.inducing_outputs_initializer(
           self.conditional_outputs.shape, self.dtype)
 

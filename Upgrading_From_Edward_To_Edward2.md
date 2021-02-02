@@ -185,7 +185,7 @@ approximation—another Edward2 program—and apply tracers to write the
 evidence lower bound (Hinton & Camp, 1993; Jordan, Ghahramani, Jaakkola, & Saul,
 1999; Waterhouse, MacKay, & Robinson, 1996). Note we use factory functions
 (functions which build other functions) for simplicity, but you can also use
-`tf.keras.Models` as stateful classes which automatically manage the variables.
+`tf.python.keras.Models` as stateful classes which automatically manage the variables.
 
 ```python
 def build_trainable_positive_pointmass(shape, name=None):
@@ -259,7 +259,7 @@ def train_step(bag_of_words, step):
     with writer.default():
       tf.summary.scalar("elbo", elbo, step=step)
      loss = -elbo
-  optimizer = tf.keras.optimizers.Adam(1e-3)
+  optimizer = tf.python.keras.optimizers.Adam(1e-3)
   gradients = tape.gradient(loss, trainable_variables)
   optimizer.apply_gradients(zip(gradients, trainable_variables))
   return loss
@@ -375,7 +375,7 @@ observed_statistics, replicated_statistics = ed.ppc(
 ```
 
 __Edward2__. Build the metric manually or use TensorFlow
-abstractions such as `tf.keras.metrics`.
+abstractions such as `tf.python.keras.metrics`.
 
 ```python
 # See posterior_predictive built in Variational Inference section.

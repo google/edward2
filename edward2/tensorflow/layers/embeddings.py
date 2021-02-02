@@ -24,7 +24,7 @@ import tensorflow as tf
 
 
 @utils.add_weight
-class EmbeddingReparameterization(tf.keras.layers.Embedding):
+class EmbeddingReparameterization(tf.python.keras.layers.Embedding):
   """Bayesian embedding layer estimated via reparameterization.
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -91,7 +91,7 @@ class EmbeddingReparameterization(tf.keras.layers.Embedding):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.embeddings_initializer, tf.keras.layers.Layer):
+    if isinstance(self.embeddings_initializer, tf.python.keras.layers.Layer):
       self.embeddings = self.embeddings_initializer(self.embeddings.shape,
                                                     self.dtype)
 

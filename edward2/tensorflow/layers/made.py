@@ -19,7 +19,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class MADE(tf.keras.Model):
+class MADE(tf.python.keras.Model):
   """Masked autoencoder for distribution estimation (Germain et al., 2015).
 
   MADE takes as input a real Tensor of shape [..., length, channels] and returns
@@ -66,9 +66,9 @@ class MADE(tf.keras.Model):
     self.hidden_dims = hidden_dims
     self.input_order = input_order
     self.hidden_order = hidden_order
-    self.activation = tf.keras.activations.get(activation)
+    self.activation = tf.python.keras.activations.get(activation)
     self.use_bias = use_bias
-    self.network = tf.keras.Sequential([])
+    self.network = tf.python.keras.Sequential([])
 
   def build(self, input_shape):
     input_shape = tf.TensorShape(input_shape)
@@ -83,14 +83,14 @@ class MADE(tf.keras.Model):
                          hidden_order=self.hidden_order)
 
     # Input-to-hidden layer: [..., length, channels] -> [..., hidden_dims[0]].
-    self.network.add(tf.keras.layers.Reshape([length * channels]))
+    self.network.add(tf.python.keras.layers.Reshape([length * channels]))
     # Tile the mask so each element repeats contiguously; this is compatible
     # with the autoregressive contraints unlike naive tiling.
     mask = masks[0]
     mask = tf.tile(mask[:, tf.newaxis, :], [1, channels, 1])
     mask = tf.reshape(mask, [mask.shape[0] * channels, mask.shape[-1]])
     if self.hidden_dims:
-      layer = tf.keras.layers.Dense(
+      layer = tf.python.keras.layers.Dense(
           self.hidden_dims[0],
           kernel_initializer=make_masked_initializer(mask),
           kernel_constraint=make_masked_constraint(mask),
@@ -100,7 +100,7 @@ class MADE(tf.keras.Model):
 
     # Hidden-to-hidden layers: [..., hidden_dims[l-1]] -> [..., hidden_dims[l]].
     for l in range(1, len(self.hidden_dims)):
-      layer = tf.keras.layers.Dense(
+      layer = tf.python.keras.layers.Dense(
           self.hidden_dims[l],
           kernel_initializer=make_masked_initializer(masks[l]),
           kernel_constraint=make_masked_constraint(masks[l]),
@@ -115,14 +115,14 @@ class MADE(tf.keras.Model):
       mask = masks[-1]
     mask = tf.tile(mask[..., tf.newaxis], [1, 1, self.units])
     mask = tf.reshape(mask, [mask.shape[0], mask.shape[1] * self.units])
-    layer = tf.keras.layers.Dense(
+    layer = tf.python.keras.layers.Dense(
         length * self.units,
         kernel_initializer=make_masked_initializer(mask),
         kernel_constraint=make_masked_constraint(mask),
         activation=None,
         use_bias=self.use_bias)
     self.network.add(layer)
-    self.network.add(tf.keras.layers.Reshape([length, self.units]))
+    self.network.add(tf.python.keras.layers.Reshape([length, self.units]))
     self.built = True
 
   def call(self, inputs):
@@ -217,7 +217,7 @@ def create_masks(input_dim,
 
 
 def make_masked_initializer(mask):
-  initializer = tf.keras.initializers.GlorotUniform()
+  initializer = tf.python.keras.initializers.GlorotUniform()
   def masked_initializer(shape, dtype=None):
     return mask * initializer(shape, dtype)
   return masked_initializer

@@ -64,15 +64,15 @@ class EmbeddingTest(parameterized.TestCase, tf.test.TestCase):
   def testEmbeddingModel(self, embeddings_initializer, embeddings_regularizer,
                          all_close, num_losses):
     model_output_dim = 2
-    model = tf.keras.Sequential([
+    model = tf.python.keras.Sequential([
         ed.layers.EmbeddingReparameterization(
             self.input_dim,
             output_dim=self.output_dim,
             embeddings_initializer=embeddings_initializer,
             embeddings_regularizer=embeddings_regularizer),
-        tf.keras.layers.RNN(tf.keras.layers.LSTMCell(5)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(model_output_dim),
+        tf.python.keras.layers.RNN(tf.python.keras.layers.LSTMCell(5)),
+        tf.python.keras.layers.Flatten(),
+        tf.python.keras.layers.Dense(model_output_dim),
     ])
     outputs1 = model(self.inputs, training=True)
     outputs2 = model(self.inputs, training=True)

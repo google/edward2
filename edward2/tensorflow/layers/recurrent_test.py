@@ -151,7 +151,7 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
       cell(features[:, 0, :], state)  # ensure robustness after multiple calls
       cell.get_initial_state(features[:, 0, :])
       cell(features[:, 0, :], state)  # ensure robustness after multiple calls
-      nll = tf.keras.losses.mean_squared_error(labels, predictions)
+      nll = tf.python.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(cell.losses)
 
     variables = [
@@ -176,7 +176,7 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
     with tf.GradientTape(persistent=True) as tape:
       cell.get_initial_state(features[:, 0, :])
       predictions, _ = cell(features[:, 0, :], state)  # build is not called
-      nll = tf.keras.losses.mean_squared_error(labels, predictions)
+      nll = tf.python.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(cell.losses)
 
     variables = [
@@ -207,8 +207,8 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
     hidden_size = 10
     inputs = np.random.rand(batch_size, timesteps, dim).astype(np.float32)
     cell = lstm_cell(hidden_size)
-    model = tf.keras.Sequential([
-        tf.keras.layers.RNN(cell, return_sequences=True)
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.RNN(cell, return_sequences=True)
     ])
     outputs1 = model(inputs)
     outputs2 = model(inputs)
@@ -246,7 +246,7 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
                                      recurrent_gamma_initializer,
                                      bias_initializer, use_bias, implementation,
                                      use_additive_perturbation):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 4
     examples_per_model = 4
     input_dim = 5
@@ -323,7 +323,7 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
                                   recurrent_alpha_initializer,
                                   recurrent_gamma_initializer,
                                   implementation, use_additive_perturbation):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 4
     batch_size = 5 * ensemble_size
     output_dim = 4
@@ -363,8 +363,8 @@ class RecurrentTest(parameterized.TestCase, tf.test.TestCase):
         hidden_size, use_bias=use_bias, implementation=implementation,
         use_additive_perturbation=use_additive_perturbation,
         ensemble_size=ensemble_size)
-    model = tf.keras.Sequential([
-        tf.keras.layers.RNN(cell, return_sequences=True)
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.RNN(cell, return_sequences=True)
     ])
 
     outputs1 = model(inputs)

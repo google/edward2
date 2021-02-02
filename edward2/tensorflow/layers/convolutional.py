@@ -30,7 +30,7 @@ LAMBDA_TYPE = ('l2_kernel', 'l2_bias', 'dr')  # used by HyperBatchEnsemble
 
 
 @utils.add_weight
-class Conv2DReparameterization(tf.keras.layers.Conv2D):
+class Conv2DReparameterization(tf.python.keras.layers.Conv2D):
   """2D convolution layer (e.g. spatial convolution over images).
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -86,9 +86,9 @@ class Conv2DReparameterization(tf.keras.layers.Conv2D):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
+    if isinstance(self.kernel_initializer, tf.python.keras.layers.Layer):
       self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
-    if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+    if isinstance(self.bias_initializer, tf.python.keras.layers.Layer):
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
 
   def call(self, *args, **kwargs):
@@ -98,7 +98,7 @@ class Conv2DReparameterization(tf.keras.layers.Conv2D):
 
 
 @utils.add_weight
-class Conv1DReparameterization(tf.keras.layers.Conv1D):
+class Conv1DReparameterization(tf.python.keras.layers.Conv1D):
   """1D convolution layer (e.g. temporal convolution over sequences).
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -154,9 +154,9 @@ class Conv1DReparameterization(tf.keras.layers.Conv1D):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
+    if isinstance(self.kernel_initializer, tf.python.keras.layers.Layer):
       self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
-    if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+    if isinstance(self.bias_initializer, tf.python.keras.layers.Layer):
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
 
   def call(self, *args, **kwargs):
@@ -430,10 +430,10 @@ class Conv2DHierarchical(Conv2DFlipout):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
+    if isinstance(self.local_scale_initializer, tf.python.keras.layers.Layer):
       self.local_scale = self.local_scale_initializer(self.local_scale.shape,
                                                       self.dtype)
-    if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
+    if isinstance(self.global_scale_initializer, tf.python.keras.layers.Layer):
       self.global_scale = self.global_scale_initializer(self.global_scale.shape,
                                                         self.dtype)
     super().call_weights()
@@ -497,7 +497,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
       return super().call(inputs)
     self.call_weights()
     if training is None:
-      training = tf.keras.backend.learning_phase()
+      training = tf.python.keras.backend.learning_phase()
     if self._convolution_op is None:
       padding = self.padding
       if self.padding == 'causal':
@@ -519,15 +519,15 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
       mean = self.kernel.distribution.mean()
       log_variance = tf.math.log(self.kernel.distribution.variance())
       log_alpha = log_variance - tf.math.log(tf.square(mean) +
-                                             tf.keras.backend.epsilon())
+                                             tf.python.keras.backend.epsilon())
       log_alpha = tf.clip_by_value(log_alpha, -8., 8.)
       log_variance = log_alpha + tf.math.log(tf.square(mean) +
-                                             tf.keras.backend.epsilon())
+                                             tf.python.keras.backend.epsilon())
 
       means = self._convolution_op(inputs, mean)
       stddevs = tf.sqrt(
           self._convolution_op(tf.square(inputs), tf.exp(log_variance)) +
-          tf.keras.backend.epsilon())
+          tf.python.keras.backend.epsilon())
       if self.use_bias:
         if self.data_format == 'channels_first':
           means = tf.nn.bias_add(means, self.bias, data_format='NCHW')
@@ -538,7 +538,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         outputs = self.activation(outputs)
       return outputs
 
-    # Following tf.keras.Dropout, only apply variational dropout if training
+    # Following tf.python.keras.Dropout, only apply variational dropout if training
     # flag is True.
     training_value = utils.smart_constant_value(training)
     if training_value is not None:
@@ -552,7 +552,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         false_fn=lambda: super(Conv2DVariationalDropout, self).call(inputs))
 
 
-class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
+class Conv2DBatchEnsemble(tf.python.keras.layers.Conv2D):
   """A batch ensemble convolutional layer."""
 
   def __init__(self,
@@ -598,7 +598,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
     self.ensemble_bias_initializer = initializers.get(bias_initializer)
     self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
     self.ensemble_bias_constraint = constraints.get(bias_constraint)
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
 
   def _build_parent(self, input_shape):
@@ -707,7 +707,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
         'ensemble_bias_constraint':
             constraints.serialize(self.ensemble_bias_constraint),
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
     }
@@ -727,7 +727,7 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
     return tf.TensorShape(output_shape)
 
 
-class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
+class Conv1DBatchEnsemble(tf.python.keras.layers.Conv1D):
   """A batch ensemble convolutional layer."""
 
   def __init__(self,
@@ -771,7 +771,7 @@ class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
     self.ensemble_bias_initializer = initializers.get(bias_initializer)
     self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
     self.ensemble_bias_constraint = constraints.get(bias_constraint)
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
 
   def build(self, input_shape):
@@ -845,7 +845,7 @@ class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
         'ensemble_bias_constraint':
             constraints.serialize(self.ensemble_bias_constraint),
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
     }
@@ -918,7 +918,7 @@ class _Conv2DBatchEnsembleNoFastWeights(Conv2DBatchEnsemble):
     self.built = True
 
 
-class Conv2DHyperBatchEnsemble(tf.keras.layers.Layer):
+class Conv2DHyperBatchEnsemble(tf.python.keras.layers.Layer):
   """Conv2D Hyper-BatchEnsemble layer that self-tunes hyperparameters.
 
   * Image of size (height, width, c)
@@ -988,7 +988,7 @@ class Conv2DHyperBatchEnsemble(tf.keras.layers.Layer):
     self.lambda_key_to_index = lambda_key_to_index
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
-    self.activation = tf.keras.activations.get(activation)
+    self.activation = tf.python.keras.activations.get(activation)
     self.regularize_fast_weights = regularize_fast_weights
     self.fast_weights_eq_contraint = fast_weights_eq_contraint
 
@@ -1224,7 +1224,7 @@ class Conv2DHyperBatchEnsemble(tf.keras.layers.Layer):
         'data_format':
             self.data_format,
         'activation':
-            tf.keras.activations.serialize(self.activation),
+            tf.python.keras.activations.serialize(self.activation),
         'use_bias':
             self.use_bias,
         'kernel_initializer':
@@ -1286,7 +1286,7 @@ def get_lambda(lambdas, lambda_type, layer_name, lambda_key_to_index):
 
 
 @utils.add_weight
-class CondConv2D(tf.keras.layers.Conv2D):
+class CondConv2D(tf.python.keras.layers.Conv2D):
   """2D conditional convolution layer (e.g. spatial convolution over images).
 
   This layer extends the base 2D convolution layer to compute example-dependent
@@ -1438,7 +1438,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
     else:
       self.bias = None
 
-    self.input_spec = tf.keras.layers.InputSpec(
+    self.input_spec = tf.python.keras.layers.InputSpec(
         ndim=self.rank + 2, axes={channel_axis: input_dim})
 
     self.built = True
@@ -1503,7 +1503,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
 
 
 @utils.add_weight
-class DepthwiseCondConv2D(tf.keras.layers.DepthwiseConv2D):
+class DepthwiseCondConv2D(tf.python.keras.layers.DepthwiseConv2D):
   """Depthwise separable 2D conditional convolution layer.
 
   This layer extends the base depthwise 2D convolution layer to compute
@@ -1656,7 +1656,7 @@ class DepthwiseCondConv2D(tf.keras.layers.DepthwiseConv2D):
     else:
       self.bias = None
     # Set input spec.
-    self.input_spec = tf.keras.layers.InputSpec(
+    self.input_spec = tf.python.keras.layers.InputSpec(
         ndim=4, axes={channel_axis: input_dim})
     self.built = True
 
@@ -1711,7 +1711,7 @@ class DepthwiseCondConv2D(tf.keras.layers.DepthwiseConv2D):
     return dict(list(base_config.items()) + list(config.items()))
 
 
-class DepthwiseConv2DBatchEnsemble(tf.keras.layers.DepthwiseConv2D):
+class DepthwiseConv2DBatchEnsemble(tf.python.keras.layers.DepthwiseConv2D):
   """Batch ensemble of depthwise separable 2D convolutions."""
 
   def __init__(self,
@@ -1755,7 +1755,7 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.DepthwiseConv2D):
     self.ensemble_bias_initializer = initializers.get(bias_initializer)
     self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
     self.ensemble_bias_constraint = constraints.get(bias_constraint)
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
 
   def build(self, input_shape):
@@ -1835,7 +1835,7 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.DepthwiseConv2D):
         'ensemble_bias_constraint':
             constraints.serialize(self.ensemble_bias_constraint),
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
     }
@@ -1845,7 +1845,7 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.DepthwiseConv2D):
 
 
 @utils.add_weight
-class Conv1DRank1(tf.keras.layers.Conv1D):
+class Conv1DRank1(tf.python.keras.layers.Conv1D):
   """A rank-1 Bayesian NN 1D convolution layer (Dusenberry et al., 2020).
 
   The argument ensemble_size selects the number of mixture components over all
@@ -1902,7 +1902,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
         activity_regularizer=activity_regularizer,
         kernel_constraint=kernel_constraint,
         **kwargs)
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
@@ -1967,7 +1967,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
     examples_per_model = batch_size // self.ensemble_size
 
     # Sample parameters for each example.
-    if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
+    if isinstance(self.alpha_initializer, tf.python.keras.layers.Layer):
       alpha = tf.clip_by_value(
           self.alpha_initializer(
               self.alpha_shape,
@@ -1977,7 +1977,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
       alpha = tf.transpose(alpha, [1, 0, 2])
     else:
       alpha = tf.tile(self.alpha, [1, examples_per_model])
-    if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
+    if isinstance(self.gamma_initializer, tf.python.keras.layers.Layer):
       gamma = tf.clip_by_value(
           self.gamma_initializer(
               self.gamma_shape,
@@ -1999,7 +1999,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
       outputs = super().call(inputs * alpha) * gamma
 
     if self.use_ensemble_bias:
-      if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
+      if isinstance(self.ensemble_bias_initializer, tf.python.keras.layers.Layer):
         bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
@@ -2016,7 +2016,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
   def get_config(self):
     config = {
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
         'alpha_initializer':
@@ -2048,7 +2048,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
 
 
 @utils.add_weight
-class Conv2DRank1(tf.keras.layers.Conv2D):
+class Conv2DRank1(tf.python.keras.layers.Conv2D):
   """A rank-1 Bayesian NN 2D convolution layer (Dusenberry et al., 2020).
 
   The argument ensemble_size selects the number of mixture components over all
@@ -2107,7 +2107,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
         kernel_constraint=kernel_constraint,
         bias_constraint=None,
         **kwargs)
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
@@ -2172,7 +2172,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
     examples_per_model = batch_size // self.ensemble_size
 
     # Sample parameters for each example.
-    if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
+    if isinstance(self.alpha_initializer, tf.python.keras.layers.Layer):
       alpha = tf.clip_by_value(
           self.alpha_initializer(
               self.alpha_shape,
@@ -2182,7 +2182,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
       alpha = tf.transpose(alpha, [1, 0, 2])
     else:
       alpha = tf.tile(self.alpha, [1, examples_per_model])
-    if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
+    if isinstance(self.gamma_initializer, tf.python.keras.layers.Layer):
       gamma = tf.clip_by_value(
           self.gamma_initializer(
               self.gamma_shape,
@@ -2206,7 +2206,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
       outputs = super().call(inputs * alpha) * gamma
 
     if self.use_ensemble_bias:
-      if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
+      if isinstance(self.ensemble_bias_initializer, tf.python.keras.layers.Layer):
         bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
@@ -2225,7 +2225,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
   def get_config(self):
     config = {
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
         'alpha_initializer':

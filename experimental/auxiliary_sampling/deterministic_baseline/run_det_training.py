@@ -90,7 +90,7 @@ def main(argv):
           rate *= 1e-1
         return rate
 
-      lr_callback = tf.keras.callbacks.LearningRateScheduler(schedule_fn)
+      lr_callback = tf.python.keras.callbacks.LearningRateScheduler(schedule_fn)
 
     def negative_log_likelihood(y, rv_y):
       del rv_y  # unused arg
@@ -107,7 +107,7 @@ def main(argv):
       return model.output.distribution.log_prob(tf.squeeze(y_true))  # pylint: disable=cell-var-from-loop
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(lr=FLAGS.learning_rate),
+        optimizer=tf.python.keras.optimizers.Adam(lr=FLAGS.learning_rate),
         loss=negative_log_likelihood,
         metrics=[log_likelihood, accuracy])
     member_dir = os.path.join(FLAGS.output_dir, 'member_' + str(i))
@@ -136,8 +136,8 @@ def main(argv):
     ensemble_filenames.append(member_filename)
     model.save_weights(member_filename)
 
-  labels = tf.keras.layers.Input(shape=y_train.shape[1:])
-  ll = tf.keras.backend.function([model.input, labels], [
+  labels = tf.python.keras.layers.Input(shape=y_train.shape[1:])
+  ll = tf.python.keras.backend.function([model.input, labels], [
       model.output.distribution.log_prob(tf.squeeze(labels)),
       model.output.distribution.logits,
   ])

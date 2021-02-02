@@ -24,7 +24,7 @@ import tensorflow as tf
 class UtilsTest(parameterized.TestCase, tf.test.TestCase):
 
   def testAddWeightWithTrainableInitializer(self):
-    dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
+    dense_wrapped = ed.layers.utils.add_weight(tf.python.keras.layers.Dense)
     initializer = ed.initializers.get('trainable_normal')
     layer = dense_wrapped(2, kernel_initializer=initializer, name='dense')
     inputs = tf.random.normal([1, 3])
@@ -39,7 +39,7 @@ class UtilsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(layer_weights_names[2], 'dense/kernel/stddev:0')
 
   def testAddWeightWithTrainableRegularizer(self):
-    dense_wrapped = ed.layers.utils.add_weight(tf.keras.layers.Dense)
+    dense_wrapped = ed.layers.utils.add_weight(tf.python.keras.layers.Dense)
     regularizer = ed.regularizers.get('trainable_normal_kl_divergence_stddev')
     layer = dense_wrapped(2, kernel_regularizer=regularizer)
     inputs = tf.random.normal([1, 3])

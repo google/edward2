@@ -15,13 +15,13 @@
 
 """Initializers.
 
-This module extends `tf.keras.initializers` with the notion of "trainable
-initializers", where initializers to weights and biases in `tf.keras.layers` may
+This module extends `tf.python.keras.initializers` with the notion of "trainable
+initializers", where initializers to weights and biases in `tf.python.keras.layers` may
 themselves carry parameters. For example, consider a weight initializer which
 returns a variational distribution: this is reified as an `ed.RandomVariable`
 parameterized by `tf.Variables`.
 
-One subtlety is how `tf.keras.constraints` are used on the parameters of
+One subtlety is how `tf.python.keras.constraints` are used on the parameters of
 trainable initializers. Typically, Keras constraints are used with projected
 gradient descent, where one performs unconstrained optimization and then applies
 a projection (the constraint) after each gradient update. To stay in line with
@@ -110,7 +110,7 @@ def _compute_fans(shape):
   return fan_in, fan_out
 
 
-class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
+class ScaledNormalStdDev(tf.python.keras.initializers.VarianceScaling):
   """Initializer capable of adapting its scale to the shape of weights tensors.
 
   This initializes the standard deviation parameter of a Trainable Normal
@@ -173,7 +173,7 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
                                       dtype=dtype, seed=self.seed)
 
 
-class TrainableDeterministic(tf.keras.layers.Layer):
+class TrainableDeterministic(tf.python.keras.layers.Layer):
   """Deterministic point-wise initializer with trainable location."""
 
   def __init__(self,
@@ -225,13 +225,13 @@ class TrainableDeterministic(tf.keras.layers.Layer):
     }
 
 
-class TrainableHalfCauchy(tf.keras.layers.Layer):
+class TrainableHalfCauchy(tf.python.keras.layers.Layer):
   """Half-Cauchy distribution initializer with trainable parameters."""
 
   def __init__(self,
-               loc_initializer=tf.keras.initializers.TruncatedNormal(
+               loc_initializer=tf.python.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
-               scale_initializer=tf.keras.initializers.TruncatedNormal(
+               scale_initializer=tf.python.keras.initializers.TruncatedNormal(
                    mean=-3., stddev=0.1),
                loc_regularizer=None,
                scale_regularizer=None,
@@ -303,13 +303,13 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
     }
 
 
-class TrainableCauchy(tf.keras.layers.Layer):
+class TrainableCauchy(tf.python.keras.layers.Layer):
   """Cauchy distribution initializer with trainable parameters."""
 
   def __init__(
       self,
-      loc_initializer=tf.keras.initializers.TruncatedNormal(stddev=1e-5),
-      scale_initializer=tf.keras.initializers.TruncatedNormal(
+      loc_initializer=tf.python.keras.initializers.TruncatedNormal(stddev=1e-5),
+      scale_initializer=tf.python.keras.initializers.TruncatedNormal(
           mean=-3., stddev=0.1),
       loc_regularizer=None,
       scale_regularizer=None,
@@ -374,13 +374,13 @@ class TrainableCauchy(tf.keras.layers.Layer):
     }
 
 
-class TrainableLogNormal(tf.keras.layers.Layer):
+class TrainableLogNormal(tf.python.keras.layers.Layer):
   """Random log normal op as an initializer with trainable loc and scale."""
 
   def __init__(self,
-               loc_initializer=tf.keras.initializers.TruncatedNormal(
+               loc_initializer=tf.python.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
-               scale_initializer=tf.keras.initializers.TruncatedNormal(
+               scale_initializer=tf.python.keras.initializers.TruncatedNormal(
                    mean=-3., stddev=0.1),
                loc_regularizer=None,
                scale_regularizer=None,
@@ -451,13 +451,13 @@ class TrainableLogNormal(tf.keras.layers.Layer):
     }
 
 
-class TrainableNormal(tf.keras.layers.Layer):
+class TrainableNormal(tf.python.keras.layers.Layer):
   """Random normal op as an initializer with trainable mean and stddev."""
 
   def __init__(self,
-               mean_initializer=tf.keras.initializers.TruncatedNormal(
+               mean_initializer=tf.python.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
-               stddev_initializer=tf.keras.initializers.TruncatedNormal(
+               stddev_initializer=tf.python.keras.initializers.TruncatedNormal(
                    mean=-3., stddev=0.1),
                mean_regularizer=None,
                stddev_regularizer=None,
@@ -544,7 +544,7 @@ class TrainableHeNormal(TrainableNormal):
 
   def __init__(self, seed=None, **kwargs):
     super(TrainableHeNormal, self).__init__(
-        mean_initializer=tf.keras.initializers.he_normal(seed),
+        mean_initializer=tf.python.keras.initializers.he_normal(seed),
         seed=seed,
         **kwargs)
 
@@ -570,7 +570,7 @@ class TrainableGlorotNormal(TrainableNormal):
 
   def __init__(self, seed=None, **kwargs):
     super(TrainableGlorotNormal, self).__init__(
-        mean_initializer=tf.keras.initializers.GlorotNormal(seed),
+        mean_initializer=tf.python.keras.initializers.GlorotNormal(seed),
         seed=seed,
         **kwargs)
 
@@ -611,12 +611,12 @@ class TrainableNormalSharedStddev(TrainableNormal):
     self.built = True
 
 
-class TrainableNormalFixedStddev(tf.keras.layers.Layer):
+class TrainableNormalFixedStddev(tf.python.keras.layers.Layer):
   """Random normal op as an initializer with trainable mean and fixed stddev."""
 
   def __init__(self,
                stddev=1.,
-               mean_initializer=tf.keras.initializers.TruncatedNormal(
+               mean_initializer=tf.python.keras.initializers.TruncatedNormal(
                    stddev=1e-5),
                mean_regularizer=None,
                mean_constraint=None,
@@ -664,7 +664,7 @@ class TrainableNormalFixedStddev(tf.keras.layers.Layer):
     }
 
 
-class RandomSign(tf.keras.initializers.Initializer):
+class RandomSign(tf.python.keras.initializers.Initializer):
   """Initializer that generates tensors initialized to +/- 1.
 
   Attributes:
@@ -694,12 +694,12 @@ class RandomSign(tf.keras.initializers.Initializer):
     }
 
 
-class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
+class TrainableMixtureOfDeltas(tf.python.keras.layers.Layer):
   """Mixture of deltas as an initializer with trainable locations."""
 
   def __init__(self,
                num_components=5,
-               loc_initializer=tf.keras.initializers.he_normal(),
+               loc_initializer=tf.python.keras.initializers.he_normal(),
                loc_regularizer=None,
                loc_constraint=None,
                seed=None,
@@ -756,7 +756,7 @@ class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
     }
 
 
-class OrthogonalRandomFeatures(tf.keras.initializers.Orthogonal):
+class OrthogonalRandomFeatures(tf.python.keras.initializers.Orthogonal):
   """Generates a orthogonal Gaussian matrix for a random feature Dense layer.
 
   Generates a 2D matrix of form W = stddev * Q @ S [1], where Q is a random
@@ -829,7 +829,7 @@ class OrthogonalRandomFeatures(tf.keras.initializers.Orthogonal):
     config.update(new_config)
     return config
 
-# Compatibility aliases, following tf.keras
+# Compatibility aliases, following tf.python.keras
 
 # pylint: disable=invalid-name
 scaled_normal_std_dev = ScaledNormalStdDev
@@ -847,15 +847,15 @@ random_sign = RandomSign
 orthogonal_random_features = OrthogonalRandomFeatures
 # pylint: enable=invalid-name
 
-# Utility functions, following tf.keras
+# Utility functions, following tf.python.keras
 
 
 def serialize(initializer):
-  return tf.keras.utils.serialize_keras_object(initializer)
+  return tf.python.keras.utils.serialize_keras_object(initializer)
 
 
 def deserialize(config, custom_objects=None):
-  return tf.keras.utils.deserialize_keras_object(
+  return tf.python.keras.utils.deserialize_keras_object(
       config,
       module_objects=globals(),
       custom_objects=custom_objects,
@@ -881,4 +881,4 @@ def get(identifier, value=None):
       pass
   elif callable(identifier):
     return identifier
-  return tf.keras.initializers.get(value)
+  return tf.python.keras.initializers.get(value)

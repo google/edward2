@@ -37,7 +37,7 @@ import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 
 
-class ActNorm(tf.keras.layers.Layer):
+class ActNorm(tf.python.keras.layers.Layer):
   """Actnorm, an affine reversible layer (Prafulla and Kingma, 2018).
 
   Weights use data-dependent initialization in which outputs have zero mean
@@ -45,7 +45,7 @@ class ActNorm(tf.keras.layers.Layer):
   are computed from the first batch of inputs.
   """
 
-  def __init__(self, epsilon=tf.keras.backend.epsilon(), **kwargs):
+  def __init__(self, epsilon=tf.python.keras.backend.epsilon(), **kwargs):
     super(ActNorm, self).__init__(**kwargs)
     self.epsilon = epsilon
 
@@ -114,18 +114,18 @@ def ensemble_batchnorm(x, ensemble_size=1, use_tpu=True, **kwargs):
   # BatchNormalization layer for all ensemble member. This is not correct in
   # math but works in practice.
   if ensemble_size == 1 or use_tpu:
-    return tf.keras.layers.BatchNormalization(**kwargs)(x)
+    return tf.python.keras.layers.BatchNormalization(**kwargs)(x)
   name = kwargs.get('name')
   split_inputs = tf.split(x, ensemble_size, axis=0)
   for i in range(ensemble_size):
     if name is not None:
       kwargs['name'] = name + '_{}'.format(i)
-    split_inputs[i] = tf.keras.layers.BatchNormalization(**kwargs)(
+    split_inputs[i] = tf.python.keras.layers.BatchNormalization(**kwargs)(
         split_inputs[i])
   return tf.concat(split_inputs, axis=0)
 
 
-class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
+class EnsembleSyncBatchNorm(tf.python.keras.layers.Layer):
   """BatchNorm that averages over ALL replicas. Only works for `NHWC` inputs."""
 
   def __init__(self, axis=3, ensemble_size=1, momentum=0.99, epsilon=0.001,
@@ -281,7 +281,7 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
     return x
 
 
-class SpectralNormalization(tf.keras.layers.Wrapper):
+class SpectralNormalization(tf.python.keras.layers.Wrapper):
   """Implements spectral normalization for Dense layer."""
 
   def __init__(self,
@@ -295,7 +295,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     """Initializer.
 
     Args:
-      layer: (tf.keras.layers.Layer) A TF Keras layer to apply normalization to.
+      layer: (tf.python.keras.layers.Layer) A TF Keras layer to apply normalization to.
       iteration: (int) The number of power iteration to perform to estimate
         weight matrix's singular value.
       norm_multiplier: (float) Multiplicative constant to threshold the
@@ -319,8 +319,8 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     if inhere_layer_name:
       wrapper_name = layer.name
 
-    if not isinstance(layer, tf.keras.layers.Layer):
-      raise ValueError('`layer` must be a `tf.keras.layer.Layer`. '
+    if not isinstance(layer, tf.python.keras.layers.Layer):
+      raise ValueError('`layer` must be a `tf.python.keras.layer.Layer`. '
                        'Observed `{}`'.format(layer))
     super(SpectralNormalization, self).__init__(
         layer, name=wrapper_name, **kwargs)
@@ -394,7 +394,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     return self.layer.kernel.assign(self.w)
 
 
-class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
+class SpectralNormalizationConv2D(tf.python.keras.layers.Wrapper):
   """Implements spectral normalization for Conv2D layer based on [3]."""
 
   def __init__(self,
@@ -408,7 +408,7 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     """Initializer.
 
     Args:
-      layer: (tf.keras.layers.Layer) A TF Keras layer to apply normalization to.
+      layer: (tf.python.keras.layers.Layer) A TF Keras layer to apply normalization to.
       iteration: (int) The number of power iteration to perform to estimate
         weight matrix's singular value.
       norm_multiplier: (float) Multiplicative constant to threshold the
@@ -433,9 +433,9 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
     # Set layer attributes.
     layer._name += '_spec_norm'
 
-    if not isinstance(layer, tf.keras.layers.Conv2D):
+    if not isinstance(layer, tf.python.keras.layers.Conv2D):
       raise ValueError(
-          'layer must be a `tf.keras.layer.Conv2D` instance. You passed: {input}'
+          'layer must be a `tf.python.keras.layer.Conv2D` instance. You passed: {input}'
           .format(input=layer))
     super(SpectralNormalizationConv2D, self).__init__(layer, **kwargs)
 

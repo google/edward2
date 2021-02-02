@@ -15,7 +15,7 @@
 
 """Regularizers.
 
-This module extends `tf.keras.regularizers` with two features:
+This module extends `tf.python.keras.regularizers` with two features:
 
 1. Regularizers which compute using any weight random variables' distribution.
 For example, consider a regularizer which computes an analytic KL
@@ -24,7 +24,7 @@ divergence given an input ed.Normal weight.
 parameters. For example, consider a weight regularizer which computes a
 KL divergence from the weights towards a learnable prior.
 
-One subtlety is how `tf.keras.constraints` are used on the parameters of
+One subtlety is how `tf.python.keras.constraints` are used on the parameters of
 trainable regularizers. Typically, Keras constraints are used with projected
 gradient descent, where one performs unconstrained optimization and then applies
 a projection (the constraint) after each gradient update. To stay in line with
@@ -39,7 +39,7 @@ from edward2.tensorflow import random_variable
 import tensorflow as tf
 
 
-class CauchyKLDivergence(tf.keras.regularizers.Regularizer):
+class CauchyKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the Cauchy distribution."""
 
   def __init__(self, loc=0., scale=1., scale_factor=1.):
@@ -68,7 +68,7 @@ class CauchyKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
-class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
+class HalfCauchyKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the half-Cauchy distribution."""
 
   def __init__(self, loc=0., scale=1., scale_factor=1.):
@@ -97,7 +97,7 @@ class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
-class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
+class LogUniformKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the log-uniform distribution."""
 
   def __init__(self, scale_factor=1.):
@@ -115,7 +115,7 @@ class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
     mean = x.distribution.mean()
     log_variance = tf.math.log(x.distribution.variance())
     log_alpha = log_variance - tf.math.log(tf.square(mean) +
-                                           tf.keras.backend.epsilon())
+                                           tf.python.keras.backend.epsilon())
     log_alpha = tf.clip_by_value(log_alpha, -8., 8.)
 
     # Set magic numbers for cubic polynomial approx. (Molchanov et al., 2017).
@@ -133,7 +133,7 @@ class LogUniformKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
-class LogNormalKLDivergence(tf.keras.regularizers.Regularizer):
+class LogNormalKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the log normal distribution."""
 
   def __init__(self, loc=0., scale=1., scale_factor=1.):
@@ -163,7 +163,7 @@ class LogNormalKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
-class NormalKLDivergence(tf.keras.regularizers.Regularizer):
+class NormalKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to the normal distribution."""
 
   def __init__(self, mean=0., stddev=1., scale_factor=1.):
@@ -264,7 +264,7 @@ class NormalEmpiricalBayesKLDivergence(NormalKLDivergence):
     }
 
 
-class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
+class NormalKLDivergenceWithTiedMean(tf.python.keras.regularizers.Regularizer):
   """KL with normal prior whose mean is fixed at the variational posterior's."""
 
   def __init__(self, stddev=1., scale_factor=1.):
@@ -290,12 +290,12 @@ class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
     }
 
 
-class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
+class TrainableNormalKLDivergenceStdDev(tf.python.keras.layers.Layer):
   """Normal KL divergence with trainable stddev parameter."""
 
   def __init__(self,
                mean=0.,
-               stddev_initializer=tf.keras.initializers.TruncatedNormal(
+               stddev_initializer=tf.python.keras.initializers.TruncatedNormal(
                    mean=0.5413248, stddev=0.1),  # mean=softplus_inverse(1.)
                stddev_regularizer=None,
                stddev_constraint='softplus',
@@ -304,7 +304,7 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
                **kwargs):
     super(TrainableNormalKLDivergenceStdDev, self).__init__(**kwargs)
     self.mean = mean
-    self.stddev_initializer = tf.keras.initializers.get(stddev_initializer)
+    self.stddev_initializer = tf.python.keras.initializers.get(stddev_initializer)
     self.stddev_regularizer = get(stddev_regularizer)
     self.stddev_constraint = constraints.get(stddev_constraint)
     self.scale_factor = scale_factor
@@ -338,7 +338,7 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
     return {
         'loc': self.loc,
         'stddev_initializer':
-            tf.keras.initializers.serialize(self.stddev_initializer),
+            tf.python.keras.initializers.serialize(self.stddev_initializer),
         'stddev_regularizer': serialize(self.stddev_regularizer),
         'stddev_constraint': constraints.serialize(self.stddev_constraint),
         'scale_factor': self.scale_factor,
@@ -346,7 +346,7 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
     }
 
 
-class UniformKLDivergence(tf.keras.regularizers.Regularizer):
+class UniformKLDivergence(tf.python.keras.regularizers.Regularizer):
   """KL divergence regularizer from an input to a uniform distribution.
 
   This regularizer computes the negative entropy of the input variable, which
@@ -371,7 +371,7 @@ class UniformKLDivergence(tf.keras.regularizers.Regularizer):
     }
 
 
-# Compatibility aliases, following tf.keras
+# Compatibility aliases, following tf.python.keras
 
 # pylint: disable=invalid-name
 cauchy_kl_divergence = CauchyKLDivergence
@@ -384,15 +384,15 @@ trainable_normal_kl_divergence_stddev = TrainableNormalKLDivergenceStdDev
 uniform_kl_divergence = UniformKLDivergence
 # pylint: enable=invalid-name
 
-# Utility functions, following tf.keras
+# Utility functions, following tf.python.keras
 
 
 def serialize(initializer):
-  return tf.keras.utils.serialize_keras_object(initializer)
+  return tf.python.keras.utils.serialize_keras_object(initializer)
 
 
 def deserialize(config, custom_objects=None):
-  return tf.keras.utils.deserialize_keras_object(
+  return tf.python.keras.utils.deserialize_keras_object(
       config,
       module_objects=globals(),
       custom_objects=custom_objects,
@@ -418,4 +418,4 @@ def get(identifier, value=None):
       pass
   elif callable(identifier):
     return identifier
-  return tf.keras.regularizers.get(value)
+  return tf.python.keras.regularizers.get(value)

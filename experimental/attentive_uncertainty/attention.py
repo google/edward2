@@ -194,7 +194,7 @@ def multihead_attention(projection_nets,
   return rep
 
 
-class AttentionLayer(tf.keras.layers.Layer):
+class AttentionLayer(tf.python.keras.layers.Layer):
   """The Attention module."""
 
   def __init__(self,
@@ -235,27 +235,27 @@ class AttentionLayer(tf.keras.layers.Layer):
       self.multihead_nets = []
 
       for h in range(num_heads):
-        query_net = tf.keras.Sequential(
-            [tf.keras.layers.InputLayer([None, d_k]),
-             tf.keras.layers.Conv1D(head_size, 1,
+        query_net = tf.python.keras.Sequential(
+            [tf.python.keras.layers.InputLayer([None, d_k]),
+             tf.python.keras.layers.Conv1D(head_size, 1,
                                     kernel_initializer=key_initializer,
                                     name='wq%d' % h, use_bias=False,
                                     padding='VALID')])
-        key_net = tf.keras.Sequential(
-            [tf.keras.layers.InputLayer([None, d_k]),
-             tf.keras.layers.Conv1D(head_size, 1,
+        key_net = tf.python.keras.Sequential(
+            [tf.python.keras.layers.InputLayer([None, d_k]),
+             tf.python.keras.layers.Conv1D(head_size, 1,
                                     kernel_initializer=key_initializer,
                                     name='wk%d' % h, use_bias=False,
                                     padding='VALID')])
-        value_net = tf.keras.Sequential(
-            [tf.keras.layers.InputLayer([None, d_v]),
-             tf.keras.layers.Conv1D(head_size, 1,
+        value_net = tf.python.keras.Sequential(
+            [tf.python.keras.layers.InputLayer([None, d_v]),
+             tf.python.keras.layers.Conv1D(head_size, 1,
                                     kernel_initializer=key_initializer,
                                     name='wv%d' % h, use_bias=False,
                                     padding='VALID')])
-        rep_net = tf.keras.Sequential(
-            [tf.keras.layers.InputLayer([None, head_size]),
-             tf.keras.layers.Conv1D(d_v, 1,
+        rep_net = tf.python.keras.Sequential(
+            [tf.python.keras.layers.InputLayer([None, head_size]),
+             tf.python.keras.layers.Conv1D(d_v, 1,
                                     kernel_initializer=value_initializer,
                                     name='wo%d' % h, use_bias=False,
                                     padding='VALID')])

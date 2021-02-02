@@ -37,12 +37,12 @@ numpy_labels = np.random.randint(num_classes, size=dataset_size).astype('int32')
 dataset = tf.data.Dataset.from_tensor_slices((numpy_features, numpy_labels))
 dataset = dataset.repeat().batch(batch_size)
 
-model = tf.keras.Sequential([
-    tf.keras.layers.Dense(num_classes),
-    tf.keras.layers.Lambda(lambda inputs: ed.Categorical(logits=inputs)),
+model = tf.python.keras.Sequential([
+    tf.python.keras.layers.Dense(num_classes),
+    tf.python.keras.layers.Lambda(lambda inputs: ed.Categorical(logits=inputs)),
 ])
 
-model.compile(tf.keras.optimizers.Adam(0.1),
+model.compile(tf.python.keras.optimizers.Adam(0.1),
               loss=lambda y_true, y_pred: -y_pred.distribution.log_prob(y_true))
 model.fit(dataset,
           steps_per_epoch=dataset_size // batch_size,
@@ -56,7 +56,7 @@ from edward2.tensorflow import generated_random_variables
 import tensorflow as tf
 
 
-class MixtureLogistic(tf.keras.layers.Layer):
+class MixtureLogistic(tf.python.keras.layers.Layer):
   """Stochastic output layer, distributed as a mixture of logistics.
 
   Given an input tensor of shape [..., input_dim], the output layer returns
@@ -74,7 +74,7 @@ class MixtureLogistic(tf.keras.layers.Layer):
     self.logits_constraint = constraints.get(logits_constraint)
     self.loc_constraint = constraints.get(loc_constraint)
     self.scale_constraint = constraints.get(scale_constraint)
-    self.layer = tf.keras.layers.Dense(num_components * 3)
+    self.layer = tf.python.keras.layers.Dense(num_components * 3)
 
   def build(self, input_shape=None):
     self.layer.build(input_shape)

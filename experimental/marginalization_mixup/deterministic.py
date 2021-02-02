@@ -84,18 +84,18 @@ flags.DEFINE_string('tpu', None,
 FLAGS = flags.FLAGS
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.BatchNormalization,
+    tf.python.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
 Conv2D = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.Conv2D,
+    tf.python.keras.layers.Conv2D,
     kernel_size=3,
     padding='same',
     use_bias=False,
     kernel_initializer='he_normal')
 
 
-class DistanceMax(tf.keras.layers.Layer):
+class DistanceMax(tf.python.keras.layers.Layer):
   r"""Implements the output layer of model for Distinction Maximization Loss.
 
   In Distinction Maximization loss, the logits produced by the output layer of
@@ -138,29 +138,29 @@ def basic_block(inputs, filters, strides, l2, version):
   x = inputs
   y = inputs
   if version == 2:
-    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
-    y = tf.keras.layers.Activation('relu')(y)
+    y = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(y)
+    y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters,
              strides=strides,
-             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
-  y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                         gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
-  y = tf.keras.layers.Activation('relu')(y)
+             kernel_regularizer=tf.python.keras.regularizers.l2(l2))(y)
+  y = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                         gamma_regularizer=tf.python.keras.regularizers.l2(l2))(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters,
              strides=1,
-             kernel_regularizer=tf.keras.regularizers.l2(l2))(y)
+             kernel_regularizer=tf.python.keras.regularizers.l2(l2))(y)
   if version == 1:
-    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
+    y = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(y)
   if not x.shape.is_compatible_with(y.shape):
     x = Conv2D(filters,
                kernel_size=1,
                strides=strides,
-               kernel_regularizer=tf.keras.regularizers.l2(l2))(x)
-  x = tf.keras.layers.add([x, y])
+               kernel_regularizer=tf.python.keras.regularizers.l2(l2))(x)
+  x = tf.python.keras.layers.add([x, y])
   if version == 1:
-    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.python.keras.layers.Activation('relu')(x)
   return x
 
 
@@ -195,19 +195,19 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     distance_logits: Bool, whether to use distance logits.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 4) % 6 != 0:
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   x = Conv2D(16,
              strides=1,
-             kernel_regularizer=tf.keras.regularizers.l2(l2))(inputs)
+             kernel_regularizer=tf.python.keras.regularizers.l2(l2))(inputs)
   if version == 1:
-    x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
-    x = tf.keras.layers.Activation('relu')(x)
+    x = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(x)
+    x = tf.python.keras.layers.Activation('relu')(x)
   x = group(x,
             filters=16 * width_multiplier,
             strides=1,
@@ -227,20 +227,20 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
             l2=l2,
             version=version)
   if version == 2:
-    x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
-    x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+    x = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(x)
+    x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   if distance_logits:
     x = DistanceMax(num_classes=num_classes)(x)
   else:
-    x = tf.keras.layers.Dense(
+    x = tf.python.keras.layers.Dense(
         num_classes,
         kernel_initializer='he_normal',
-        kernel_regularizer=tf.keras.regularizers.l2(l2),
-        bias_regularizer=tf.keras.regularizers.l2(l2))(x)
-  return tf.keras.Model(inputs=inputs, outputs=x)
+        kernel_regularizer=tf.python.keras.regularizers.l2(l2),
+        bias_regularizer=tf.python.keras.regularizers.l2(l2))(x)
+  return tf.python.keras.Model(inputs=inputs, outputs=x)
 
 
 def one_vs_rest_dm_loss(labels, logits, dm_alpha=1.):
@@ -348,8 +348,8 @@ def main(argv):
             strategy.experimental_distribute_dataset(dataset))
 
   if FLAGS.use_bfloat16:
-    policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
-    tf.keras.mixed_precision.experimental.set_policy(policy)
+    policy = tf.python.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+    tf.python.keras.mixed_precision.experimental.set_policy(policy)
 
   summary_writer = tf.summary.create_file_writer(
       os.path.join(FLAGS.output_dir, 'summaries'))
@@ -376,16 +376,16 @@ def main(argv):
         decay_ratio=FLAGS.lr_decay_ratio,
         decay_epochs=lr_decay_epochs,
         warmup_epochs=FLAGS.lr_warmup_epochs)
-    optimizer = tf.keras.optimizers.SGD(lr_schedule,
+    optimizer = tf.python.keras.optimizers.SGD(lr_schedule,
                                         momentum=0.9,
                                         nesterov=True)
     metrics = {
-        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
+        'train/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'train/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss': tf.python.keras.metrics.Mean(),
         'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
-        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'test/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
     if FLAGS.corruptions_interval > 0:
@@ -394,9 +394,9 @@ def main(argv):
         for corruption in corruption_types:
           dataset_name = '{0}_{1}'.format(corruption, intensity)
           corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
-              tf.keras.metrics.Mean())
+              tf.python.keras.metrics.Mean())
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
-              tf.keras.metrics.SparseCategoricalAccuracy())
+              tf.python.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
               um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
@@ -428,7 +428,7 @@ def main(argv):
         if FLAGS.use_bfloat16:
           logits = tf.cast(logits, tf.float32)
         negative_log_likelihood = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(labels,
+            tf.python.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True))
         l2_loss = sum(model.losses)
@@ -465,7 +465,7 @@ def main(argv):
         logits = tf.cast(logits, tf.float32)
       probs = tf.nn.softmax(logits)
       negative_log_likelihood = tf.reduce_mean(
-          tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+          tf.python.keras.losses.sparse_categorical_crossentropy(labels, probs))
 
       if dataset_name == 'clean':
         metrics['test/negative_log_likelihood'].update_state(

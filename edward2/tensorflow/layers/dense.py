@@ -30,7 +30,7 @@ LAMBDA_TYPE = ('l2_kernel', 'l2_bias', 'dr')  # used by HyperBatchEnsemble
 
 
 @utils.add_weight
-class DenseReparameterization(tf.keras.layers.Dense):
+class DenseReparameterization(tf.python.keras.layers.Dense):
   """Bayesian densely-connected layer estimated via reparameterization.
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -72,9 +72,9 @@ class DenseReparameterization(tf.keras.layers.Dense):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
+    if isinstance(self.kernel_initializer, tf.python.keras.layers.Layer):
       self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
-    if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+    if isinstance(self.bias_initializer, tf.python.keras.layers.Layer):
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
 
   def call(self, *args, **kwargs):
@@ -103,7 +103,7 @@ class DenseDVI(DenseReparameterization):
   respectively.
 
   ```python
-  model = tf.keras.Sequential([
+  model = tf.python.keras.Sequential([
       ed.layers.DenseDVI(256, activation=tf.nn.relu),
       ed.layers.DenseDVI(256, activation=tf.nn.relu),
       ed.layers.DenseDVI(1, activation=None),
@@ -162,21 +162,21 @@ class DenseDVI(DenseReparameterization):
     covariance = tf.linalg.set_diag(
         covariance, tf.linalg.diag_part(covariance) + covariance_diag)
 
-    if self.activation in (tf.keras.activations.relu, tf.nn.relu):
+    if self.activation in (tf.python.keras.activations.relu, tf.nn.relu):
       # Compute activation's moments with variable names from Wu et al. (2018).
       variance = tf.linalg.diag_part(covariance)
       scale = tf.sqrt(variance)
-      mu = mean / (scale + tf.keras.backend.epsilon())
+      mu = mean / (scale + tf.python.keras.backend.epsilon())
       mean = scale * soft_relu(mu)
 
       pairwise_variances = (tf.expand_dims(variance, -1) *
                             tf.expand_dims(variance, -2))  # [..., units, units]
       rho = covariance / tf.sqrt(pairwise_variances +
-                                 tf.keras.backend.epsilon())
+                                 tf.python.keras.backend.epsilon())
       rho = tf.clip_by_value(rho,
-                             -1. / (1. + tf.keras.backend.epsilon()),
-                             1. / (1. + tf.keras.backend.epsilon()))
-      s = covariance / (rho + tf.keras.backend.epsilon())
+                             -1. / (1. + tf.python.keras.backend.epsilon()),
+                             1. / (1. + tf.python.keras.backend.epsilon()))
+      s = covariance / (rho + tf.python.keras.backend.epsilon())
       mu1 = tf.expand_dims(mu, -1)  # [..., units, 1]
       mu2 = tf.linalg.matrix_transpose(mu1)  # [..., 1, units]
       a = (soft_relu(mu1) * soft_relu(mu2) +
@@ -187,13 +187,13 @@ class DenseDVI(DenseReparameterization):
       gr = gh + rho / (1. + bar_rho)
       # Include numerically stable versions of gr and rho when multiplying or
       # dividing them. The sign of gr*rho and rho/gr is always positive.
-      safe_gr = tf.abs(gr) + 0.5 * tf.keras.backend.epsilon()
-      safe_rho = tf.abs(rho) + tf.keras.backend.epsilon()
+      safe_gr = tf.abs(gr) + 0.5 * tf.python.keras.backend.epsilon()
+      safe_rho = tf.abs(rho) + tf.python.keras.backend.epsilon()
       exp_negative_q = gr / (2. * math.pi) * tf.exp(
           -safe_rho / (2. * safe_gr * (1 + bar_rho)) +
           (gh - rho) / (safe_gr * safe_rho) * mu1 * mu2)
       covariance = s * (a + exp_negative_q)
-    elif self.activation not in (tf.keras.activations.linear, None):
+    elif self.activation not in (tf.python.keras.activations.linear, None):
       raise NotImplementedError('Activation is {}. Deterministic variational '
                                 'inference is only available if activation is '
                                 'ReLU or None.'.format(self.activation))
@@ -318,7 +318,7 @@ class DenseVariationalDropout(DenseReparameterization):
       return super().call(inputs)
     self.call_weights()
     if training is None:
-      training = tf.keras.backend.learning_phase()
+      training = tf.python.keras.backend.learning_phase()
 
     def dropped_inputs():
       """Forward pass with dropout."""
@@ -328,21 +328,21 @@ class DenseVariationalDropout(DenseReparameterization):
       mean = self.kernel.distribution.mean()
       log_variance = tf.math.log(self.kernel.distribution.variance())
       log_alpha = log_variance - tf.math.log(tf.square(mean) +
-                                             tf.keras.backend.epsilon())
+                                             tf.python.keras.backend.epsilon())
       log_alpha = tf.clip_by_value(log_alpha, -8., 8.)
       log_variance = log_alpha + tf.math.log(tf.square(mean) +
-                                             tf.keras.backend.epsilon())
+                                             tf.python.keras.backend.epsilon())
 
       if inputs.shape.ndims <= 2:
         means = tf.matmul(inputs, mean)
         stddevs = tf.sqrt(
             tf.matmul(tf.square(inputs), tf.exp(log_variance)) +
-            tf.keras.backend.epsilon())
+            tf.python.keras.backend.epsilon())
       else:
         means = tf.tensordot(inputs, mean, [[-1], [0]])
         stddevs = tf.sqrt(
             tf.tensordot(tf.square(inputs), tf.exp(log_variance), [[-1], [0]]) +
-            tf.keras.backend.epsilon())
+            tf.python.keras.backend.epsilon())
       if self.use_bias:
         means = tf.nn.bias_add(means, self.bias)
       outputs = generated_random_variables.Normal(loc=means, scale=stddevs)
@@ -350,7 +350,7 @@ class DenseVariationalDropout(DenseReparameterization):
         outputs = self.activation(outputs)
       return outputs
 
-    # Following tf.keras.Dropout, only apply variational dropout if training
+    # Following tf.python.keras.Dropout, only apply variational dropout if training
     # flag is True.
     training_value = utils.smart_constant_value(training)
     if training_value is not None:
@@ -451,10 +451,10 @@ class DenseHierarchical(DenseVariationalDropout):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
+    if isinstance(self.local_scale_initializer, tf.python.keras.layers.Layer):
       self.local_scale = self.local_scale_initializer(self.local_scale.shape,
                                                       self.dtype)
-    if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
+    if isinstance(self.global_scale_initializer, tf.python.keras.layers.Layer):
       self.global_scale = self.global_scale_initializer(self.global_scale.shape,
                                                         self.dtype)
     super().call_weights()
@@ -467,7 +467,7 @@ class DenseHierarchical(DenseVariationalDropout):
     return super().call(inputs, training=training)
 
 
-class DenseBatchEnsemble(tf.keras.layers.Dense):
+class DenseBatchEnsemble(tf.python.keras.layers.Dense):
   """A batch ensemble dense layer."""
 
   def __init__(self,
@@ -503,7 +503,7 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
     self.use_ensemble_bias = use_bias
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.ensemble_bias_initializer = initializers.get(bias_initializer)
     self.ensemble_bias_regularizer = regularizers.get(bias_regularizer)
     self.ensemble_bias_constraint = constraints.get(bias_constraint)
@@ -585,7 +585,7 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
         'ensemble_size':
             self.ensemble_size,
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
         'alpha_initializer':
@@ -659,7 +659,7 @@ class _DenseBatchEnsembleNoFastWeights(DenseBatchEnsemble):
     self.built = True
 
 
-class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
+class DenseHyperBatchEnsemble(tf.python.keras.layers.Layer):
   """Dense Hyper-BatchEnsemble layer that self-tunes hyperparameters.
 
   * W, W' of size (d_in, d_out)
@@ -724,7 +724,7 @@ class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
     self.lambda_key_to_index = lambda_key_to_index
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
-    self.activation = tf.keras.activations.get(activation)
+    self.activation = tf.python.keras.activations.get(activation)
     self.regularize_fast_weights = regularize_fast_weights
     self.fast_weights_eq_contraint = fast_weights_eq_contraint
 
@@ -919,7 +919,7 @@ class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
         'ensemble_size':
             self.ensemble_size,
         'activation':
-            tf.keras.activations.serialize(self.activation),
+            tf.python.keras.activations.serialize(self.activation),
         'use_bias':
             self.use_bias,
         'alpha_initializer':
@@ -985,7 +985,7 @@ def get_lambda(lambdas, lambda_type, layer_name, lambda_key_to_index):
 
 
 @utils.add_weight
-class DenseRank1(tf.keras.layers.Dense):
+class DenseRank1(tf.python.keras.layers.Dense):
   """A rank-1 Bayesian neural net dense layer (Dusenberry et al., 2020).
 
   The argument ensemble_size selects the number of mixture components over all
@@ -1036,7 +1036,7 @@ class DenseRank1(tf.keras.layers.Dense):
         bias_constraint=None,
         **kwargs)
     self.units = units
-    self.ensemble_activation = tf.keras.activations.get(activation)
+    self.ensemble_activation = tf.python.keras.activations.get(activation)
     self.use_ensemble_bias = use_bias
     self.alpha_initializer = initializers.get(alpha_initializer)
     self.gamma_initializer = initializers.get(gamma_initializer)
@@ -1099,7 +1099,7 @@ class DenseRank1(tf.keras.layers.Dense):
         inputs, [self.ensemble_size, examples_per_model, input_dim])
 
     # Sample parameters for each example.
-    if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
+    if isinstance(self.alpha_initializer, tf.python.keras.layers.Layer):
       alpha = tf.clip_by_value(
           self.alpha_initializer(
               self.alpha_shape,
@@ -1109,7 +1109,7 @@ class DenseRank1(tf.keras.layers.Dense):
       alpha = tf.transpose(alpha, [1, 0, 2])
     else:
       alpha = tf.expand_dims(self.alpha, 1)
-    if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
+    if isinstance(self.gamma_initializer, tf.python.keras.layers.Layer):
       gamma = tf.clip_by_value(
           self.gamma_initializer(
               self.gamma_shape,
@@ -1126,7 +1126,7 @@ class DenseRank1(tf.keras.layers.Dense):
       outputs = super().call(inputs * alpha) * gamma
 
     if self.use_ensemble_bias:
-      if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
+      if isinstance(self.ensemble_bias_initializer, tf.python.keras.layers.Layer):
         bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
@@ -1143,7 +1143,7 @@ class DenseRank1(tf.keras.layers.Dense):
   def get_config(self):
     config = {
         'ensemble_activation':
-            tf.keras.activations.serialize(self.ensemble_activation),
+            tf.python.keras.activations.serialize(self.ensemble_activation),
         'use_ensemble_bias':
             self.use_ensemble_bias,
         'alpha_initializer':
@@ -1173,7 +1173,7 @@ class DenseRank1(tf.keras.layers.Dense):
 
 
 @utils.add_weight
-class CondDense(tf.keras.layers.Dense):
+class CondDense(tf.python.keras.layers.Dense):
   """Conditional dense layer.
 
   This layer extends the base dense layer to compute example-dependent

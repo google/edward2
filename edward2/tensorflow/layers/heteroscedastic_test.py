@@ -114,7 +114,7 @@ def test_cases():
       },)
 
 
-class Classifier(tf.keras.Model):
+class Classifier(tf.python.keras.Model):
   """Wrapper for classifiers defined below.
 
   Handles different architectures and differences between eager/graph execution.
@@ -161,7 +161,7 @@ class Classifier(tf.keras.Model):
         return self.classifier(inputs, **kwargs)
 
 
-class DenseClassifier(tf.keras.Model):
+class DenseClassifier(tf.python.keras.Model):
   """Feedforward neural network with MCSoftmaxDense output layer."""
 
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
@@ -191,7 +191,7 @@ class DenseClassifier(tf.keras.Model):
     """
     super(DenseClassifier, self).__init__()
 
-    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.hidden_layer = tf.python.keras.layers.Dense(16)
     self.output_layer = ed.layers.MCSoftmaxDense(
         num_classes=num_classes, logit_noise=logit_noise,
         temperature=temperature, train_mc_samples=train_mc_samples,
@@ -213,7 +213,7 @@ class DenseClassifier(tf.keras.Model):
     return self.output_layer(hidden_x, training=training, seed=seed)
 
 
-class DenseFAClassifier(tf.keras.Model):
+class DenseFAClassifier(tf.python.keras.Model):
   """Feedforward neural network with MCSoftmaxDenseFA output layer."""
 
   def __init__(self, num_classes, num_factors,
@@ -244,7 +244,7 @@ class DenseFAClassifier(tf.keras.Model):
     """
     super(DenseFAClassifier, self).__init__()
 
-    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.hidden_layer = tf.python.keras.layers.Dense(16)
     self.output_layer = ed.layers.MCSoftmaxDenseFA(
         num_classes=num_classes, num_factors=num_factors,
         temperature=temperature, parameter_efficient=parameter_efficient,
@@ -267,7 +267,7 @@ class DenseFAClassifier(tf.keras.Model):
     return self.output_layer(hidden_x, training=training, seed=seed)
 
 
-class SigmoidDenseFAClassifier(tf.keras.Model):
+class SigmoidDenseFAClassifier(tf.python.keras.Model):
   """Feedforward neural network with MCSigmoidDenseFA output layer."""
 
   def __init__(self, num_classes, num_factors,
@@ -298,7 +298,7 @@ class SigmoidDenseFAClassifier(tf.keras.Model):
     """
     super(SigmoidDenseFAClassifier, self).__init__()
 
-    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.hidden_layer = tf.python.keras.layers.Dense(16)
     self.output_layer = ed.layers.MCSigmoidDenseFA(
         1 if num_classes == 2 else num_classes, num_factors=num_factors,
         temperature=temperature, parameter_efficient=parameter_efficient,
@@ -321,7 +321,7 @@ class SigmoidDenseFAClassifier(tf.keras.Model):
     return self.output_layer(hidden_x, training=training, seed=seed)
 
 
-class ExactSigmoidDenseClassifier(tf.keras.Model):
+class ExactSigmoidDenseClassifier(tf.python.keras.Model):
   """Feedforward neural network with ExactSigmoidDense output layer."""
 
   def __init__(self, num_classes, logit_noise):
@@ -340,7 +340,7 @@ class ExactSigmoidDenseClassifier(tf.keras.Model):
     """
     super(ExactSigmoidDenseClassifier, self).__init__()
 
-    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.hidden_layer = tf.python.keras.layers.Dense(16)
     self.output_layer = ed.layers.ExactSigmoidDense(
         1 if num_classes == 2 else num_classes, logit_noise=logit_noise)
 
@@ -359,7 +359,7 @@ class ExactSigmoidDenseClassifier(tf.keras.Model):
     return self.output_layer(hidden_x, training=training)
 
 
-class EnsembleClassifier(tf.keras.Model):
+class EnsembleClassifier(tf.python.keras.Model):
   """Feedforward neural network with Ensemble output layer."""
 
   def __init__(self, num_classes, averaging, ensemble_weighting=(0.8, 0.2)):
@@ -384,7 +384,7 @@ class EnsembleClassifier(tf.keras.Model):
     """
     super(EnsembleClassifier, self).__init__()
 
-    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.hidden_layer = tf.python.keras.layers.Dense(16)
     if num_classes == 2:
       layer_1 = ed.layers.MCSigmoidDenseFA(1)
       layer_2 = ed.layers.ExactSigmoidDense(1)
@@ -507,12 +507,12 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
     classifier = Classifier(model_type, num_classes, logit_noise)
 
     if num_classes == 2:
-      loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+      loss_fn = tf.python.keras.losses.BinaryCrossentropy(from_logits=True)
     else:
-      loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+      loss_fn = tf.python.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
     if tf.executing_eagerly():
-      optimizer = tf.keras.optimizers.Adam()
+      optimizer = tf.python.keras.optimizers.Adam()
       def train_step(inputs, labels, model):
         """Defines a single training step: Update weights based on one batch."""
         with tf.GradientTape() as tape:

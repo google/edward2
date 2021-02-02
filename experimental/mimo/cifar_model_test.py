@@ -45,7 +45,7 @@ class CifarModelTest(tf.test.TestCase):
         ensemble_size=ensemble_size)
     model.compile(
         'adam',
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
+        loss=tf.python.keras.losses.SparseCategoricalCrossentropy(from_logits=True))
     history = model.fit(dataset,
                         steps_per_epoch=dataset_size // batch_size,
                         epochs=2)

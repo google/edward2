@@ -20,11 +20,11 @@ from experimental.mimo import layers  # local file import
 import tensorflow as tf
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.BatchNormalization,
+    tf.python.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
 Conv2D = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.Conv2D,
+    tf.python.keras.layers.Conv2D,
     kernel_size=3,
     padding='same',
     use_bias=False,
@@ -37,15 +37,15 @@ def basic_block(inputs, filters, strides):
   x = inputs
   y = inputs
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters, strides=strides)(y)
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters, strides=1)(y)
   if not x.shape.is_compatible_with(y.shape):
     x = Conv2D(filters, kernel_size=1, strides=strides)(x)
 
-  x = tf.keras.layers.add([x, y])
+  x = tf.python.keras.layers.add([x, y])
   return x
 
 
@@ -77,17 +77,17 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     ensemble_size: Number of ensemble members.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 4) % 6 != 0:
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
   input_shape = list(input_shape)
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  x = tf.keras.layers.Permute([2, 3, 4, 1])(inputs)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
+  x = tf.python.keras.layers.Permute([2, 3, 4, 1])(inputs)
   if ensemble_size != input_shape[0]:
     raise ValueError('the first dimension of input_shape must be ensemble_size')
-  x = tf.keras.layers.Reshape(input_shape[1:-1] +
+  x = tf.python.keras.layers.Reshape(input_shape[1:-1] +
                               [input_shape[-1] * ensemble_size])(x)
   x = Conv2D(16, strides=1)(x)
   for strides, filters in zip([1, 2, 2], [16, 32, 64]):
@@ -98,12 +98,12 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
         num_blocks=num_blocks)
 
   x = BatchNormalization()(x)
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   x = layers.DenseMultihead(
       num_classes,
       kernel_initializer='he_normal',
       activation=None,
       ensemble_size=ensemble_size)(x)
-  return tf.keras.Model(inputs=inputs, outputs=x)
+  return tf.python.keras.Model(inputs=inputs, outputs=x)

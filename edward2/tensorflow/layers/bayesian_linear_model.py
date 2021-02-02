@@ -20,7 +20,7 @@ from edward2.tensorflow import generated_random_variables
 import tensorflow as tf
 
 
-class BayesianLinearModel(tf.keras.Model):
+class BayesianLinearModel(tf.python.keras.Model):
   r"""Bayesian linear model with standard normal prior over its coefficients.
 
   A forward pass computes the mean of the exact predictive distribution

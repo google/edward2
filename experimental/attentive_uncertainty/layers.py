@@ -19,10 +19,10 @@
 import edward2 as ed
 import tensorflow.compat.v1 as tf
 
-eps = tf.keras.backend.epsilon()
+eps = tf.python.keras.backend.epsilon()
 
 
-class DataNoise(tf.keras.layers.Layer):
+class DataNoise(tf.python.keras.layers.Layer):
   """Creates a variable for modeling homoskedastic noise."""
 
   def build(self, input_shape=None):
@@ -36,7 +36,7 @@ class DataNoise(tf.keras.layers.Layer):
     return self.untransformed_data_var
 
 
-class DatasetEncodingLayer(tf.keras.layers.Layer):
+class DatasetEncodingLayer(tf.python.keras.layers.Layer):
   """Encodes a dataset of (x, y) pairs into embeddings via a shared network."""
 
   def __init__(self,
@@ -57,7 +57,7 @@ class DatasetEncodingLayer(tf.keras.layers.Layer):
     return x_y_encodings
 
 
-class GlobalLatentLayer(tf.keras.layers.Layer):
+class GlobalLatentLayer(tf.python.keras.layers.Layer):
   """Maps embedded (x, y) points to a single stochastic embedding."""
 
   def __init__(self, net):
@@ -71,7 +71,7 @@ class GlobalLatentLayer(tf.keras.layers.Layer):
     return ed.Normal(loc=mean, scale=std)
 
 
-class LocalLatentLayer(tf.keras.layers.Layer):
+class LocalLatentLayer(tf.python.keras.layers.Layer):
   """Maps conditioning inputs to a per-point stochastic embedding."""
 
   def __init__(self, net):
@@ -91,7 +91,7 @@ class LocalLatentLayer(tf.keras.layers.Layer):
     return ed.Normal(loc=mean, scale=std)
 
 
-class DecoderLayer(tf.keras.layers.Layer):
+class DecoderLayer(tf.python.keras.layers.Layer):
   """Maps conditioning inputs to a per-point predictive distribution."""
 
   def __init__(self,
@@ -126,7 +126,7 @@ class DecoderLayer(tf.keras.layers.Layer):
     return ed.Normal(loc=mean, scale=std)
 
 
-class SNPLocalLatentLayer(tf.keras.layers.Layer):
+class SNPLocalLatentLayer(tf.python.keras.layers.Layer):
   """Maps each datapoint (and global conditioning) to stochastic embedding."""
 
   def __init__(self,

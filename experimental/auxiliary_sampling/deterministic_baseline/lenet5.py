@@ -21,27 +21,27 @@ import tensorflow as tf
 
 def lenet5(input_shape, num_classes):
   """Builds LeNet5."""
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  conv1 = tf.keras.layers.Conv2D(6,
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
+  conv1 = tf.python.keras.layers.Conv2D(6,
                                  kernel_size=5,
                                  padding='SAME',
                                  activation='relu')(inputs)
-  pool1 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+  pool1 = tf.python.keras.layers.MaxPooling2D(pool_size=[2, 2],
                                        strides=[2, 2],
                                        padding='SAME')(conv1)
-  conv2 = tf.keras.layers.Conv2D(16,
+  conv2 = tf.python.keras.layers.Conv2D(16,
                                  kernel_size=5,
                                  padding='SAME',
                                  activation='relu')(pool1)
-  pool2 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+  pool2 = tf.python.keras.layers.MaxPooling2D(pool_size=[2, 2],
                                        strides=[2, 2],
                                        padding='SAME')(conv2)
-  conv3 = tf.keras.layers.Conv2D(120,
+  conv3 = tf.python.keras.layers.Conv2D(120,
                                  kernel_size=5,
                                  padding='SAME',
                                  activation=tf.nn.relu)(pool2)
-  flatten = tf.keras.layers.Flatten()(conv3)
-  dense1 = tf.keras.layers.Dense(84, activation=tf.nn.relu)(flatten)
-  logits = tf.keras.layers.Dense(num_classes)(dense1)
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
-  return tf.keras.Model(inputs=inputs, outputs=outputs)
+  flatten = tf.python.keras.layers.Flatten()(conv3)
+  dense1 = tf.python.keras.layers.Dense(84, activation=tf.nn.relu)(flatten)
+  logits = tf.python.keras.layers.Dense(num_classes)(dense1)
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
+  return tf.python.keras.Model(inputs=inputs, outputs=outputs)

@@ -50,7 +50,7 @@ def rank1_resnet_layer(inputs,
     filters: Number of filters for Conv2D.
     kernel_size: Kernel dimensions for Conv2D.
     strides: Stride dimensinons for Conv2D.
-    activation: tf.keras.activations.Activation.
+    activation: tf.python.keras.activations.Activation.
     alpha_initializer: The initializer for the alpha parameters.
     gamma_initializer: The initializer for the gamma parameters.
     alpha_regularizer: The regularizer for the alpha parameters.
@@ -87,10 +87,10 @@ def rank1_resnet_layer(inputs,
       gamma_regularizer=gamma_regularizer,
       use_additive_perturbation=use_additive_perturbation,
       ensemble_size=ensemble_size)(x)
-  x = tf.keras.layers.BatchNormalization(epsilon=BATCH_NORM_EPSILON,
+  x = tf.python.keras.layers.BatchNormalization(epsilon=BATCH_NORM_EPSILON,
                                          momentum=BATCH_NORM_DECAY)(x)
   if activation is not None:
-    x = tf.keras.layers.Activation(activation)(x)
+    x = tf.python.keras.layers.Activation(activation)(x)
   return x
 
 
@@ -129,7 +129,7 @@ def rank1_resnet_v1(input_shape,
     dropout_rate: Dropout rate.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 2) % 6 != 0:
     raise ValueError('depth should be 6n+2 (e.g., 20, 32, 44).')
@@ -146,7 +146,7 @@ def rank1_resnet_v1(input_shape,
       ensemble_size=ensemble_size,
       random_sign_init=random_sign_init,
       dropout_rate=dropout_rate)
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   x = resnet_layer(inputs,
                    filters=filters,
                    kernel_size=3,
@@ -178,13 +178,13 @@ def rank1_resnet_v1(input_shape,
             kernel_size=1,
             strides=strides,
             activation=None)
-      x = tf.keras.layers.add([x, y])
-      x = tf.keras.layers.Activation('relu')(x)
+      x = tf.python.keras.layers.add([x, y])
+      x = tf.python.keras.layers.Activation('relu')(x)
     filters *= 2
 
   # v1 does not use BN after last shortcut connection-ReLU
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   x = ed.layers.DenseRank1(
       num_classes,
       activation=None,
@@ -199,5 +199,5 @@ def rank1_resnet_v1(input_shape,
       gamma_regularizer=gamma_regularizer,
       use_additive_perturbation=use_additive_perturbation,
       ensemble_size=ensemble_size)(x)
-  model = tf.keras.Model(inputs=inputs, outputs=x)
+  model = tf.python.keras.Model(inputs=inputs, outputs=x)
   return model
