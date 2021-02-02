@@ -21,7 +21,7 @@ from experimental.rank1_bnns import utils  # local file import
 import tensorflow as tf
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.BatchNormalization,
+    tf.python.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
 Conv2DRank1 = functools.partial(  # pylint: disable=invalid-name
@@ -74,7 +74,7 @@ def basic_block(inputs,
   x = inputs
   y = inputs
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2DRank1(
       filters,
       strides=strides,
@@ -91,7 +91,7 @@ def basic_block(inputs,
       use_additive_perturbation=use_additive_perturbation,
       ensemble_size=ensemble_size)(y)
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2DRank1(
       filters,
       strides=1,
@@ -124,7 +124,7 @@ def basic_block(inputs,
             gamma_regularizer, prior_mean, prior_stddev),
         use_additive_perturbation=use_additive_perturbation,
         ensemble_size=ensemble_size)(x)
-  x = tf.keras.layers.add([x, y])
+  x = tf.python.keras.layers.add([x, y])
   return x
 
 
@@ -182,12 +182,12 @@ def wide_resnet(input_shape,
     prior_stddev: Standard deviation of the prior.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 4) % 6 != 0:
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   x = Conv2DRank1(
       16,
       strides=1,
@@ -220,9 +220,9 @@ def wide_resnet(input_shape,
               prior_stddev=prior_stddev)
 
   x = BatchNormalization()(x)
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   x = ed.layers.DenseRank1(
       num_classes,
       alpha_initializer=utils.make_initializer(alpha_initializer,
@@ -239,4 +239,4 @@ def wide_resnet(input_shape,
           gamma_regularizer, prior_mean, prior_stddev),
       use_additive_perturbation=use_additive_perturbation,
       ensemble_size=ensemble_size)(x)
-  return tf.keras.Model(inputs=inputs, outputs=x)
+  return tf.python.keras.Model(inputs=inputs, outputs=x)

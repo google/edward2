@@ -22,19 +22,19 @@ import tensorflow as tf
 BATCHNORM_L2 = 3e-4
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.BatchNormalization,
+    tf.python.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9,
-    beta_regularizer=tf.keras.regularizers.l2(BATCHNORM_L2),
-    gamma_regularizer=tf.keras.regularizers.l2(BATCHNORM_L2))
+    beta_regularizer=tf.python.keras.regularizers.l2(BATCHNORM_L2),
+    gamma_regularizer=tf.python.keras.regularizers.l2(BATCHNORM_L2))
 Conv2D = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.Conv2D,
+    tf.python.keras.layers.Conv2D,
     kernel_size=3,
     padding='same',
     use_bias=False,
     kernel_initializer='he_normal')
 
-l1_l2 = tf.keras.regularizers.l1_l2
+l1_l2 = tf.python.keras.regularizers.l1_l2
 
 
 def basic_block(inputs, filters, strides, l2=0., l1=0.):
@@ -43,18 +43,18 @@ def basic_block(inputs, filters, strides, l2=0., l1=0.):
   x = inputs
   y = inputs
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters, strides=strides,
              kernel_regularizer=l1_l2(l1=l1, l2=l2))(y)
   y = BatchNormalization()(y)
-  y = tf.keras.layers.Activation('relu')(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2D(filters, strides=1,
              kernel_regularizer=l1_l2(l1=l1, l2=l2))(y)
   if not x.shape.is_compatible_with(y.shape):
     x = Conv2D(filters, kernel_size=1, strides=strides,
                kernel_regularizer=l1_l2(l1=l1, l2=l2))(x)
 
-  x = tf.keras.layers.add([x, y])
+  x = tf.python.keras.layers.add([x, y])
   return x
 
 
@@ -89,17 +89,17 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     l1: L1 regularization value.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 4) % 6 != 0:
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
   input_shape = list(input_shape)
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  x = tf.keras.layers.Permute([2, 3, 4, 1])(inputs)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
+  x = tf.python.keras.layers.Permute([2, 3, 4, 1])(inputs)
   if ensemble_size != input_shape[0]:
     raise ValueError('the first dimension of input_shape must be ensemble_size')
-  x = tf.keras.layers.Reshape(input_shape[1:-1] +
+  x = tf.python.keras.layers.Reshape(input_shape[1:-1] +
                               [input_shape[-1] * ensemble_size])(x)
   # since the first conv layer and the last dense layer have ensemble_size more
   # weights, we multiply the regularization coefficients by that amount
@@ -117,9 +117,9 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
         l1=l1)
 
   x = BatchNormalization()(x)
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   x = layers.DenseMultihead(
       num_classes,
       kernel_initializer='he_normal',
@@ -127,4 +127,4 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
       ensemble_size=ensemble_size,
       kernel_regularizer=l1_l2(l1=scaled_l1, l2=scaled_l2),
       bias_regularizer=l1_l2(l1=scaled_l1, l2=scaled_l2))(x)
-  return tf.keras.Model(inputs=inputs, outputs=x)
+  return tf.python.keras.Model(inputs=inputs, outputs=x)

@@ -64,10 +64,10 @@ def mlp_block(in_dim, hidden_sizes, activation=tf.nn.relu):
     tensor of shape [B, n, d_out] where d_out = hidden_sizes[-1]
   """
 
-  net = tf.keras.Sequential([tf.keras.layers.InputLayer(in_dim)])
+  net = tf.python.keras.Sequential([tf.python.keras.layers.InputLayer(in_dim)])
   for size in hidden_sizes[:-1]:
-    net.add(tf.keras.layers.Dense(size, activation=activation))
-  net.add(tf.keras.layers.Dense(hidden_sizes[-1], activation=None))
+    net.add(tf.python.keras.layers.Dense(size, activation=activation))
+  net.add(tf.python.keras.layers.Dense(hidden_sizes[-1], activation=None))
   return net
 
 

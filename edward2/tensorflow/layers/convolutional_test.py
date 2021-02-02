@@ -79,7 +79,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
                        kernel_initializer,
                        bias_initializer,
                        all_close):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5, 4, 4, 12).astype(np.float32)
     model = layer(4,
                   kernel_size=2,
@@ -105,10 +105,10 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
   )
   def testConv2DModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
-    model = tf.keras.Sequential([
+    model = tf.python.keras.Sequential([
         layer(3, kernel_size=2, padding="SAME", activation="relu"),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(2, activation=None),
+        tf.python.keras.layers.Flatten(),
+        tf.python.keras.layers.Dense(2, activation=None),
     ])
     outputs = model(inputs, training=True)
     self.assertEqual(outputs.shape, (3, 2))
@@ -147,7 +147,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
   )
   def testConv1DKernel(self, layer, kernel_initializer, bias_initializer,
                        all_close):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5, 4, 12).astype(np.float32)
     model = layer(
         4,
@@ -172,10 +172,10 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
   )
   def testConv1DModel(self, layer):
     inputs = np.random.rand(3, 4, 1).astype(np.float32)
-    model = tf.keras.Sequential([
+    model = tf.python.keras.Sequential([
         layer(3, kernel_size=2, padding="SAME", activation="relu"),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(2, activation=None),
+        tf.python.keras.layers.Flatten(),
+        tf.python.keras.layers.Dense(2, activation=None),
     ])
     outputs = model(inputs, training=True)
     self.assertEqual(outputs.shape, (3, 2))
@@ -265,7 +265,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
        "gamma_initializer": "trainable_deterministic"},
   )
   def testConv2DRank1BatchEnsemble(self, alpha_initializer, gamma_initializer):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 3
     examples_per_model = 4
     input_dim = 5
@@ -467,7 +467,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
                                 all_close,
                                 use_additive_perturbation,
                                 ensemble_size):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5*ensemble_size, 4, 4, 12).astype(np.float32)
     model = ed.layers.Conv2DRank1(
         4,
@@ -491,7 +491,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
        "gamma_initializer": "trainable_deterministic"},
   )
   def testConv1DRank1BatchEnsemble(self, alpha_initializer, gamma_initializer):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 3
     examples_per_model = 4
     input_dim = 5
@@ -592,7 +592,7 @@ class ConvolutionalTest(parameterized.TestCase, tf.test.TestCase):
                                 all_close,
                                 use_additive_perturbation,
                                 ensemble_size):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5*ensemble_size, 4, 12).astype(np.float32)
     model = ed.layers.Conv1DRank1(
         4,

@@ -24,7 +24,7 @@ from experimental.auxiliary_sampling.sampling import mean_field_fn  # local file
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 
-keras = tf.keras
+keras = tf.python.keras
 
 
 def _resnet_layer(inputs,
@@ -204,7 +204,7 @@ def res_net(n_examples,
       model (Model): Keras model instance whose output is a
         tfp.distributions.Categorical distribution.
   """
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   x = build_resnet_v1(
       inputs,
       depth=20,
@@ -225,5 +225,5 @@ def res_net(n_examples,
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(x)
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
-  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(logits)
+  return tf.python.keras.models.Model(inputs=inputs, outputs=outputs)

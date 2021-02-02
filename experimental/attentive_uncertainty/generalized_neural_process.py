@@ -24,10 +24,10 @@ from experimental.attentive_uncertainty import utils  # local file import
 
 import tensorflow.compat.v1 as tf
 
-eps = tf.keras.backend.epsilon()
+eps = tf.python.keras.backend.epsilon()
 
 
-class Regressor(tf.keras.Model):
+class Regressor(tf.python.keras.Model):
   r"""Generalized neural process regressor.
 
   A generalized neural process (GNP) expresses the following generative process

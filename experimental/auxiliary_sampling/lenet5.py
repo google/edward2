@@ -28,7 +28,7 @@ def lenet5(n_examples, input_shape, num_classes):
   def normalized_kl_fn(q, p, _):
     return q.kl_divergence(p) / tf.cast(n_examples, tf.float32)
 
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   conv1 = tfp.layers.Convolution2DFlipout(
       6,
       kernel_size=5,
@@ -40,7 +40,7 @@ def lenet5(n_examples, input_shape, num_classes):
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(inputs)
-  pool1 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+  pool1 = tf.python.keras.layers.MaxPooling2D(pool_size=[2, 2],
                                        strides=[2, 2],
                                        padding='SAME')(conv1)
   conv2 = tfp.layers.Convolution2DFlipout(
@@ -54,7 +54,7 @@ def lenet5(n_examples, input_shape, num_classes):
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(pool1)
-  pool2 = tf.keras.layers.MaxPooling2D(pool_size=[2, 2],
+  pool2 = tf.python.keras.layers.MaxPooling2D(pool_size=[2, 2],
                                        strides=[2, 2],
                                        padding='SAME')(conv2)
   conv3 = tfp.layers.Convolution2DFlipout(
@@ -68,7 +68,7 @@ def lenet5(n_examples, input_shape, num_classes):
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(pool2)
-  flatten = tf.keras.layers.Flatten()(conv3)
+  flatten = tf.python.keras.layers.Flatten()(conv3)
   dense1 = tfp.layers.DenseLocalReparameterization(
       84,
       activation=tf.nn.relu,
@@ -86,5 +86,5 @@ def lenet5(n_examples, input_shape, num_classes):
       bias_posterior_fn=q_fn,
       kernel_divergence_fn=normalized_kl_fn,
       bias_divergence_fn=normalized_kl_fn)(dense1)
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(dense2)
-  return tf.keras.models.Model(inputs=inputs, outputs=outputs)
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Categorical(logits=x))(dense2)
+  return tf.python.keras.models.Model(inputs=inputs, outputs=outputs)

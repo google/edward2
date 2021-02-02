@@ -87,7 +87,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
                       kernel_initializer,
                       bias_initializer,
                       all_close):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5, 3, 12).astype(np.float32)
     model = layer(4,
                   kernel_initializer=kernel_initializer,
@@ -112,7 +112,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
   )
   def testDenseMean(self, layer):
     """Tests that forward pass can use other values, e.g., posterior mean."""
-    tf.keras.backend.set_learning_phase(0)  # test time
+    tf.python.keras.backend.set_learning_phase(0)  # test time
     def take_mean(f, *args, **kwargs):
       """Sets random variable value to its mean."""
       rv = f(*args, **kwargs)
@@ -136,7 +136,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       {"layer": ed.layers.DenseHierarchical},
   )
   def testDenseLoss(self, layer):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     features = np.random.rand(5, 12).astype(np.float32)
     labels = np.random.rand(5, 10).astype(np.float32)
     model = layer(10)
@@ -145,7 +145,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     with tf.GradientTape(persistent=True) as tape:
       predictions = model(features)  # first call forces build
       model(features)  # ensure robustness after multiple calls
-      nll = tf.keras.losses.mean_squared_error(labels, predictions)
+      nll = tf.python.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(model.losses)
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
@@ -166,7 +166,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     # Imagine this is the 2nd epoch.
     with tf.GradientTape(persistent=True) as tape:
       predictions = model(features)  # build is not called
-      nll = tf.keras.losses.mean_squared_error(labels, predictions)
+      nll = tf.python.keras.losses.mean_squared_error(labels, predictions)
       kl = sum(model.losses)
 
     variables = [model.kernel_initializer.mean, model.kernel_initializer.stddev]
@@ -195,12 +195,12 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
   )
   def testDenseModel(self, layer):
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
-    model = tf.keras.Sequential([
-        tf.keras.layers.Conv2D(3,
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.Conv2D(3,
                                kernel_size=2,
                                padding="SAME",
                                activation=tf.nn.relu),
-        tf.keras.layers.Flatten(),
+        tf.python.keras.layers.Flatten(),
         layer(2, activation=None),
     ])
     outputs = model(inputs, training=True)
@@ -224,12 +224,12 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
       pass
 
     inputs = np.random.rand(3, 4, 4, 1).astype(np.float32)
-    model = tf.keras.Sequential([
-        tf.keras.layers.Conv2D(3,
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.Conv2D(3,
                                kernel_size=2,
                                padding="SAME",
                                activation=tf.nn.relu),
-        tf.keras.layers.Flatten(),
+        tf.python.keras.layers.Flatten(),
         DenseSubclass(2, activation=None),
     ])
     outputs = model(inputs, training=True)
@@ -243,7 +243,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     """Tests that DenseDVI network has a deterministic loss function."""
     features = np.random.rand(3, 2).astype(np.float32)
     labels = np.random.rand(3, 1).astype(np.float32)
-    model = tf.keras.Sequential([
+    model = tf.python.keras.Sequential([
         ed.layers.DenseDVI(5, activation=tf.nn.relu),
         ed.layers.DenseDVI(1, activation=None),
     ])
@@ -288,7 +288,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
 
   def testDenseBatchEnsemble(self):
     """Tests that vectorized implementation is same as for loop."""
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 3
     examples_per_model = 4
     input_dim = 5
@@ -431,7 +431,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
                                   alpha_initializer,
                                   gamma_initializer,
                                   bias_initializer):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     ensemble_size = 3
     examples_per_model = 4
     input_dim = 5
@@ -532,7 +532,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
                                all_close,
                                use_additive_perturbation,
                                ensemble_size):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     inputs = np.random.rand(5*ensemble_size, 12).astype(np.float32)
     model = ed.layers.DenseRank1(
         4,
@@ -550,7 +550,7 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     model.get_config()
 
   def testCondConv(self):
-    tf.keras.backend.set_learning_phase(1)  # training time
+    tf.python.keras.backend.set_learning_phase(1)  # training time
     features = np.random.rand(5, 12).astype(np.float32)
     routing_weights = np.random.rand(5, 3).astype(np.float32)
     model = ed.layers.CondDense(10, num_experts=3)

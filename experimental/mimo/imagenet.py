@@ -106,8 +106,8 @@ def main(argv):
   test_dataset = strategy.experimental_distribute_dataset(test_dataset)
 
   if FLAGS.use_bfloat16:
-    policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
-    tf.keras.mixed_precision.experimental.set_policy(policy)
+    policy = tf.python.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+    tf.python.keras.mixed_precision.experimental.set_policy(policy)
 
   with strategy.scope():
     logging.info('Building Keras ResNet-50 model')
@@ -131,27 +131,27 @@ def main(argv):
                                                base_lr,
                                                FLAGS.train_epochs,
                                                lr_schedule)
-    optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate,
+    optimizer = tf.python.keras.optimizers.SGD(learning_rate=learning_rate,
                                         momentum=0.9,
                                         nesterov=True)
     metrics = {
-        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
-        'train/loss': tf.keras.metrics.Mean(),
+        'train/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'train/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
+        'train/loss': tf.python.keras.metrics.Mean(),
         'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
-        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'test/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
 
     for i in range(FLAGS.ensemble_size):
-      metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
+      metrics['test/nll_member_{}'.format(i)] = tf.python.keras.metrics.Mean()
       metrics['test/accuracy_member_{}'.format(i)] = (
-          tf.keras.metrics.SparseCategoricalAccuracy())
+          tf.python.keras.metrics.SparseCategoricalAccuracy())
     test_diversity = {
-        'test/disagreement': tf.keras.metrics.Mean(),
-        'test/average_kl': tf.keras.metrics.Mean(),
-        'test/cosine_similarity': tf.keras.metrics.Mean(),
+        'test/disagreement': tf.python.keras.metrics.Mean(),
+        'test/average_kl': tf.python.keras.metrics.Mean(),
+        'test/cosine_similarity': tf.python.keras.metrics.Mean(),
     }
     logging.info('Finished building Keras ResNet-50 model')
 
@@ -195,7 +195,7 @@ def main(argv):
           logits = tf.cast(logits, tf.float32)
 
         negative_log_likelihood = tf.reduce_mean(tf.reduce_sum(
-            tf.keras.losses.sparse_categorical_crossentropy(labels,
+            tf.python.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True),
             axis=1))
@@ -246,7 +246,7 @@ def main(argv):
 
       for i in range(FLAGS.ensemble_size):
         member_probs = probs[:, i]
-        member_loss = tf.keras.losses.sparse_categorical_crossentropy(
+        member_loss = tf.python.keras.losses.sparse_categorical_crossentropy(
             labels, member_probs)
         metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
         metrics['test/accuracy_member_{}'.format(i)].update_state(
@@ -255,7 +255,7 @@ def main(argv):
       # Negative log marginal likelihood computed in a numerically-stable way.
       labels_tiled = tf.tile(
           tf.expand_dims(labels, 1), [1, FLAGS.ensemble_size])
-      log_likelihoods = -tf.keras.losses.sparse_categorical_crossentropy(
+      log_likelihoods = -tf.python.keras.losses.sparse_categorical_crossentropy(
           labels_tiled, logits, from_logits=True)
       negative_log_likelihood = tf.reduce_mean(
           -tf.reduce_logsumexp(log_likelihoods, axis=[1]) +
@@ -269,7 +269,7 @@ def main(argv):
 
     strategy.run(step_fn, args=(next(iterator),))
 
-  metrics.update({'test/ms_per_example': tf.keras.metrics.Mean()})
+  metrics.update({'test/ms_per_example': tf.python.keras.metrics.Mean()})
 
   train_iterator = iter(train_dataset)
   start_time = time.time()

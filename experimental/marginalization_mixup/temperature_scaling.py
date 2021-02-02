@@ -121,15 +121,15 @@ def main(argv):
   steps_per_eval = ds_info.splits['test'].num_examples // batch_size
 
   if FLAGS.use_bfloat16:
-    policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
-    tf.keras.mixed_precision.experimental.set_policy(policy)
+    policy = tf.python.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+    tf.python.keras.mixed_precision.experimental.set_policy(policy)
 
   summary_writer = tf.summary.create_file_writer(
       os.path.join(FLAGS.output_dir, 'summaries'))
 
   with strategy.scope():
     logging.info('Building Keras model')
-    model = tf.keras.models.load_model(FLAGS.model_dir)
+    model = tf.python.keras.models.load_model(FLAGS.model_dir)
     logging.info('Model input shape: %s', model.input_shape)
     logging.info('Model output shape: %s', model.output_shape)
     logging.info('Model number of weights: %s', model.count_params())
@@ -140,11 +140,11 @@ def main(argv):
     temperature_corrupt_metrics = []
     for _ in temperatures:
       metrics = {
-          'val/negative_log_likelihood': tf.keras.metrics.Mean(),
-          'val/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+          'val/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+          'val/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
           'val/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
-          'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-          'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+          'test/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+          'test/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
           'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
       }
       temperature_metrics.append(metrics)
@@ -154,9 +154,9 @@ def main(argv):
           for corruption in corruption_types:
             dataset_name = '{0}_{1}'.format(corruption, intensity)
             corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
-                tf.keras.metrics.Mean())
+                tf.python.keras.metrics.Mean())
             corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
-                tf.keras.metrics.SparseCategoricalAccuracy())
+                tf.python.keras.metrics.SparseCategoricalAccuracy())
             corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
                 um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
       temperature_corrupt_metrics.append(corrupt_metrics)
@@ -188,7 +188,7 @@ def main(argv):
         if FLAGS.ensemble_then_calibrate:
           probs = tf.nn.softmax(tf.math.log(probs) / temperature)
         negative_log_likelihood = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
+            tf.python.keras.losses.sparse_categorical_crossentropy(labels, probs))
         if dataset_name == 'validation':
           metrics['val/negative_log_likelihood'].update_state(
               negative_log_likelihood)

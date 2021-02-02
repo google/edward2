@@ -27,8 +27,8 @@ class StochasticOutputTest(parameterized.TestCase, tf.test.TestCase):
     batch_size = 3
     features = np.random.rand(batch_size, 4).astype(np.float32)
     labels = np.random.rand(batch_size).astype(np.float32)
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(2, activation=None),
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.Dense(2, activation=None),
         ed.layers.MixtureLogistic(5),
     ])
     outputs = model(features)

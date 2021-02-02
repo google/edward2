@@ -23,7 +23,7 @@ import tensorflow as tf
 class TransformedRandomVariableTest(tf.test.TestCase):
 
   def testTransformedRandomVariable(self):
-    class Exp(tf.keras.layers.Layer):
+    class Exp(tf.python.keras.layers.Layer):
       """Exponential activation function for reversible networks."""
 
       def __call__(self, inputs, *args, **kwargs):

@@ -24,7 +24,7 @@ def _make_sign_initializer(random_sign_init):
   if random_sign_init > 0:
     return ed.initializers.RandomSign(random_sign_init)
   else:
-    return tf.keras.initializers.RandomNormal(mean=1.0,
+    return tf.python.keras.initializers.RandomNormal(mean=1.0,
                                               stddev=-random_sign_init)
 
 
@@ -37,26 +37,26 @@ def make_initializer(initializer, random_sign_init, dropout_rate):
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableHalfCauchy(
         loc_initializer=_make_sign_initializer(random_sign_init),
-        scale_initializer=tf.keras.initializers.Constant(stddev_init),
+        scale_initializer=tf.python.keras.initializers.Constant(stddev_init),
         scale_constraint='softplus')
   elif initializer == 'trainable_cauchy':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableCauchy(
         loc_initializer=_make_sign_initializer(random_sign_init),
-        scale_initializer=tf.keras.initializers.Constant(stddev_init),
+        scale_initializer=tf.python.keras.initializers.Constant(stddev_init),
         scale_constraint='softplus')
   elif initializer == 'trainable_normal':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableNormal(
         mean_initializer=_make_sign_initializer(random_sign_init),
-        stddev_initializer=tf.keras.initializers.TruncatedNormal(
+        stddev_initializer=tf.python.keras.initializers.TruncatedNormal(
             mean=stddev_init, stddev=0.1),
         stddev_constraint='softplus')
   elif initializer == 'trainable_log_normal':
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableLogNormal(
         loc_initializer=_make_sign_initializer(random_sign_init),
-        scale_initializer=tf.keras.initializers.TruncatedNormal(
+        scale_initializer=tf.python.keras.initializers.TruncatedNormal(
             mean=stddev_init, stddev=0.1),
         scale_constraint='softplus')
   elif initializer == 'trainable_normal_fixed_stddev':
@@ -67,7 +67,7 @@ def make_initializer(initializer, random_sign_init, dropout_rate):
     stddev_init = np.log(np.expm1(np.sqrt(dropout_rate / (1. - dropout_rate))))
     return ed.initializers.TrainableNormalSharedStddev(
         mean_initializer=_make_sign_initializer(random_sign_init),
-        stddev_initializer=tf.keras.initializers.Constant(stddev_init),
+        stddev_initializer=tf.python.keras.initializers.Constant(stddev_init),
         stddev_constraint='softplus')
   return initializer
 

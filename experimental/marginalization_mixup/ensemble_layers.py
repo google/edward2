@@ -19,15 +19,15 @@
 import tensorflow as tf
 
 
-class BatchEnsembleDEConv2D(tf.keras.layers.Layer):
+class BatchEnsembleDEConv2D(tf.python.keras.layers.Layer):
   """A batch ensemble convolutional transpose layer."""
 
   def __init__(self,
                filters,
                kernel_size,
                num_models=4,
-               alpha_initializer=tf.keras.initializers.Ones(),
-               gamma_initializer=tf.keras.initializers.Ones(),
+               alpha_initializer=tf.python.keras.initializers.Ones(),
+               gamma_initializer=tf.python.keras.initializers.Ones(),
                strides=(1, 1),
                padding="valid",
                data_format="channels_last",
@@ -49,8 +49,8 @@ class BatchEnsembleDEConv2D(tf.keras.layers.Layer):
     self.alpha_initializer = alpha_initializer
     self.gamma_initializer = gamma_initializer
     self.use_bias = use_bias
-    self.activation = tf.keras.activations.get(activation)
-    self.deconv2d = tf.keras.layers.Conv2DTranspose(
+    self.activation = tf.python.keras.activations.get(activation)
+    self.deconv2d = tf.python.keras.layers.Conv2DTranspose(
         filters=filters,
         kernel_size=kernel_size,
         strides=strides,
@@ -89,7 +89,7 @@ class BatchEnsembleDEConv2D(tf.keras.layers.Layer):
       self.bias = self.add_weight(
           name="bias",
           shape=[self.num_models, self.filters],
-          initializer=tf.keras.initializers.Zeros(),
+          initializer=tf.python.keras.initializers.Zeros(),
           trainable=True,
           dtype=self.dtype)
     else:

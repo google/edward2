@@ -48,8 +48,8 @@ class GaussianProcessTest(tf.test.TestCase):
     output_dim = 5
     features = np.random.rand(batch_size, input_dim).astype(np.float32)
     labels = np.random.rand(batch_size, output_dim).astype(np.float32)
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(2, activation=None),
+    model = tf.python.keras.Sequential([
+        tf.python.keras.layers.Dense(2, activation=None),
         ed.layers.GaussianProcess(output_dim),
     ])
     outputs = model(features)

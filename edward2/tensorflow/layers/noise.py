@@ -22,7 +22,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 
-class NCPNormalPerturb(tf.keras.layers.Layer):
+class NCPNormalPerturb(tf.python.keras.layers.Layer):
   """Noise contrastive prior for continuous inputs (Hafner et al., 2018).
 
   The layer doubles the inputs' batch size and adds a random normal perturbation
@@ -43,14 +43,14 @@ class NCPNormalPerturb(tf.keras.layers.Layer):
 
   inputs = keras.Input(shape=(25,))
   x = ed.layers.NCPNormalPerturb()(inputs)  # double input batch
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
   means = ed.layers.DenseVariationalDropout(1, activation=None)(x)  # get mean
   means = ed.layers.NCPNormalOutput(labels)(means)  # halve input batch
-  stddevs = tf.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
+  stddevs = tf.python.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
                                                                      stddevs])
-  model = tf.keras.Model(inputs=inputs, outputs=outputs)
+  model = tf.python.keras.Model(inputs=inputs, outputs=outputs)
 
   # Run training loop.
   num_steps = 1000
@@ -89,7 +89,7 @@ class NCPNormalPerturb(tf.keras.layers.Layer):
     return tf.concat([inputs, perturbed_inputs], 0)
 
 
-class NCPCategoricalPerturb(tf.keras.layers.Layer):
+class NCPCategoricalPerturb(tf.python.keras.layers.Layer):
   """Noise contrastive prior for discrete inputs (Hafner et al., 2018).
 
   The layer doubles the inputs' batch size and randomly flips categories
@@ -111,14 +111,14 @@ class NCPCategoricalPerturb(tf.keras.layers.Layer):
 
   inputs = keras.Input(shape=(25,))
   x = ed.layers.NCPCategoricalPerturb(10)(inputs)  # double input batch
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
   means = ed.layers.DenseVariationalDropout(1, activation=None)(x)  # get mean
   means = ed.layers.NCPNormalOutput(labels)(means)  # halve input batch
-  stddevs = tf.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
+  stddevs = tf.python.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
                                                                      stddevs])
-  model = tf.keras.Model(inputs=inputs, outputs=outputs)
+  model = tf.python.keras.Model(inputs=inputs, outputs=outputs)
 
   # Run training loop.
   num_steps = 1000
@@ -162,7 +162,7 @@ class NCPCategoricalPerturb(tf.keras.layers.Layer):
     return tf.concat([inputs, flipped_inputs], 0)
 
 
-class NCPNormalOutput(tf.keras.layers.Layer):
+class NCPNormalOutput(tf.python.keras.layers.Layer):
   """Noise contrastive prior for continuous outputs (Hafner et al., 2018).
 
   The layer returns the first half of the inputs' batch. It computes a KL
@@ -188,14 +188,14 @@ class NCPNormalOutput(tf.keras.layers.Layer):
 
   inputs = keras.Input(shape=(25,))
   x = ed.layers.NCPNormalPerturb()(inputs)  # double input batch
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
-  x = tf.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
+  x = tf.python.keras.layers.Dense(64, activation='relu')(x)
   means = ed.layers.DenseVariationalDropout(1, activation=None)(x)  # get mean
   means = ed.layers.NCPNormalOutput(labels)(means)  # halve input batch
-  stddevs = tf.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
-  outputs = tf.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
+  stddevs = tf.python.keras.layers.Dense(1, activation='softplus')(x[:batch_size])
+  outputs = tf.python.keras.layers.Lambda(lambda x: ed.Normal(x[0], x[1]))([means,
                                                                      stddevs])
-  model = tf.keras.Model(inputs=inputs, outputs=outputs)
+  model = tf.python.keras.Model(inputs=inputs, outputs=outputs)
 
   # Run training loop.
   num_steps = 1000

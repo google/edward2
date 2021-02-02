@@ -106,7 +106,7 @@ def ensemble_metrics(x,
   Args:
     x: numpy array of inputs
     y: numpy array of labels
-    model: tf.keras.Model.
+    model: tf.python.keras.Model.
     log_likelihood_fn: keras function of log likelihood. For classification
       tasks, log_likelihood_fn(...)[1] should return the logits
     n_samples: number of Monte Carlo samples to draw per ensemble member (each

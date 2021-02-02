@@ -102,7 +102,7 @@ def bottleneck_block(inputs,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name=bn_name_base+'2a')
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
 
   x = ed.layers.Conv2DRank1(
       filters2,
@@ -131,7 +131,7 @@ def bottleneck_block(inputs,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name=bn_name_base+'2b')
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
 
   x = ed.layers.Conv2DRank1(
       filters3,
@@ -188,8 +188,8 @@ def bottleneck_block(inputs,
         epsilon=BATCH_NORM_EPSILON,
         name=bn_name_base+'1')
 
-  x = tf.keras.layers.add([x, shortcut])
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.add([x, shortcut])
+  x = tf.python.keras.layers.Activation('relu')(x)
   return x
 
 
@@ -269,7 +269,7 @@ def rank1_resnet50(input_shape,
     use_tpu: whether the model runs on TPU.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   group_ = functools.partial(
       group,
@@ -283,8 +283,8 @@ def rank1_resnet50(input_shape,
       dropout_rate=dropout_rate,
       prior_stddev=prior_stddev,
       use_tpu=use_tpu)
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  x = tf.keras.layers.ZeroPadding2D(padding=3, name='conv1_pad')(inputs)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
+  x = tf.python.keras.layers.ZeroPadding2D(padding=3, name='conv1_pad')(inputs)
   x = ed.layers.Conv2DRank1(
       64,
       kernel_size=7,
@@ -312,13 +312,13 @@ def rank1_resnet50(input_shape,
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name='bn_conv1')
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.MaxPooling2D(3, strides=(2, 2), padding='same')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.MaxPooling2D(3, strides=(2, 2), padding='same')(x)
   x = group_(x, [64, 64, 256], stage=2, num_blocks=3, strides=1)
   x = group_(x, [128, 128, 512], stage=3, num_blocks=4, strides=2)
   x = group_(x, [256, 256, 1024], stage=4, num_blocks=6, strides=2)
   x = group_(x, [512, 512, 2048], stage=5, num_blocks=3, strides=2)
-  x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+  x = tf.python.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
   x = ed.layers.DenseRank1(
       num_classes,
       alpha_initializer=utils.make_initializer(alpha_initializer,
@@ -327,7 +327,7 @@ def rank1_resnet50(input_shape,
       gamma_initializer=utils.make_initializer(gamma_initializer,
                                                random_sign_init,
                                                dropout_rate),
-      kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
+      kernel_initializer=tf.python.keras.initializers.RandomNormal(stddev=0.01),
       alpha_regularizer=utils.make_regularizer(
           alpha_regularizer, 1., prior_stddev),
       gamma_regularizer=utils.make_regularizer(
@@ -336,4 +336,4 @@ def rank1_resnet50(input_shape,
       ensemble_size=ensemble_size,
       activation=None,
       name='fc1000')(x)
-  return tf.keras.Model(inputs=inputs, outputs=x, name='resnet50')
+  return tf.python.keras.Model(inputs=inputs, outputs=x, name='resnet50')

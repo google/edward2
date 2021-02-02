@@ -49,19 +49,19 @@ def bottleneck_block(inputs,
   conv_name_base = 'res' + str(stage) + block + '_branch'
   bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-  x = tf.keras.layers.Conv2D(
+  x = tf.python.keras.layers.Conv2D(
       filters1,
       kernel_size=1,
       use_bias=False,
       kernel_initializer='he_normal',
       name=conv_name_base + '2a')(inputs)
-  x = tf.keras.layers.BatchNormalization(
+  x = tf.python.keras.layers.BatchNormalization(
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name=bn_name_base + '2a')(x)
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
 
-  x = tf.keras.layers.Conv2D(
+  x = tf.python.keras.layers.Conv2D(
       filters2,
       kernel_size=3,
       strides=strides,
@@ -69,39 +69,39 @@ def bottleneck_block(inputs,
       use_bias=False,
       kernel_initializer='he_normal',
       name=conv_name_base + '2b')(x)
-  x = tf.keras.layers.BatchNormalization(
+  x = tf.python.keras.layers.BatchNormalization(
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name=bn_name_base + '2b')(x)
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
 
-  x = tf.keras.layers.Conv2D(
+  x = tf.python.keras.layers.Conv2D(
       filters3,
       kernel_size=1,
       use_bias=False,
       kernel_initializer='he_normal',
       name=conv_name_base + '2c')(x)
-  x = tf.keras.layers.BatchNormalization(
+  x = tf.python.keras.layers.BatchNormalization(
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name=bn_name_base + '2c')(x)
 
   shortcut = inputs
   if not x.shape.is_compatible_with(shortcut.shape):
-    shortcut = tf.keras.layers.Conv2D(
+    shortcut = tf.python.keras.layers.Conv2D(
         filters3,
         kernel_size=1,
         use_bias=False,
         strides=strides,
         kernel_initializer='he_normal',
         name=conv_name_base + '1')(shortcut)
-    shortcut = tf.keras.layers.BatchNormalization(
+    shortcut = tf.python.keras.layers.BatchNormalization(
         momentum=BATCH_NORM_DECAY,
         epsilon=BATCH_NORM_EPSILON,
         name=bn_name_base + '1')(shortcut)
 
-  x = tf.keras.layers.add([x, shortcut])
-  x = tf.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.add([x, shortcut])
+  x = tf.python.keras.layers.Activation('relu')(x)
   return x
 
 
@@ -127,17 +127,17 @@ def resnet50(input_shape, num_classes, ensemble_size, width_multiplier=1):
     width_multiplier: Multiply the number of filters for wide ResNet.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   input_shape = list(input_shape)
-  inputs = tf.keras.layers.Input(shape=input_shape)
-  x = tf.keras.layers.Permute([2, 3, 4, 1])(inputs)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
+  x = tf.python.keras.layers.Permute([2, 3, 4, 1])(inputs)
   assert ensemble_size == input_shape[0]
-  x = tf.keras.layers.Reshape(list(input_shape[1:-1]) +
+  x = tf.python.keras.layers.Reshape(list(input_shape[1:-1]) +
                               [input_shape[-1] * ensemble_size])(
                                   x)
-  x = tf.keras.layers.ZeroPadding2D(padding=3, name='conv1_pad')(x)
-  x = tf.keras.layers.Conv2D(
+  x = tf.python.keras.layers.ZeroPadding2D(padding=3, name='conv1_pad')(x)
+  x = tf.python.keras.layers.Conv2D(
       width_multiplier * 64,
       kernel_size=7,
       strides=2,
@@ -145,12 +145,12 @@ def resnet50(input_shape, num_classes, ensemble_size, width_multiplier=1):
       use_bias=False,
       kernel_initializer='he_normal',
       name='conv1')(x)
-  x = tf.keras.layers.BatchNormalization(
+  x = tf.python.keras.layers.BatchNormalization(
       momentum=BATCH_NORM_DECAY,
       epsilon=BATCH_NORM_EPSILON,
       name='bn_conv1')(x)
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.MaxPooling2D(3, strides=2, padding='same')(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.MaxPooling2D(3, strides=2, padding='same')(x)
   x = group(x, [width_multiplier * 64,
                 width_multiplier * 64,
                 width_multiplier * 256], stage=2, num_blocks=3, strides=1)
@@ -163,11 +163,11 @@ def resnet50(input_shape, num_classes, ensemble_size, width_multiplier=1):
   x = group(x, [width_multiplier * 512,
                 width_multiplier * 512,
                 width_multiplier * 2048], stage=5, num_blocks=3, strides=2)
-  x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+  x = tf.python.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
   x = layers.DenseMultihead(
       num_classes,
       activation=None,
-      kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
+      kernel_initializer=tf.python.keras.initializers.RandomNormal(stddev=0.01),
       ensemble_size=ensemble_size,
       name='fc1000')(x)
-  return tf.keras.Model(inputs=inputs, outputs=x, name='resnet50')
+  return tf.python.keras.Model(inputs=inputs, outputs=x, name='resnet50')

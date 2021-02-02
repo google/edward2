@@ -36,9 +36,9 @@ def batch_mlp(inputs, hidden_sizes):
   hidden = tf.reshape(inputs, (-1, filter_size))
 
   for size in hidden_sizes[:-1]:
-    hidden = tf.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)
+    hidden = tf.python.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)
 
-  output = tf.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)
+  output = tf.python.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)
   output = tf.reshape(output, (batch_size, -1, hidden_sizes[-1]))
   return output
 
@@ -125,22 +125,22 @@ def multihead_attention(q, k, v, num_heads=8):
   d_k = q.shape.as_list()[-1]
   d_v = v.shape.as_list()[-1]
   head_size = int(d_v / num_heads)
-  key_initializer = tf.keras.initializers.RandomNormal(stddev=d_k**-0.5)
-  value_initializer = tf.keras.initializers.RandomNormal(stddev=d_v**-0.5)
+  key_initializer = tf.python.keras.initializers.RandomNormal(stddev=d_k**-0.5)
+  value_initializer = tf.python.keras.initializers.RandomNormal(stddev=d_v**-0.5)
   rep = tf.constant(0.0)
   for h in range(num_heads):
     o = dot_product_attention(
-        tf.keras.layers.Conv1D(
+        tf.python.keras.layers.Conv1D(
             head_size, 1, kernel_initializer=key_initializer,
             name='wq%d' % h, use_bias=False, padding='VALID')(q),
-        tf.keras.layers.Conv1D(
+        tf.python.keras.layers.Conv1D(
             head_size, 1, kernel_initializer=key_initializer,
             name='wk%d' % h, use_bias=False, padding='VALID')(k),
-        tf.keras.layers.Conv1D(
+        tf.python.keras.layers.Conv1D(
             head_size, 1, kernel_initializer=key_initializer,
             name='wv%d' % h, use_bias=False, padding='VALID')(v),
         normalise=True)
-    rep += tf.keras.layers.Conv1D(d_v, 1, kernel_initializer=value_initializer,
+    rep += tf.python.keras.layers.Conv1D(d_v, 1, kernel_initializer=value_initializer,
                                   name='wo%d' % h, use_bias=False,
                                   padding='VALID')(o)
   return rep
@@ -217,7 +217,7 @@ class Attention(object):
 
 
 # TODO(adityagrover): Make the encoder and decoder configurable.
-class NeuralProcess(tf.keras.Model):
+class NeuralProcess(tf.python.keras.Model):
   """Attentive Neural Process (Kim et al., 2019; Garnelo et al., 2018)."""
 
   def __init__(self,
@@ -264,11 +264,11 @@ class NeuralProcess(tf.keras.Model):
     per_example_embedding = batch_mlp(
         encoder_input, self._latent_encoder_sizes)
     dataset_embedding = tf.reduce_mean(per_example_embedding, axis=1)
-    hidden = tf.keras.layers.Dense(
+    hidden = tf.python.keras.layers.Dense(
         (self._latent_encoder_sizes[-1] + self._num_latents)//2,
         activation=tf.nn.relu)(dataset_embedding)
-    loc = tf.keras.layers.Dense(self._num_latents, activation=None)(hidden)
-    untransformed_scale = tf.keras.layers.Dense(self._num_latents,
+    loc = tf.python.keras.layers.Dense(self._num_latents, activation=None)(hidden)
+    untransformed_scale = tf.python.keras.layers.Dense(self._num_latents,
                                                 activation=None)(hidden)
     # Constraint scale following Garnelo et al. (2018).
     scale_diag = 0.1 + 0.9 * tf.sigmoid(untransformed_scale)

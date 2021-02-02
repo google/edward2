@@ -41,7 +41,7 @@ def train_neural_process(model,
   Returns:
     best_loss: (float) Average validation loss of best early-stopped model.
   """
-  optimizer = tf.keras.optimizers.Adam(learning_rate)
+  optimizer = tf.python.keras.optimizers.Adam(learning_rate)
   context_x, context_y, target_x, target_y = train_data
   valid_context_x, valid_context_y, valid_target_x, valid_target_y = valid_data
   train_data_size = target_x.shape[0]

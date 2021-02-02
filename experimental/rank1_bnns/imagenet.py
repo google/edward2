@@ -143,8 +143,8 @@ def main(argv):
             strategy.experimental_distribute_dataset(dataset))
 
   if FLAGS.use_bfloat16:
-    policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
-    tf.keras.mixed_precision.experimental.set_policy(policy)
+    policy = tf.python.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+    tf.python.keras.mixed_precision.experimental.set_policy(policy)
 
   summary_writer = tf.summary.create_file_writer(
       os.path.join(FLAGS.output_dir, 'summaries'))
@@ -173,21 +173,21 @@ def main(argv):
                                                base_lr,
                                                FLAGS.train_epochs,
                                                _LR_SCHEDULE)
-    optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate,
+    optimizer = tf.python.keras.optimizers.SGD(learning_rate=learning_rate,
                                         momentum=0.9,
                                         nesterov=True)
     metrics = {
-        'train/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'train/kl': tf.keras.metrics.Mean(),
-        'train/kl_scale': tf.keras.metrics.Mean(),
-        'train/elbo': tf.keras.metrics.Mean(),
-        'train/loss': tf.keras.metrics.Mean(),
-        'train/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'train/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'train/kl': tf.python.keras.metrics.Mean(),
+        'train/kl_scale': tf.python.keras.metrics.Mean(),
+        'train/elbo': tf.python.keras.metrics.Mean(),
+        'train/loss': tf.python.keras.metrics.Mean(),
+        'train/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
         'train/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
-        'test/negative_log_likelihood': tf.keras.metrics.Mean(),
-        'test/kl': tf.keras.metrics.Mean(),
-        'test/elbo': tf.keras.metrics.Mean(),
-        'test/accuracy': tf.keras.metrics.SparseCategoricalAccuracy(),
+        'test/negative_log_likelihood': tf.python.keras.metrics.Mean(),
+        'test/kl': tf.python.keras.metrics.Mean(),
+        'test/elbo': tf.python.keras.metrics.Mean(),
+        'test/accuracy': tf.python.keras.metrics.SparseCategoricalAccuracy(),
         'test/ece': um.ExpectedCalibrationError(num_bins=FLAGS.num_bins),
     }
     if FLAGS.corruptions_interval > 0:
@@ -196,13 +196,13 @@ def main(argv):
         for corruption in corruption_types:
           dataset_name = '{0}_{1}'.format(corruption, intensity)
           corrupt_metrics['test/nll_{}'.format(dataset_name)] = (
-              tf.keras.metrics.Mean())
+              tf.python.keras.metrics.Mean())
           corrupt_metrics['test/kl_{}'.format(dataset_name)] = (
-              tf.keras.metrics.Mean())
+              tf.python.keras.metrics.Mean())
           corrupt_metrics['test/elbo_{}'.format(dataset_name)] = (
-              tf.keras.metrics.Mean())
+              tf.python.keras.metrics.Mean())
           corrupt_metrics['test/accuracy_{}'.format(dataset_name)] = (
-              tf.keras.metrics.SparseCategoricalAccuracy())
+              tf.python.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
               um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
@@ -210,18 +210,18 @@ def main(argv):
     training_diversity = {}
     if FLAGS.ensemble_size > 1:
       for i in range(FLAGS.ensemble_size):
-        metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
+        metrics['test/nll_member_{}'.format(i)] = tf.python.keras.metrics.Mean()
         metrics['test/accuracy_member_{}'.format(i)] = (
-            tf.keras.metrics.SparseCategoricalAccuracy())
+            tf.python.keras.metrics.SparseCategoricalAccuracy())
       test_diversity = {
-          'test/disagreement': tf.keras.metrics.Mean(),
-          'test/average_kl': tf.keras.metrics.Mean(),
-          'test/cosine_similarity': tf.keras.metrics.Mean(),
+          'test/disagreement': tf.python.keras.metrics.Mean(),
+          'test/average_kl': tf.python.keras.metrics.Mean(),
+          'test/cosine_similarity': tf.python.keras.metrics.Mean(),
       }
       training_diversity = {
-          'train/disagreement': tf.keras.metrics.Mean(),
-          'train/average_kl': tf.keras.metrics.Mean(),
-          'train/cosine_similarity': tf.keras.metrics.Mean(),
+          'train/disagreement': tf.python.keras.metrics.Mean(),
+          'train/average_kl': tf.python.keras.metrics.Mean(),
+          'train/cosine_similarity': tf.python.keras.metrics.Mean(),
       }
 
     logging.info('Finished building Keras ResNet-50 model')
@@ -273,7 +273,7 @@ def main(argv):
               per_probs, FLAGS.ensemble_size)
 
         negative_log_likelihood = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(labels,
+            tf.python.keras.losses.sparse_categorical_crossentropy(labels,
                                                             logits,
                                                             from_logits=True))
         l2_loss = compute_l2_loss(model)
@@ -340,7 +340,7 @@ def main(argv):
       labels_broadcasted = tf.broadcast_to(
           labels,
           [FLAGS.num_eval_samples, FLAGS.ensemble_size, labels.shape[0]])
-      log_likelihoods = -tf.keras.losses.sparse_categorical_crossentropy(
+      log_likelihoods = -tf.python.keras.losses.sparse_categorical_crossentropy(
           labels_broadcasted, logits, from_logits=True)
       negative_log_likelihood = tf.reduce_mean(
           -tf.reduce_logsumexp(log_likelihoods, axis=[0, 1]) +
@@ -359,7 +359,7 @@ def main(argv):
             test_diversity['test/' + k].update_state(v)
           for i in range(FLAGS.ensemble_size):
             member_probs = per_probs[i]
-            member_loss = tf.keras.losses.sparse_categorical_crossentropy(
+            member_loss = tf.python.keras.losses.sparse_categorical_crossentropy(
                 labels, member_probs)
             metrics['test/nll_member_{}'.format(i)].update_state(member_loss)
             metrics['test/accuracy_member_{}'.format(i)].update_state(

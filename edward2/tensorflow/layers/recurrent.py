@@ -28,7 +28,7 @@ import tensorflow as tf
 
 
 @utils.add_weight
-class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
+class LSTMCellReparameterization(tf.python.keras.layers.LSTMCell):
   """Bayesian LSTM cell class estimated via reparameterization.
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -114,11 +114,11 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
 
     if self.use_bias:
       if (self.unit_forget_bias and not isinstance(self.bias_initializer,
-                                                   tf.keras.layers.Layer)):
+                                                   tf.python.keras.layers.Layer)):
         def bias_initializer(_, *args, **kwargs):
-          return tf.keras.backend.concatenate([
+          return tf.python.keras.backend.concatenate([
               self.bias_initializer((self.units,), *args, **kwargs),
-              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),
+              tf.python.keras.initializers.Ones()((self.units,), *args, **kwargs),
               self.bias_initializer((self.units * 2,), *args, **kwargs),
           ])
       else:
@@ -146,12 +146,12 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
 
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
-    if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
+    if isinstance(self.kernel_initializer, tf.python.keras.layers.Layer):
       self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
-    if isinstance(self.recurrent_initializer, tf.keras.layers.Layer):
+    if isinstance(self.recurrent_initializer, tf.python.keras.layers.Layer):
       self.recurrent_kernel = self.recurrent_initializer(
           self.recurrent_kernel.shape, self.dtype)
-    if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+    if isinstance(self.bias_initializer, tf.python.keras.layers.Layer):
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
     self.called_weights = True
 
@@ -170,13 +170,13 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
     # of distributions.
     recurrent_kernel = tf.convert_to_tensor(self.recurrent_kernel)
     i = self.recurrent_activation(
-        x_i + tf.keras.backend.dot(h_tm1_i, recurrent_kernel[:, :self.units]))
-    f = self.recurrent_activation(x_f + tf.keras.backend.dot(
+        x_i + tf.python.keras.backend.dot(h_tm1_i, recurrent_kernel[:, :self.units]))
+    f = self.recurrent_activation(x_f + tf.python.keras.backend.dot(
         h_tm1_f, recurrent_kernel[:, self.units:self.units * 2]))
-    c = f * c_tm1 + i * self.activation(x_c + tf.keras.backend.dot(
+    c = f * c_tm1 + i * self.activation(x_c + tf.python.keras.backend.dot(
         h_tm1_c, recurrent_kernel[:, self.units * 2:self.units * 3]))
     o = self.recurrent_activation(
-        x_o + tf.keras.backend.dot(
+        x_o + tf.python.keras.backend.dot(
             h_tm1_o, recurrent_kernel[:, self.units * 3:]))
     return c, o
 
@@ -253,14 +253,14 @@ class LSTMCellFlipout(LSTMCellReparameterization):
     p_i, p_f, p_c, p_o = tf.split(perturbation, num_or_size_splits=4, axis=1)
     so_i, so_f, so_c, so_o = tf.split(self.recurrent_sign_output,
                                       num_or_size_splits=4, axis=1)
-    z0 = (x_i + tf.keras.backend.dot(h_tm1_i, k_i) +
-          tf.keras.backend.dot(h_tm1_i * self.recurrent_sign_input, p_i) * so_i)
-    z1 = (x_f + tf.keras.backend.dot(h_tm1_f, k_f) +
-          tf.keras.backend.dot(h_tm1_f * self.recurrent_sign_input, p_f) * so_f)
-    z2 = (x_c + tf.keras.backend.dot(h_tm1_c, k_c) +
-          tf.keras.backend.dot(h_tm1_c * self.recurrent_sign_input, p_c) * so_c)
-    z3 = (x_o + tf.keras.backend.dot(h_tm1_o, k_o) +
-          tf.keras.backend.dot(h_tm1_o * self.recurrent_sign_input, p_o) * so_o)
+    z0 = (x_i + tf.python.keras.backend.dot(h_tm1_i, k_i) +
+          tf.python.keras.backend.dot(h_tm1_i * self.recurrent_sign_input, p_i) * so_i)
+    z1 = (x_f + tf.python.keras.backend.dot(h_tm1_f, k_f) +
+          tf.python.keras.backend.dot(h_tm1_f * self.recurrent_sign_input, p_f) * so_f)
+    z2 = (x_c + tf.python.keras.backend.dot(h_tm1_c, k_c) +
+          tf.python.keras.backend.dot(h_tm1_c * self.recurrent_sign_input, p_c) * so_c)
+    z3 = (x_o + tf.python.keras.backend.dot(h_tm1_o, k_o) +
+          tf.python.keras.backend.dot(h_tm1_o * self.recurrent_sign_input, p_o) * so_o)
     i = self.recurrent_activation(z0)
     f = self.recurrent_activation(z1)
     c = f * c_tm1 + i * self.activation(z2)
@@ -301,21 +301,21 @@ class LSTMCellFlipout(LSTMCellReparameterization):
       p_i, p_f, p_c, p_o = tf.split(perturbation, num_or_size_splits=4, axis=1)
       so_i, so_f, so_c, so_o = tf.split(self.sign_output,
                                         num_or_size_splits=4, axis=1)
-      x_i = (tf.keras.backend.dot(inputs_i, k_i) +
-             tf.keras.backend.dot(inputs_i * self.sign_input, p_i) * so_i)
-      x_f = (tf.keras.backend.dot(inputs_f, k_f) +
-             tf.keras.backend.dot(inputs_f * self.sign_input, p_f) * so_f)
-      x_c = (tf.keras.backend.dot(inputs_c, k_c) +
-             tf.keras.backend.dot(inputs_c * self.sign_input, p_c) * so_c)
-      x_o = (tf.keras.backend.dot(inputs_o, k_o) +
-             tf.keras.backend.dot(inputs_o * self.sign_input, p_o) * so_o)
+      x_i = (tf.python.keras.backend.dot(inputs_i, k_i) +
+             tf.python.keras.backend.dot(inputs_i * self.sign_input, p_i) * so_i)
+      x_f = (tf.python.keras.backend.dot(inputs_f, k_f) +
+             tf.python.keras.backend.dot(inputs_f * self.sign_input, p_f) * so_f)
+      x_c = (tf.python.keras.backend.dot(inputs_c, k_c) +
+             tf.python.keras.backend.dot(inputs_c * self.sign_input, p_c) * so_c)
+      x_o = (tf.python.keras.backend.dot(inputs_o, k_o) +
+             tf.python.keras.backend.dot(inputs_o * self.sign_input, p_o) * so_o)
       if self.use_bias:
         b_i, b_f, b_c, b_o = tf.split(
             self.bias, num_or_size_splits=4, axis=0)
-        x_i = tf.keras.backend.bias_add(x_i, b_i)
-        x_f = tf.keras.backend.bias_add(x_f, b_f)
-        x_c = tf.keras.backend.bias_add(x_c, b_c)
-        x_o = tf.keras.backend.bias_add(x_o, b_o)
+        x_i = tf.python.keras.backend.bias_add(x_i, b_i)
+        x_f = tf.python.keras.backend.bias_add(x_f, b_f)
+        x_c = tf.python.keras.backend.bias_add(x_c, b_c)
+        x_o = tf.python.keras.backend.bias_add(x_o, b_o)
 
       if 0 < self.recurrent_dropout < 1.:
         h_tm1_i = h_tm1 * rec_dp_mask[0]
@@ -335,18 +335,18 @@ class LSTMCellFlipout(LSTMCellReparameterization):
         inputs = inputs * dp_mask[0]
       kernel_mean = self.kernel.distribution.mean()
       perturbation = self.kernel - kernel_mean
-      z = tf.keras.backend.dot(inputs, kernel_mean)
-      z += tf.keras.backend.dot(inputs * self.sign_input,
+      z = tf.python.keras.backend.dot(inputs, kernel_mean)
+      z += tf.python.keras.backend.dot(inputs * self.sign_input,
                                 perturbation) * self.sign_output
       if 0. < self.recurrent_dropout < 1.:
         h_tm1 = h_tm1 * rec_dp_mask[0]
       recurrent_kernel_mean = self.recurrent_kernel.distribution.mean()
       perturbation = self.recurrent_kernel - recurrent_kernel_mean
-      z += tf.keras.backend.dot(h_tm1, recurrent_kernel_mean)
-      z += tf.keras.backend.dot(h_tm1 * self.recurrent_sign_input,
+      z += tf.python.keras.backend.dot(h_tm1, recurrent_kernel_mean)
+      z += tf.python.keras.backend.dot(h_tm1 * self.recurrent_sign_input,
                                 perturbation) * self.recurrent_sign_output
       if self.use_bias:
-        z = tf.keras.backend.bias_add(z, self.bias)
+        z = tf.python.keras.backend.bias_add(z, self.bias)
 
       z = tf.split(z, num_or_size_splits=4, axis=1)
       c, o = self._compute_carry_and_output_fused(z, c_tm1)
@@ -356,7 +356,7 @@ class LSTMCellFlipout(LSTMCellReparameterization):
 
 
 @utils.add_weight
-class LSTMCellRank1(tf.keras.layers.LSTMCell):
+class LSTMCellRank1(tf.python.keras.layers.LSTMCell):
   """A rank-1 Bayesian neural net LSTM cell layer (Dusenberry et al., 2020).
 
   The layer computes a variational Bayesian approximation to the distribution
@@ -588,12 +588,12 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
 
     if self.use_bias:
       if (self.unit_forget_bias and not isinstance(self.bias_initializer,
-                                                   tf.keras.layers.Layer)):
+                                                   tf.python.keras.layers.Layer)):
         def bias_initializer(_, *args, **kwargs):
           return tf.concat([
               self.bias_initializer([self.ensemble_size, self.units], *args,
                                     **kwargs),
-              tf.keras.initializers.Ones()([self.ensemble_size, self.units],
+              tf.python.keras.initializers.Ones()([self.ensemble_size, self.units],
                                            *args, **kwargs),
               self.bias_initializer([self.ensemble_size, self.units * 2],
                                     *args, **kwargs),
@@ -645,7 +645,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
 
     # Sample parameters for each input example.
     def sample(weight_variable, weight_initializer, shape):
-      if isinstance(weight_initializer, tf.keras.layers.Layer):
+      if isinstance(weight_initializer, tf.python.keras.layers.Layer):
         weights = weight_initializer(
             shape, self.dtype).distribution.sample(examples_per_model)
         weights = tf.transpose(weights, [1, 0, 2])
@@ -759,8 +759,8 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
     """Returns the configuration for the layer."""
     config = {
         'units': self.units,
-        'activation': tf.keras.activations.serialize(self.activation),
-        'recurrent_activation': tf.keras.activations.serialize(
+        'activation': tf.python.keras.activations.serialize(self.activation),
+        'recurrent_activation': tf.python.keras.activations.serialize(
             self.recurrent_activation),
         'use_bias': self.use_bias,
         'alpha_initializer': initializers.serialize(self.alpha_initializer),

@@ -21,7 +21,7 @@ import tensorflow as tf
 
 
 BatchNormalization = functools.partial(  # pylint: disable=invalid-name
-    tf.keras.layers.BatchNormalization,
+    tf.python.keras.layers.BatchNormalization,
     epsilon=1e-5,  # using epsilon and momentum defaults from Torch
     momentum=0.9)
 EnsembleBatchNormalization = functools.partial(  # pylint: disable=invalid-name
@@ -40,7 +40,7 @@ def make_sign_initializer(random_sign_init):
   if random_sign_init > 0:
     return ed.initializers.RandomSign(random_sign_init)
   else:
-    return tf.keras.initializers.RandomNormal(mean=1.0,
+    return tf.python.keras.initializers.RandomNormal(mean=1.0,
                                               stddev=-random_sign_init)
 
 
@@ -65,28 +65,28 @@ def basic_block(inputs, filters, strides, ensemble_size,
   if use_ensemble_bn:
     y = EnsembleBatchNormalization(ensemble_size=ensemble_size)(y)
   else:
-    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
-  y = tf.keras.layers.Activation('relu')(y)
+    y = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2DBatchEnsemble(
       filters,
       strides=strides,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
-      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      kernel_regularizer=tf.python.keras.regularizers.l2(l2),
       ensemble_size=ensemble_size)(y)
   if use_ensemble_bn:
     y = EnsembleBatchNormalization(ensemble_size=ensemble_size)(y)
   else:
-    y = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(y)
-  y = tf.keras.layers.Activation('relu')(y)
+    y = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(y)
+  y = tf.python.keras.layers.Activation('relu')(y)
   y = Conv2DBatchEnsemble(
       filters,
       strides=1,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
-      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      kernel_regularizer=tf.python.keras.regularizers.l2(l2),
       ensemble_size=ensemble_size)(y)
   if not x.shape.is_compatible_with(y.shape):
     x = Conv2DBatchEnsemble(
@@ -95,9 +95,9 @@ def basic_block(inputs, filters, strides, ensemble_size,
         strides=strides,
         alpha_initializer=make_sign_initializer(random_sign_init),
         gamma_initializer=make_sign_initializer(random_sign_init),
-        kernel_regularizer=tf.keras.regularizers.l2(l2),
+        kernel_regularizer=tf.python.keras.regularizers.l2(l2),
         ensemble_size=ensemble_size)(x)
-  x = tf.keras.layers.add([x, y])
+  x = tf.python.keras.layers.add([x, y])
   return x
 
 
@@ -131,18 +131,18 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
     use_ensemble_bn: Bool, whether to use ensemble batch norm.
 
   Returns:
-    tf.keras.Model.
+    tf.python.keras.Model.
   """
   if (depth - 4) % 6 != 0:
     raise ValueError('depth should be 6n+4 (e.g., 16, 22, 28, 40).')
   num_blocks = (depth - 4) // 6
-  inputs = tf.keras.layers.Input(shape=input_shape)
+  inputs = tf.python.keras.layers.Input(shape=input_shape)
   x = Conv2DBatchEnsemble(
       16,
       strides=1,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
-      kernel_regularizer=tf.keras.regularizers.l2(l2),
+      kernel_regularizer=tf.python.keras.regularizers.l2(l2),
       ensemble_size=ensemble_size)(inputs)
   for strides, filters in zip([1, 2, 2], [16, 32, 64]):
     x = group(x,
@@ -157,18 +157,18 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
   if use_ensemble_bn:
     x = EnsembleBatchNormalization(ensemble_size=ensemble_size)(x)
   else:
-    x = BatchNormalization(beta_regularizer=tf.keras.regularizers.l2(l2),
-                           gamma_regularizer=tf.keras.regularizers.l2(l2))(x)
-  x = tf.keras.layers.Activation('relu')(x)
-  x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
-  x = tf.keras.layers.Flatten()(x)
+    x = BatchNormalization(beta_regularizer=tf.python.keras.regularizers.l2(l2),
+                           gamma_regularizer=tf.python.keras.regularizers.l2(l2))(x)
+  x = tf.python.keras.layers.Activation('relu')(x)
+  x = tf.python.keras.layers.AveragePooling2D(pool_size=8)(x)
+  x = tf.python.keras.layers.Flatten()(x)
   x = ed.layers.DenseBatchEnsemble(
       num_classes,
       alpha_initializer=make_sign_initializer(random_sign_init),
       gamma_initializer=make_sign_initializer(random_sign_init),
       activation=None,
       kernel_initializer='he_normal',
-      kernel_regularizer=tf.keras.regularizers.l2(l2),
-      bias_regularizer=tf.keras.regularizers.l2(l2),
+      kernel_regularizer=tf.python.keras.regularizers.l2(l2),
+      bias_regularizer=tf.python.keras.regularizers.l2(l2),
       ensemble_size=ensemble_size)(x)
-  return tf.keras.Model(inputs=inputs, outputs=x)
+  return tf.python.keras.Model(inputs=inputs, outputs=x)

@@ -31,7 +31,7 @@ import tensorflow.compat.v2 as tf
 _SUPPORTED_LIKELIHOOD = ('binary_logistic', 'poisson', 'gaussian')
 
 
-class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
+class RandomFeatureGaussianProcess(tf.python.keras.layers.Layer):
   """Gaussian process layer with random feature approximation.
 
   During training, the model updates the maximum a posteriori (MAP) logits
@@ -103,7 +103,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         by sqrt(2. / num_inducing).
       return_random_features: (bool) Whether to also return random features.
       use_custom_random_features: (bool) Whether to use custom random
-        features implemented using tf.keras.layers.Dense.
+        features implemented using tf.python.keras.layers.Dense.
       custom_random_features_initializer: (str or callable) Initializer for
         the random features. Default to random normal which approximates a RBF
         kernel function if activation function is cos.
@@ -156,8 +156,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
 
-    self.dense_layer = tf.keras.layers.Dense
-    self.input_normalization_layer = tf.keras.layers.LayerNormalization
+    self.dense_layer = tf.python.keras.layers.Dense
+    self.input_normalization_layer = tf.python.keras.layers.LayerNormalization
 
   def build(self, input_shape):
     self._build_sublayer_classes()
@@ -176,7 +176,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           trainable=False,
           name='gp_random_feature')
     else:
-      self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
+      self._random_feature = tf.python.keras.layers.experimental.RandomFourierFeatures(
           output_dim=self.num_inducing,
           kernel_initializer=self.gp_kernel_type,
           scale=self.gp_kernel_scale,
@@ -193,7 +193,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self._gp_output_layer = self.dense_layer(
         units=self.units,
         use_bias=False,
-        kernel_regularizer=tf.keras.regularizers.l2(self.l2_regularization),
+        kernel_regularizer=tf.python.keras.regularizers.l2(self.l2_regularization),
         dtype=self.dtype,
         name='gp_output_weights',
         **self.gp_output_kwargs)
@@ -206,9 +206,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
   def _build_sublayer_classes(self):
     """Defines sublayer classes."""
     self.bias_layer = tf.Variable
-    self.dense_layer = tf.keras.layers.Dense
+    self.dense_layer = tf.python.keras.layers.Dense
     self.covariance_layer = LaplaceRandomFeatureCovariance
-    self.input_normalization_layer = tf.keras.layers.LayerNormalization
+    self.input_normalization_layer = tf.python.keras.layers.LayerNormalization
 
   def reset_covariance_matrix(self):
     """Resets covariance matrix of the GP layer.
@@ -248,7 +248,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     return gp_output, gp_covmat
 
 
-class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
+class LaplaceRandomFeatureCovariance(tf.python.keras.layers.Layer):
   """Computes the Gaussian Process covariance using Laplace method.
 
   At training time, this layer updates the Gaussian process posterior using
@@ -301,7 +301,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
             name='gp_precision_matrix',
             shape=(gp_feature_dim, gp_feature_dim),
             dtype=self.dtype,
-            initializer=tf.keras.initializers.Identity(self.ridge_penalty),
+            initializer=tf.python.keras.initializers.Identity(self.ridge_penalty),
             trainable=False,
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
 
@@ -395,7 +395,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
   def _get_training_value(self, training=None):
     if training is None:
-      training = tf.keras.backend.learning_phase()
+      training = tf.python.keras.backend.learning_phase()
 
     if isinstance(training, int):
       training = bool(training)

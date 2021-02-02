@@ -107,7 +107,7 @@ def main(argv):
     if not FLAGS.resnet:
       model = lenet5(n_train, x_train.shape[1:], num_classes)
     else:
-      datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+      datagen = tf.python.keras.preprocessing.image.ImageDataGenerator(
           rotation_range=90,
           width_shift_range=0.1,
           height_shift_range=0.1,
@@ -132,7 +132,7 @@ def main(argv):
           rate *= 1e-1
         return float(rate)
 
-      lr_callback = tf.keras.callbacks.LearningRateScheduler(schedule_fn)
+      lr_callback = tf.python.keras.callbacks.LearningRateScheduler(schedule_fn)
 
     for l in model.layers:
       l.kl_cost_weight = l.add_weight(
@@ -197,7 +197,7 @@ def main(argv):
             callbacks=callbacks if with_lr_schedule else [tensorboard])
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(lr=float(FLAGS.learning_rate)),
+        optimizer=tf.python.keras.optimizers.Adam(lr=float(FLAGS.learning_rate)),
         loss=negative_log_likelihood,
         metrics=metrics)
     session.run(tf1.initialize_all_variables())
@@ -205,8 +205,8 @@ def main(argv):
     train_epochs = (FLAGS.training_steps * FLAGS.batch_size) // n_train
     fit_fn(model, FLAGS.training_steps)
 
-    labels = tf.keras.layers.Input(shape=y_train.shape[1:])
-    ll = tf.keras.backend.function([model.input, labels], [
+    labels = tf.python.keras.layers.Input(shape=y_train.shape[1:])
+    ll = tf.python.keras.backend.function([model.input, labels], [
         model.output.distribution.log_prob(tf.squeeze(labels)),
         model.output.distribution.logits
     ])
@@ -259,7 +259,7 @@ def main(argv):
       for j in range(FLAGS.n_auxiliary_variables):
         session.run(sample_op)
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(
+            optimizer=tf.python.keras.optimizers.Adam(
                 # The learning rate is proportional to the scale of the prior.
                 lr=float(FLAGS.learning_rate_for_sampling *
                          np.sqrt(1. - FLAGS.auxiliary_variance_ratio)**j)),

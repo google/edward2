@@ -54,13 +54,13 @@ features, labels = ...
 total_dataset_size = ...
 
 # Define the model.
-model = tf.keras.Sequential([
+model = tf.python.keras.Sequential([
   ed.layers.Conv2DFlipout(32, (3, 3), activation='relu'),
-  tf.keras.layers.MaxPooling2D((2, 2)),
+  tf.python.keras.layers.MaxPooling2D((2, 2)),
   ed.layers.Conv2DFlipout(64, (3, 3), activation='relu'),
-  tf.keras.layers.MaxPooling2D((2, 2)),
+  tf.python.keras.layers.MaxPooling2D((2, 2)),
   ed.layers.Conv2DFlipout(64, (3, 3), activation='relu'),
-  tf.keras.layers.Flatten(),
+  tf.python.keras.layers.Flatten(),
   ed.layers.DenseVariationalDropout(64, activation='relu'),
   ed.layers.DenseVariationalDropout(10),
 ])
@@ -113,7 +113,7 @@ Gaussian processes represent distributions over functions by specifying the
 value of the function at different inputs. GPs have the same design points:
 
 * __Computing the integral.__ Each estimator is its own Layer. This includes `ed.layers.GaussianProcess` for exact (albeit expensive) integration and `ed.layers.SparseGaussianProcess` for inducing variable approximations.
-* __Type Signature.__ For the equivalent deterministic layer, GPs maintain its typical arguments as well as tensor-shaped inputs and outputs. For example, `units` in a Gaussian process layer determine the GP's output dimensionality, where `ed.layers.GaussianProcess(32)` is the Bayesian nonparametric extension of `tf.keras.layers.Dense(32)`. Instead of an `activation` function argument, GP layers have mean and covariance function arguments which default to the zero function and squared exponential kernel respectively.
+* __Type Signature.__ For the equivalent deterministic layer, GPs maintain its typical arguments as well as tensor-shaped inputs and outputs. For example, `units` in a Gaussian process layer determine the GP's output dimensionality, where `ed.layers.GaussianProcess(32)` is the Bayesian nonparametric extension of `tf.python.keras.layers.Dense(32)`. Instead of an `activation` function argument, GP layers have mean and covariance function arguments which default to the zero function and squared exponential kernel respectively.
 * __Distribution regularizers.__ To specify regularizers such as the KL penalty in variational inference, use Keras' `kernel_regularizer` and `bias_regularizer`. See [`ed.regularizers`](https://github.com/google/edward2/blob/master/edward2/tensorflow/regularizers.py) for Bayesian Layers' built-in additions.
 
 Here's a snippet of what typical code looks like. We use a 3-layer deep GP
@@ -121,8 +121,8 @@ trained with variational inference.
 
 ```python
 # Define the model.
-model = tf.keras.Sequential([
-  tf.keras.layers.Flatten(),
+model = tf.python.keras.Sequential([
+  tf.python.keras.layers.Flatten(),
   ed.layers.SparseGaussianProcess(256, num_inducing=512),
   ed.layers.SparseGaussianProcess(256, num_inducing=512),
   ed.layers.SparseGaussianProcess(3, num_inducing=512),
@@ -163,18 +163,18 @@ autoencoder.
 
 ```python
 # Define the model.
-encoder = tf.keras.Sequential([
-  tf.keras.layers.Conv2D(128, 5, 1, padding='same', activation='relu'),
-  tf.keras.layers.Conv2D(128, 5, 2, padding='same', activation='relu'),
-  tf.keras.layers.Conv2D(512, 7, 1, padding='valid', activation='relu'),
+encoder = tf.python.keras.Sequential([
+  tf.python.keras.layers.Conv2D(128, 5, 1, padding='same', activation='relu'),
+  tf.python.keras.layers.Conv2D(128, 5, 2, padding='same', activation='relu'),
+  tf.python.keras.layers.Conv2D(512, 7, 1, padding='valid', activation='relu'),
   ed.layers.Normal(name='latent_code'),
 ])
-decoder = tf.keras.Sequential([
-  tf.keras.layers.Conv2DTranspose(256, 7, 1, padding='valid', activation='relu'),
-  tf.keras.layers.Conv2DTranspose(128, 5, 2, padding='same', activation='relu'),
-  tf.keras.layers.Conv2DTranspose(128, 5, 1, padding='same', activation='relu'),
-  tf.keras.layers.Conv2D(3*256, 5, 1, padding='same', activation=None),
-  tf.keras.layers.Reshape([256, 256, 3, 256]),
+decoder = tf.python.keras.Sequential([
+  tf.python.keras.layers.Conv2DTranspose(256, 7, 1, padding='valid', activation='relu'),
+  tf.python.keras.layers.Conv2DTranspose(128, 5, 2, padding='same', activation='relu'),
+  tf.python.keras.layers.Conv2DTranspose(128, 5, 1, padding='same', activation='relu'),
+  tf.python.keras.layers.Conv2D(3*256, 5, 1, padding='same', activation=None),
+  tf.python.keras.layers.Reshape([256, 256, 3, 256]),
   ed.layers.Categorical(name='image'),
 ])
 
@@ -209,7 +209,7 @@ over 64-dimensional sequences.
 sequence_length, vocab_size = ...
 
 # Define the model.
-flow = tf.keras.Sequential([
+flow = tf.python.keras.Sequential([
   ed.layers.DiscreteAutoregressiveFlow(ed.layers.MADE(vocab_size, hidden_dims=[256, 256])),
   ed.layers.DiscreteAutoregressiveFlow(ed.layers.MADE(vocab_size, hidden_dims=[256, 256], order='right-to-left')),
   ed.layers.DiscreteAutoregressiveFlow(ed.layers.MADE(vocab_size, hidden_dims=[256, 256])),

@@ -15,7 +15,7 @@
 
 """Constraints.
 
-One subtlety is how Bayesian Layers uses `tf.keras.constraints`. Typically,
+One subtlety is how Bayesian Layers uses `tf.python.keras.constraints`. Typically,
 Keras constraints are used with projected gradient descent, where one performs
 unconstrained optimization and then applies a projection (the constraint) after
 each gradient update. To stay in line with probabilistic literature, trainable
@@ -27,10 +27,10 @@ parameterization) and do not apply projections during optimization.
 import tensorflow as tf
 
 
-class Exp(tf.keras.constraints.Constraint):
+class Exp(tf.python.keras.constraints.Constraint):
   """Exp constraint."""
 
-  def __init__(self, epsilon=tf.keras.backend.epsilon()):
+  def __init__(self, epsilon=tf.python.keras.backend.epsilon()):
     self.epsilon = epsilon
 
   def __call__(self, w):
@@ -40,10 +40,10 @@ class Exp(tf.keras.constraints.Constraint):
     return {'epsilon': self.epsilon}
 
 
-class Positive(tf.keras.constraints.Constraint):
+class Positive(tf.python.keras.constraints.Constraint):
   """Positive constraint."""
 
-  def __init__(self, epsilon=tf.keras.backend.epsilon()):
+  def __init__(self, epsilon=tf.python.keras.backend.epsilon()):
     self.epsilon = epsilon
 
   def __call__(self, w):
@@ -53,10 +53,10 @@ class Positive(tf.keras.constraints.Constraint):
     return {'epsilon': self.epsilon}
 
 
-class Softplus(tf.keras.constraints.Constraint):
+class Softplus(tf.python.keras.constraints.Constraint):
   """Softplus constraint."""
 
-  def __init__(self, epsilon=tf.keras.backend.epsilon()):
+  def __init__(self, epsilon=tf.python.keras.backend.epsilon()):
     self.epsilon = epsilon
 
   def __call__(self, w):
@@ -66,7 +66,7 @@ class Softplus(tf.keras.constraints.Constraint):
     return {'epsilon': self.epsilon}
 
 
-# Compatibility aliases, following tf.keras
+# Compatibility aliases, following tf.python.keras
 
 # pylint: disable=invalid-name
 exp = Exp
@@ -74,15 +74,15 @@ positive = Positive
 softplus = Softplus
 # pylint: enable=invalid-name
 
-# Utility functions, following tf.keras
+# Utility functions, following tf.python.keras
 
 
 def serialize(initializer):
-  return tf.keras.utils.serialize_keras_object(initializer)
+  return tf.python.keras.utils.serialize_keras_object(initializer)
 
 
 def deserialize(config, custom_objects=None):
-  return tf.keras.utils.deserialize_keras_object(
+  return tf.python.keras.utils.deserialize_keras_object(
       config,
       module_objects=globals(),
       custom_objects=custom_objects,
@@ -108,4 +108,4 @@ def get(identifier, value=None):
       pass
   elif callable(identifier):
     return identifier
-  return tf.keras.constraints.get(value)
+  return tf.python.keras.constraints.get(value)

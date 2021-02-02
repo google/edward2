@@ -22,7 +22,7 @@ import tensorflow_probability as tfp
 MIN_SCALE_MONTE_CARLO = 1e-3
 
 
-class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
+class MCSoftmaxOutputLayerBase(tf.python.keras.layers.Layer):
   """Base class for MC heteroscesastic output layers.
 
   Collier, M., Mustafa, B., Kokiopoulou, E., Jenatton, R., & Berent, J. (2020).
@@ -55,7 +55,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
         due to dynamic shape inference, setting = True may solve.
       logits_only: Boolean. If True, only return the logits from the __call__
         method. Useful when a single output Tensor is required e.g.
-        tf.keras.Sequential models require a single output Tensor.
+        tf.python.keras.Sequential models require a single output Tensor.
       eps: Float. Clip probabilities into [eps, 1.0] softmax or
         [eps, 1.0 - eps] sigmoid before applying log (softmax), or inverse
         sigmoid.
@@ -305,10 +305,10 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
     """Creates an instance of MCSoftmaxDense.
 
     This is a MC softmax heteroscedastic drop in replacement for a
-    tf.keras.layers.Dense output layer. e.g. simply change:
+    tf.python.keras.layers.Dense output layer. e.g. simply change:
 
     ```python
-    logits = tf.keras.layers.Dense(...)(x)
+    logits = tf.python.keras.layers.Dense(...)(x)
     ```
 
     to
@@ -338,7 +338,7 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
         are shared across batch elements. If encountering XLA compilation errors
         due to dynamic shape inference setting = True may solve.
       logits_only: Boolean. If True, only return the logits from the __call__
-        method. Set True to serialize tf.keras.Sequential models.
+        method. Set True to serialize tf.python.keras.Sequential models.
       eps: Float. Clip probabilities into [eps, 1.0] before applying log.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
@@ -360,10 +360,10 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
         share_samples_across_batch=share_samples_across_batch,
         logits_only=logits_only, eps=eps, name=name)
 
-    self._loc_layer = tf.keras.layers.Dense(
+    self._loc_layer = tf.python.keras.layers.Dense(
         1 if num_classes == 2 else num_classes, activation=None,
         kernel_regularizer=loc_regularizer, name='loc_layer', dtype=dtype)
-    self._scale_layer = tf.keras.layers.Dense(
+    self._scale_layer = tf.python.keras.layers.Dense(
         1 if num_classes == 2 else num_classes,
         activation=tf.math.softplus, name='scale_layer', dtype=dtype)
 
@@ -391,8 +391,8 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
 
   def get_config(self):
     config = {
-        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
-        'scale_layer': tf.keras.layers.serialize(self._scale_layer),
+        'loc_layer': tf.python.keras.layers.serialize(self._loc_layer),
+        'scale_layer': tf.python.keras.layers.serialize(self._scale_layer),
     }
     new_config = super().get_config()
     new_config.update(config)
@@ -426,10 +426,10 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     num_factors << num_classes => approx to sampling ~ N(mu(x), sigma(x))
 
     This is a MC softmax heteroscedastic drop in replacement for a
-    tf.keras.layers.Dense output layer. e.g. simply change:
+    tf.python.keras.layers.Dense output layer. e.g. simply change:
 
     ```python
-    logits = tf.keras.layers.Dense(...)(x)
+    logits = tf.python.keras.layers.Dense(...)(x)
     ```
 
     to
@@ -465,7 +465,7 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         are shared across batch elements. If encountering XLA compilation errors
         due to dynamic shape inference setting = True may solve.
       logits_only: Boolean. If True, only return the logits from the __call__
-        method. Set True to serialize tf.keras.Sequential models.
+        method. Set True to serialize tf.python.keras.Sequential models.
       eps: Float. Clip probabilities into [eps, 1.0] before applying log.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
@@ -490,18 +490,18 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     self._parameter_efficient = parameter_efficient
 
     if parameter_efficient:
-      self._scale_layer_homoscedastic = tf.keras.layers.Dense(
+      self._scale_layer_homoscedastic = tf.python.keras.layers.Dense(
           num_classes, name='scale_layer_homoscedastic', dtype=dtype)
-      self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
+      self._scale_layer_heteroscedastic = tf.python.keras.layers.Dense(
           num_classes, name='scale_layer_heteroscedastic', dtype=dtype)
     else:
-      self._scale_layer = tf.keras.layers.Dense(
+      self._scale_layer = tf.python.keras.layers.Dense(
           num_classes * num_factors, name='scale_layer', dtype=dtype)
 
-    self._loc_layer = tf.keras.layers.Dense(
+    self._loc_layer = tf.python.keras.layers.Dense(
         num_classes, kernel_regularizer=loc_regularizer, name='loc_layer',
         dtype=dtype)
-    self._diag_layer = tf.keras.layers.Dense(
+    self._diag_layer = tf.python.keras.layers.Dense(
         num_classes, activation=tf.math.softplus, name='diag_layer',
         dtype=dtype)
 
@@ -652,12 +652,12 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     }
 
     if self._parameter_efficient:
-      config['scale_layer_homoscedastic'] = tf.keras.layers.serialize(
+      config['scale_layer_homoscedastic'] = tf.python.keras.layers.serialize(
           self._scale_layer_homoscedastic)
-      config['scale_layer_heteroscedastic'] = tf.keras.layers.serialize(
+      config['scale_layer_heteroscedastic'] = tf.python.keras.layers.serialize(
           self._scale_layer_heteroscedastic)
     else:
-      config['scale_layer'] = tf.keras.layers.serialize(self._scale_layer)
+      config['scale_layer'] = tf.python.keras.layers.serialize(self._scale_layer)
 
     new_config = super().get_config()
     new_config.update(config)
@@ -691,10 +691,10 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     num_factors << num_outputs => approx to sampling ~ N(mu(x), sigma(x)).
 
     This is a heteroscedastic drop in replacement for a
-    tf.keras.layers.Dense output layer. e.g. simply change:
+    tf.python.keras.layers.Dense output layer. e.g. simply change:
 
     ```python
-    logits = tf.keras.layers.Dense(...)(x)
+    logits = tf.python.keras.layers.Dense(...)(x)
     ```
 
     to
@@ -731,7 +731,7 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         are shared across batch elements. If encountering XLA compilation errors
         due to dynamic shape inference setting = True may solve.
       logits_only: Boolean. If True, only return the logits from the __call__
-        method. Set True to serialize tf.keras.Sequential models.
+        method. Set True to serialize tf.python.keras.Sequential models.
       eps: Float. Clip probabilities into [eps, 1.0 - eps] before applying
         inverse sigmoid.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
@@ -755,21 +755,21 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     self._parameter_efficient = parameter_efficient
     self._num_outputs = num_outputs
 
-    self._loc_layer = tf.keras.layers.Dense(
+    self._loc_layer = tf.python.keras.layers.Dense(
         num_outputs, kernel_regularizer=loc_regularizer, name='loc_layer',
         dtype=dtype)
 
     if num_factors > 0:
       if parameter_efficient:
-        self._scale_layer_homoscedastic = tf.keras.layers.Dense(
+        self._scale_layer_homoscedastic = tf.python.keras.layers.Dense(
             num_outputs, name='scale_layer_homoscedastic', dtype=dtype)
-        self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
+        self._scale_layer_heteroscedastic = tf.python.keras.layers.Dense(
             num_outputs, name='scale_layer_heteroscedastic', dtype=dtype)
       else:
-        self._scale_layer = tf.keras.layers.Dense(
+        self._scale_layer = tf.python.keras.layers.Dense(
             num_outputs * num_factors, name='scale_layer', dtype=dtype)
 
-    self._diag_layer = tf.keras.layers.Dense(
+    self._diag_layer = tf.python.keras.layers.Dense(
         num_outputs, activation=tf.math.softplus, name='diag_layer',
         bias_initializer='zeros', dtype=dtype)
 
@@ -923,24 +923,24 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         'num_outputs': self._num_outputs,
         'num_factors': self._num_factors,
         'parameter_efficient': self._parameter_efficient,
-        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
-        'diag_layer': tf.keras.layers.serialize(self._diag_layer),
+        'loc_layer': tf.python.keras.layers.serialize(self._loc_layer),
+        'diag_layer': tf.python.keras.layers.serialize(self._diag_layer),
     }
 
     if self._parameter_efficient:
-      config['scale_layer_homoscedastic'] = tf.keras.layers.serialize(
+      config['scale_layer_homoscedastic'] = tf.python.keras.layers.serialize(
           self._scale_layer_homoscedastic)
-      config['scale_layer_heteroscedastic'] = tf.keras.layers.serialize(
+      config['scale_layer_heteroscedastic'] = tf.python.keras.layers.serialize(
           self._scale_layer_heteroscedastic)
     else:
-      config['scale_layer'] = tf.keras.layers.serialize(self._scale_layer)
+      config['scale_layer'] = tf.python.keras.layers.serialize(self._scale_layer)
 
     new_config = super().get_config()
     new_config.update(config)
     return new_config
 
 
-class ExactSigmoidDense(tf.keras.layers.Layer):
+class ExactSigmoidDense(tf.python.keras.layers.Layer):
   """Exact diagonal covariance method for binary/multilabel classification."""
 
   def __init__(self, num_outputs, logit_noise=tfp.distributions.Normal,
@@ -953,11 +953,11 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
     exactly. We do not need to make the softmax/sigmoid approximation and we do
     not need to use Monte Carlo estimation.
 
-    This layer is a drop in replacement for a tf.keras.layers.Dense output
+    This layer is a drop in replacement for a tf.python.keras.layers.Dense output
     layer for binary and multilabel classification problems, simply change:
 
     ```python
-    logits = tf.keras.layers.Dense(num_outputs, ...)(x)
+    logits = tf.python.keras.layers.Dense(num_outputs, ...)(x)
     ```
 
     to
@@ -976,7 +976,7 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
         latent distribution. If experiencing numerical instability during
         training, increasing this value may help.
       logits_only: Boolean. If True, only return the logits from the __call__
-        method. Set True to serialize tf.keras.Sequential models.
+        method. Set True to serialize tf.python.keras.Sequential models.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
       name: String. The name of the layer used for name scoping.
@@ -994,10 +994,10 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
                            tfp.distributions.Logistic):
       raise ValueError('logit_noise must be Normal or Logistic')
 
-    self._loc_layer = tf.keras.layers.Dense(num_outputs, name='loc_layer',
+    self._loc_layer = tf.python.keras.layers.Dense(num_outputs, name='loc_layer',
                                             dtype=dtype)
 
-    self._diag_layer = tf.keras.layers.Dense(
+    self._diag_layer = tf.python.keras.layers.Dense(
         num_outputs, activation=tf.math.softplus, name='diag_layer',
         dtype=dtype)
 
@@ -1046,8 +1046,8 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
 
   def get_config(self):
     config = {
-        'loc_layer': tf.keras.layers.serialize(self._loc_layer),
-        'diag_layer': tf.keras.layers.serialize(self._diag_layer),
+        'loc_layer': tf.python.keras.layers.serialize(self._loc_layer),
+        'diag_layer': tf.python.keras.layers.serialize(self._diag_layer),
         'num_outputs': self._num_outputs,
         'logit_noise': self._logit_noise,
         'min_scale': self._min_scale,
@@ -1059,7 +1059,7 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
     return new_config
 
 
-class EnsembleHeteroscedasticOutputs(tf.keras.layers.Layer):
+class EnsembleHeteroscedasticOutputs(tf.python.keras.layers.Layer):
   """Ensembles multiple heteroscedastic output layers."""
 
   def __init__(self, num_classes, layers, ensemble_weighting,
@@ -1080,7 +1080,7 @@ class EnsembleHeteroscedasticOutputs(tf.keras.layers.Layer):
 
     Args:
       num_classes: Integer. Number of classes for classification task.
-      layers: Tuple of tf.keras.layers.Layer from heteroscedastic.py.
+      layers: Tuple of tf.python.keras.layers.Layer from heteroscedastic.py.
       ensemble_weighting: Tuple of len(layers) representing a probability
         distribution over layers.
       averaging: String `ensemble_cross_ent` or `gibbs_cross_ent`. For

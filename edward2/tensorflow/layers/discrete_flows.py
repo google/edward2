@@ -22,7 +22,7 @@ import tensorflow as tf
 
 
 # TODO(trandustin): Move Reverse to another module(?).
-class Reverse(tf.keras.layers.Layer):
+class Reverse(tf.python.keras.layers.Layer):
   """Swaps the forward and reverse transformations of a layer."""
 
   def __init__(self, reversible_layer, **kwargs):
@@ -34,7 +34,7 @@ class Reverse(tf.keras.layers.Layer):
     self.reverse = reversible_layer.call
 
 
-class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
+class DiscreteAutoregressiveFlow(tf.python.keras.layers.Layer):
   """A discrete reversible layer.
 
   The flow takes as input a one-hot Tensor of shape `[..., length, vocab_size]`.
@@ -238,7 +238,7 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
     return tf.cast(0, inputs.dtype)
 
 
-class DiscreteBipartiteFlow(tf.keras.layers.Layer):
+class DiscreteBipartiteFlow(tf.python.keras.layers.Layer):
   """A discrete reversible layer.
 
   The flow takes as input a one-hot Tensor of shape `[..., length, vocab_size]`.
@@ -370,7 +370,7 @@ class DiscreteBipartiteFlow(tf.keras.layers.Layer):
     return tf.cast(0, inputs.dtype)
 
 
-class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
+class SinkhornAutoregressiveFlow(tf.python.keras.layers.Layer):
   """A discrete reversible layer using Sinkhorn normalization for permutations.
 
   The flow takes as input a one-hot Tensor of shape `[..., length, vocab_size]`.

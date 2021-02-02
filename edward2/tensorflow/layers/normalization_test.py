@@ -27,8 +27,8 @@ import edward2 as ed
 import numpy as np
 import tensorflow as tf
 
-DenseLayer = tf.keras.layers.Dense(10)
-Conv2DLayer = tf.keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid')
+DenseLayer = tf.python.keras.layers.Dense(10)
+Conv2DLayer = tf.python.keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid')
 
 
 def _compute_spectral_norm(weight):

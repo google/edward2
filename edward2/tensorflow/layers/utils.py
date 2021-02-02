@@ -52,10 +52,10 @@ def add_weight(cls):
       self.tracked_add_weight_dependencies = []
     self.tracked_add_weight_dependencies.append((regularizer, initializer))
 
-    if isinstance(regularizer, tf.keras.layers.Layer):
+    if isinstance(regularizer, tf.python.keras.layers.Layer):
       if not regularizer.built:
         regularizer.build(shape)
-    if isinstance(initializer, tf.keras.layers.Layer):
+    if isinstance(initializer, tf.python.keras.layers.Layer):
       with tf.name_scope(name):
         weight = initializer(shape, dtype)
       if regularizer is not None:

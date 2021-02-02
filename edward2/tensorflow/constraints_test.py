@@ -37,7 +37,7 @@ class ConstraintsTest(parameterized.TestCase, tf.test.TestCase):
     self.assertIsInstance(ed.constraints.get('positive'),
                           ed.constraints.Positive)
     self.assertIsInstance(ed.constraints.get('non_neg'),
-                          tf.keras.constraints.NonNeg)
+                          tf.python.keras.constraints.NonNeg)
 
 
 if __name__ == '__main__':

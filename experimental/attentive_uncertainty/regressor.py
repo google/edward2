@@ -23,10 +23,10 @@ from experimental.attentive_uncertainty import utils  # local file import
 
 import tensorflow.compat.v1 as tf
 
-eps = tf.keras.backend.epsilon()
+eps = tf.python.keras.backend.epsilon()
 
 
-class Regressor(tf.keras.Model):
+class Regressor(tf.python.keras.Model):
   r"""Structured neural process regressor.
 
   A structured neural process (SNP) expresses the following generative process
