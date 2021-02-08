@@ -44,9 +44,11 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
   `use_custom_random_features=True`, and change the initializer and activations
   of the custom random features. For example:
 
-    Linear Kernel: initializer='Identity', activation=tf.identity
     MLP Kernel: initializer='random_normal', activation=tf.nn.relu
     RBF Kernel: initializer='random_normal', activation=tf.math.cos
+
+  A linear kernel can also be specified by setting gp_kernel_type='linear' and
+  `use_custom_random_features=True`.
 
   Attributes:
     units: (int) The dimensionality of layer.
@@ -147,7 +149,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.gp_cov_likelihood = gp_cov_likelihood
 
     if self.use_custom_random_features:
-      # Use orthogonal random features by default.
+      # Default to Gaussian RBF kernel with orthogonal random features.
       self.random_features_bias_initializer = tf.random_uniform_initializer(
           minval=0., maxval=2. * math.pi)
       if self.custom_random_features_initializer is None:
@@ -156,9 +158,6 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
 
-    self.dense_layer = tf.keras.layers.Dense
-    self.input_normalization_layer = tf.keras.layers.LayerNormalization
-
   def build(self, input_shape):
     self._build_sublayer_classes()
 
@@ -166,23 +165,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       self._input_norm_layer = self.input_normalization_layer(
           name='gp_input_normalization')
 
-    if self.use_custom_random_features:
-      self._random_feature = self.dense_layer(
-          units=self.num_inducing,
-          use_bias=True,
-          activation=self.custom_random_features_activation,
-          kernel_initializer=self.custom_random_features_initializer,
-          bias_initializer=self.random_features_bias_initializer,
-          trainable=False,
-          name='gp_random_feature')
-    else:
-      self._random_feature = tf.keras.layers.experimental.RandomFourierFeatures(
-          output_dim=self.num_inducing,
-          kernel_initializer=self.gp_kernel_type,
-          scale=self.gp_kernel_scale,
-          trainable=self.gp_kernel_scale_trainable,
-          dtype=self.dtype,
-          name='gp_random_feature')
+    self._random_feature = self._make_random_feature_layer(
+        name='gp_random_feature')
 
     self._gp_cov_layer = self.covariance_layer(
         momentum=self.gp_cov_momentum,
@@ -209,6 +193,34 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.dense_layer = tf.keras.layers.Dense
     self.covariance_layer = LaplaceRandomFeatureCovariance
     self.input_normalization_layer = tf.keras.layers.LayerNormalization
+
+  def _make_random_feature_layer(self, name):
+    """Defines random feature layer depending on kernel type."""
+    if not self.use_custom_random_features:
+      # Use default RandomFourierFeatures layer from tf.keras.
+      return tf.keras.layers.experimental.RandomFourierFeatures(
+          output_dim=self.num_inducing,
+          kernel_initializer=self.gp_kernel_type,
+          scale=self.gp_kernel_scale,
+          trainable=self.gp_kernel_scale_trainable,
+          dtype=self.dtype,
+          name=name)
+
+    if self.gp_kernel_type.lower() == 'linear':
+      custom_random_feature_layer = tf.keras.layers.Lambda(
+          lambda x: x, name=name)
+    else:
+      # Use user-supplied configurations.
+      custom_random_feature_layer = self.dense_layer(
+          units=self.num_inducing,
+          use_bias=True,
+          activation=self.custom_random_features_activation,
+          kernel_initializer=self.custom_random_features_initializer,
+          bias_initializer=self.random_features_bias_initializer,
+          trainable=False,
+          name=name)
+
+    return custom_random_feature_layer
 
   def reset_covariance_matrix(self):
     """Resets covariance matrix of the GP layer.

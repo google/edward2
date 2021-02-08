@@ -150,6 +150,27 @@ class GaussianProcessTest(tf.test.TestCase, parameterized.TestCase):
     np.testing.assert_allclose(post_kernel_computed, post_kernel_expected,
                                **self.cov_tolerance)
 
+  def test_random_feature_linear_kernel(self):
+    """Tests if linear kernel indeed leads to an identity mapping."""
+    # Specify linear kernel
+    gp_kernel_type = 'linear'
+    normalize_input = False
+    scale_random_features = False
+    use_custom_random_features = True
+
+    rfgp_model = ed.layers.RandomFeatureGaussianProcess(
+        units=1,
+        normalize_input=normalize_input,
+        gp_kernel_type=gp_kernel_type,
+        scale_random_features=scale_random_features,
+        use_custom_random_features=use_custom_random_features,
+        return_random_features=True)
+
+    _, _, gp_feature = rfgp_model(self.x_tr, training=True)
+
+    # Check if linear kernel leads to identity mapping.
+    np.testing.assert_allclose(gp_feature, self.x_tr, **self.prec_tolerance)
+
   def test_no_matrix_update_during_test(self):
     """Tests if the precision matrix is not updated during testing."""
     rfgp_model = ed.layers.RandomFeatureGaussianProcess(units=1)
