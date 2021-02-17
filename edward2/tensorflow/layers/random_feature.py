@@ -70,12 +70,13 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
                gp_cov_momentum=0.999,
                gp_cov_ridge_penalty=1e-6,
                scale_random_features=True,
-               return_random_features=False,
                use_custom_random_features=True,
                custom_random_features_initializer=None,
                custom_random_features_activation=None,
                l2_regularization=0.,
                gp_cov_likelihood='gaussian',
+               return_gp_cov=True,
+               return_random_features=False,
                dtype=None,
                name='random_feature_gaussian_process',
                **gp_output_kwargs):
@@ -103,7 +104,6 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         covariance matrix.
       scale_random_features: (bool) Whether to scale the random feature
         by sqrt(2. / num_inducing).
-      return_random_features: (bool) Whether to also return random features.
       use_custom_random_features: (bool) Whether to use custom random
         features implemented using tf.keras.layers.Dense.
       custom_random_features_initializer: (str or callable) Initializer for
@@ -116,6 +116,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         weights.
       gp_cov_likelihood: (string) Likelihood to use for computing Laplace
         approximation for covariance matrix. Default to `gaussian`.
+      return_gp_cov: (bool) Whether to also return GP covariance matrix.
+        If False then no covariance learning is performed.
+      return_random_features: (bool) Whether to also return random features.
       dtype: (tf.DType) Input data type.
       name: (string) Layer name.
       **gp_output_kwargs: Additional keyword arguments to dense output layer.
@@ -130,6 +133,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
+    self.return_gp_cov = return_gp_cov
 
     self.gp_kernel_type = gp_kernel_type
     self.gp_kernel_scale = gp_kernel_scale
@@ -168,12 +172,14 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self._random_feature = self._make_random_feature_layer(
         name='gp_random_feature')
 
-    self._gp_cov_layer = self.covariance_layer(
-        momentum=self.gp_cov_momentum,
-        ridge_penalty=self.gp_cov_ridge_penalty,
-        likelihood=self.gp_cov_likelihood,
-        dtype=self.dtype,
-        name='gp_covariance')
+    if self.return_gp_cov:
+      self._gp_cov_layer = self.covariance_layer(
+          momentum=self.gp_cov_momentum,
+          ridge_penalty=self.gp_cov_ridge_penalty,
+          likelihood=self.gp_cov_likelihood,
+          dtype=self.dtype,
+          name='gp_covariance')
+
     self._gp_output_layer = self.dense_layer(
         units=self.units,
         use_bias=False,
@@ -253,11 +259,18 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     # Computes posterior center (i.e., MAP estimate) and variance.
     gp_output = self._gp_output_layer(gp_feature) + self._gp_output_bias
-    gp_covmat = self._gp_cov_layer(gp_feature, gp_output, training)
 
+    if self.return_gp_cov:
+      gp_covmat = self._gp_cov_layer(gp_feature, gp_output, training)
+
+    # Assembles model output.
+    model_output = [gp_output,]
+    if self.return_gp_cov:
+      model_output.append(gp_covmat)
     if self.return_random_features:
-      return gp_output, gp_covmat, gp_feature
-    return gp_output, gp_covmat
+      model_output.append(gp_feature)
+
+    return model_output
 
 
 class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
