@@ -31,6 +31,7 @@ from absl import logging
 from experimental.marginalization_mixup import data_utils  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from uncertainty_baselines import schedules
 from uncertainty_baselines.baselines.cifar import utils
 import uncertainty_metrics as um
 
@@ -370,7 +371,7 @@ def main(argv):
     base_lr = FLAGS.base_learning_rate * batch_size / 128
     lr_decay_epochs = [(int(start_epoch_str) * FLAGS.train_epochs) // 200
                        for start_epoch_str in FLAGS.lr_decay_epochs]
-    lr_schedule = utils.LearningRateSchedule(
+    lr_schedule = schedules.WarmUpPiecewiseConstantSchedule(
         steps_per_epoch,
         base_lr,
         decay_ratio=FLAGS.lr_decay_ratio,
