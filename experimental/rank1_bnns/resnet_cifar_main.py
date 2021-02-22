@@ -26,7 +26,7 @@ from absl import logging
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from uncertainty_baselines import schedules
+import uncertainty_baselines as ub
 from uncertainty_baselines.baselines.cifar import utils
 import uncertainty_metrics as um
 
@@ -136,19 +136,24 @@ def main(argv):
     tf.tpu.experimental.initialize_tpu_system(resolver)
     strategy = tf.distribute.TPUStrategy(resolver)
 
-  train_dataset = utils.load_dataset(
+  if FLAGS.dataset == 'cifar10':
+    dataset_builder_class = ub.datasets.Cifar10Dataset
+  else:
+    dataset_builder_class = ub.datasets.Cifar100Dataset
+  train_dataset_builder = dataset_builder_class(
       split=tfds.Split.TRAIN,
       name=FLAGS.dataset,
-      batch_size=batch_size_train,
       use_bfloat16=FLAGS.use_bfloat16,
       normalize=False)
-  clean_test_dataset = utils.load_dataset(
+  train_dataset = train_dataset_builder.load(batch_size=batch_size_train)
+  train_dataset = strategy.experimental_distribute_dataset(train_dataset)
+  clean_test_dataset_builder = dataset_builder_class(
       split=tfds.Split.TEST,
       name=FLAGS.dataset,
-      batch_size=batch_size_eval,
       use_bfloat16=FLAGS.use_bfloat16,
       normalize=False)
-  train_dataset = strategy.experimental_distribute_dataset(train_dataset)
+  clean_test_dataset = clean_test_dataset_builder.load(
+      batch_size=batch_size_eval)
   test_datasets = {
       'clean': strategy.experimental_distribute_dataset(clean_test_dataset),
   }
@@ -205,7 +210,7 @@ def main(argv):
     base_lr = FLAGS.base_learning_rate * batch_size_train / 128
     lr_decay_epochs = [(int(start_epoch_str) * FLAGS.train_epochs) // 200
                        for start_epoch_str in FLAGS.lr_decay_epochs]
-    lr_schedule = schedules.WarmUpPiecewiseConstantSchedule(
+    lr_schedule = ub.schedules.WarmUpPiecewiseConstantSchedule(
         steps_per_epoch,
         base_lr,
         decay_ratio=FLAGS.lr_decay_ratio,
