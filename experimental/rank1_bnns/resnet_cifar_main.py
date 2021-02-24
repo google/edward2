@@ -142,14 +142,12 @@ def main(argv):
     dataset_builder_class = ub.datasets.Cifar100Dataset
   train_dataset_builder = dataset_builder_class(
       split=tfds.Split.TRAIN,
-      name=FLAGS.dataset,
       use_bfloat16=FLAGS.use_bfloat16,
       normalize=False)
   train_dataset = train_dataset_builder.load(batch_size=batch_size_train)
   train_dataset = strategy.experimental_distribute_dataset(train_dataset)
   clean_test_dataset_builder = dataset_builder_class(
       split=tfds.Split.TEST,
-      name=FLAGS.dataset,
       use_bfloat16=FLAGS.use_bfloat16,
       normalize=False)
   clean_test_dataset = clean_test_dataset_builder.load(
