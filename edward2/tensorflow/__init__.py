@@ -41,6 +41,7 @@ __all__ = [
     "condition",
     "constraints",
     "get_next_tracer",
+    "generated_random_variables",
     "initializers",
     "layers",
     "make_log_joint_fn",
