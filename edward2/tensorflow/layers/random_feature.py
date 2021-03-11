@@ -164,13 +164,16 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
   def build(self, input_shape):
     self._build_sublayer_classes()
-
     if self.normalize_input:
       self._input_norm_layer = self.input_normalization_layer(
           name='gp_input_normalization')
+      self._input_norm_layer.build(input_shape)
+      input_shape = self._input_norm_layer.compute_output_shape(input_shape)
 
     self._random_feature = self._make_random_feature_layer(
         name='gp_random_feature')
+    self._random_feature.build(input_shape)
+    input_shape = self._random_feature.compute_output_shape(input_shape)
 
     if self.return_gp_cov:
       self._gp_cov_layer = self.covariance_layer(
@@ -179,6 +182,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           likelihood=self.gp_cov_likelihood,
           dtype=self.dtype,
           name='gp_covariance')
+      self._gp_cov_layer.build(input_shape)
 
     self._gp_output_layer = self.dense_layer(
         units=self.units,
@@ -187,11 +191,15 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         dtype=self.dtype,
         name='gp_output_weights',
         **self.gp_output_kwargs)
+    self._gp_output_layer.build(input_shape)
+
     self._gp_output_bias = self.bias_layer(
         initial_value=[self.gp_output_bias] * self.units,
         dtype=self.dtype,
         trainable=self.gp_output_bias_trainable,
         name='gp_output_bias')
+
+    self.built = True
 
   def _build_sublayer_classes(self):
     """Defines sublayer classes."""
@@ -310,6 +318,10 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     self.likelihood = likelihood
     super(LaplaceRandomFeatureCovariance, self).__init__(dtype=dtype, name=name)
 
+  def compute_output_shape(self, input_shape):
+    gp_feature_dim = input_shape[-1]
+    return tf.TensorShape([gp_feature_dim, gp_feature_dim])
+
   def build(self, input_shape):
     gp_feature_dim = input_shape[-1]
 
@@ -329,8 +341,7 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
             initializer=tf.keras.initializers.Identity(self.ridge_penalty),
             trainable=False,
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
-
-    super(LaplaceRandomFeatureCovariance, self).build(input_shape)
+    self.built = True
 
   def make_precision_matrix_update_op(self,
                                       gp_feature,

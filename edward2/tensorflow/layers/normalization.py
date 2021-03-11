@@ -326,7 +326,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
         layer, name=wrapper_name, **kwargs)
 
   def build(self, input_shape):
-    self.layer.build(input_shape)
+    super(SpectralNormalization, self).build(input_shape)
     self.layer.kernel._aggregation = self.aggregation  # pylint: disable=protected-access
     self._dtype = self.layer.kernel.dtype
 
@@ -350,10 +350,12 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
         dtype=self.dtype,
         aggregation=self.aggregation)
 
-    super(SpectralNormalization, self).build()
+    self.update_weights()
 
-  def call(self, inputs):
-    u_update_op, v_update_op, w_update_op = self.update_weights()
+  def call(self, inputs, *, training=None):
+    training = self.do_power_iteration if training is None else training
+    u_update_op, v_update_op, w_update_op = self.update_weights(
+        training=training)
     output = self.layer(inputs)
     w_restore_op = self.restore_weights()
 
@@ -365,13 +367,13 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
 
     return output
 
-  def update_weights(self):
+  def update_weights(self, *, training=True):
     w_reshaped = tf.reshape(self.w, [-1, self.w_shape[-1]])
 
     u_hat = self.u
     v_hat = self.v
 
-    if self.do_power_iteration:
+    if training:
       for _ in range(self.iteration):
         v_hat = tf.nn.l2_normalize(tf.matmul(u_hat, tf.transpose(w_reshaped)))
         u_hat = tf.nn.l2_normalize(tf.matmul(v_hat, w_reshaped))
