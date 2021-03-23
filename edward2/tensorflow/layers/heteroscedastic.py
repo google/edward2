@@ -299,9 +299,10 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
 
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
                temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               loc_regularizer=None, compute_pred_variance=False,
-               share_samples_across_batch=False, logits_only=False,
-               eps=1e-7, dtype=None, name='MCSoftmaxDense'):
+               compute_pred_variance=False, share_samples_across_batch=False,
+               logits_only=False, eps=1e-7, dtype=None,
+               kernel_regularizer=None, bias_regularizer=None,
+               name='MCSoftmaxDense'):
     """Creates an instance of MCSoftmaxDense.
 
     This is a MC softmax heteroscedastic drop in replacement for a
@@ -328,9 +329,6 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
         predictive distribution during training.
       test_mc_samples: The number of Monte-Carlo samples used to estimate the
         predictive distribution during testing/inference.
-      loc_regularizer: Regularizer function applied to the kernel weights
-        matrix of the fully connected layer computing the location parameter of
-        the distribution on the logits.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
@@ -342,6 +340,9 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       eps: Float. Clip probabilities into [eps, 1.0] before applying log.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
+      kernel_regularizer: Regularizer function applied to the `kernel` weights
+        matrix.
+      bias_regularizer: Regularizer function applied to the bias vector.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -362,10 +363,13 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
 
     self._loc_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes, activation=None,
-        kernel_regularizer=loc_regularizer, name='loc_layer', dtype=dtype)
+        kernel_regularizer=kernel_regularizer, name='loc_layer', dtype=dtype,
+        bias_regularizer=bias_regularizer)
     self._scale_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes,
-        activation=tf.math.softplus, name='scale_layer', dtype=dtype)
+        activation=tf.math.softplus, name='scale_layer', dtype=dtype,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -404,9 +408,9 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
 
   def __init__(self, num_classes, num_factors, temperature=1.0,
                parameter_efficient=False, train_mc_samples=1000,
-               test_mc_samples=1000, loc_regularizer=None,
-               compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, dtype=None,
+               test_mc_samples=1000, compute_pred_variance=False,
+               share_samples_across_batch=False, logits_only=False, eps=1e-7,
+               dtype=None, kernel_regularizer=None, bias_regularizer=None,
                name='MCSoftmaxDenseFA'):
     """Creates an instance of MCSoftmaxDenseFA.
 
@@ -455,9 +459,6 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         predictive distribution during training.
       test_mc_samples: The number of Monte-Carlo samples used to estimate the
         predictive distribution during testing/inference.
-      loc_regularizer: Regularizer function applied to the kernel weights
-        matrix of the fully connected layer computing the location parameter of
-        the distribution on the logits.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
@@ -469,6 +470,9 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       eps: Float. Clip probabilities into [eps, 1.0] before applying log.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
+      kernel_regularizer: Regularizer function applied to the `kernel` weights
+        matrix.
+      bias_regularizer: Regularizer function applied to the bias vector.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -491,19 +495,27 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
 
     if parameter_efficient:
       self._scale_layer_homoscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_homoscedastic', dtype=dtype)
+          num_classes, name='scale_layer_homoscedastic', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
       self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_heteroscedastic', dtype=dtype)
+          num_classes, name='scale_layer_heteroscedastic', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
     else:
       self._scale_layer = tf.keras.layers.Dense(
-          num_classes * num_factors, name='scale_layer', dtype=dtype)
+          num_classes * num_factors, name='scale_layer', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
 
     self._loc_layer = tf.keras.layers.Dense(
-        num_classes, kernel_regularizer=loc_regularizer, name='loc_layer',
-        dtype=dtype)
+        num_classes, name='loc_layer', dtype=dtype,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
     self._diag_layer = tf.keras.layers.Dense(
         num_classes, activation=tf.math.softplus, name='diag_layer',
-        dtype=dtype)
+        dtype=dtype, kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -669,9 +681,9 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
 
   def __init__(self, num_outputs, num_factors=0, temperature=1.0,
                parameter_efficient=False, train_mc_samples=1000,
-               test_mc_samples=1000, loc_regularizer=None,
-               compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, dtype=None,
+               test_mc_samples=1000, compute_pred_variance=False,
+               share_samples_across_batch=False, logits_only=False, eps=1e-7,
+               dtype=None, kernel_regularizer=None, bias_regularizer=None,
                name='MCSigmoidDenseFA'):
     """Creates an instance of MCSigmoidDenseFA.
 
@@ -721,9 +733,6 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         predictive distribution during training.
       test_mc_samples: The number of Monte-Carlo samples used to estimate the
         predictive distribution during testing/inference.
-      loc_regularizer: Regularizer function applied to the kernel weights
-        matrix of the fully connected layer computing the location parameter of
-        the distribution on the logits.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance. If False the __call__ method will output None for the
         predictive_variance tensor.
@@ -736,6 +745,9 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         inverse sigmoid.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
+      kernel_regularizer: Regularizer function applied to the `kernel` weights
+        matrix.
+      bias_regularizer: Regularizer function applied to the bias vector.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -756,22 +768,30 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     self._num_outputs = num_outputs
 
     self._loc_layer = tf.keras.layers.Dense(
-        num_outputs, kernel_regularizer=loc_regularizer, name='loc_layer',
-        dtype=dtype)
+        num_outputs, kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer, dtype=dtype, name='loc_layer')
 
     if num_factors > 0:
       if parameter_efficient:
         self._scale_layer_homoscedastic = tf.keras.layers.Dense(
-            num_outputs, name='scale_layer_homoscedastic', dtype=dtype)
+            num_outputs, name='scale_layer_homoscedastic', dtype=dtype,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer)
         self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
-            num_outputs, name='scale_layer_heteroscedastic', dtype=dtype)
+            num_outputs, name='scale_layer_heteroscedastic', dtype=dtype,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer)
       else:
         self._scale_layer = tf.keras.layers.Dense(
-            num_outputs * num_factors, name='scale_layer', dtype=dtype)
+            num_outputs * num_factors, name='scale_layer', dtype=dtype,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer)
 
     self._diag_layer = tf.keras.layers.Dense(
         num_outputs, activation=tf.math.softplus, name='diag_layer',
-        bias_initializer='zeros', dtype=dtype)
+        bias_initializer='zeros', dtype=dtype,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
