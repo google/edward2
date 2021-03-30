@@ -495,25 +495,25 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
 
     if parameter_efficient:
       self._scale_layer_homoscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_homoscedastic', dtype=dtype,
+          num_classes, name=name + '_scale_layer_homoscedastic', dtype=dtype,
           kernel_regularizer=kernel_regularizer,
           bias_regularizer=bias_regularizer)
       self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
-          num_classes, name='scale_layer_heteroscedastic', dtype=dtype,
+          num_classes, name=name + '_scale_layer_heteroscedastic', dtype=dtype,
           kernel_regularizer=kernel_regularizer,
           bias_regularizer=bias_regularizer)
     else:
       self._scale_layer = tf.keras.layers.Dense(
-          num_classes * num_factors, name='scale_layer', dtype=dtype,
+          num_classes * num_factors, name=name + '_scale_layer', dtype=dtype,
           kernel_regularizer=kernel_regularizer,
           bias_regularizer=bias_regularizer)
 
     self._loc_layer = tf.keras.layers.Dense(
-        num_classes, name='loc_layer', dtype=dtype,
+        num_classes, name=name + '_loc_layer', dtype=dtype,
         kernel_regularizer=kernel_regularizer,
         bias_regularizer=bias_regularizer)
     self._diag_layer = tf.keras.layers.Dense(
-        num_classes, activation=tf.math.softplus, name='diag_layer',
+        num_classes, activation=tf.math.softplus, name=name + '_diag_layer',
         dtype=dtype, kernel_regularizer=kernel_regularizer,
         bias_regularizer=bias_regularizer)
 
@@ -661,6 +661,324 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         'diag_layer': self._diag_layer.get_config(),
         'num_factors': self._num_factors,
         'parameter_efficient': self._parameter_efficient,
+    }
+
+    if self._parameter_efficient:
+      config['scale_layer_homoscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_homoscedastic)
+      config['scale_layer_heteroscedastic'] = tf.keras.layers.serialize(
+          self._scale_layer_heteroscedastic)
+    else:
+      config['scale_layer'] = tf.keras.layers.serialize(self._scale_layer)
+
+    new_config = super().get_config()
+    new_config.update(config)
+    return new_config
+
+
+class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
+  """Softmax and factor analysis approx to heteroscedastic predictions.
+
+  Multi Head variation where the output is composed by multiple (ensemble size)
+  output predictions, with a shared latent space between ensembles.
+  """
+
+  def __init__(self, num_classes, num_factors, ensemble_size, temperature=1.0,
+               parameter_efficient=False, train_mc_samples=1000,
+               test_mc_samples=1000, compute_pred_variance=False,
+               share_samples_across_batch=False, logits_only=False, eps=1e-7,
+               dtype=None, kernel_regularizer=None, bias_regularizer=None,
+               name='MultiHeadMCSoftmaxDenseFA'):
+    """Creates an instance of MultiHeadMCSoftmaxDenseFA.
+
+    if we assume:
+    ```
+    u ~ N(mu(x), sigma(x))
+    where x is [x1, x2, ... xn], with n = ensemble_size
+    y = [softmax(u_i / temperature)
+           for u_i in u.reshape(ensemble_size, num_classes)]
+    ```
+
+    we can do a low rank approximation of sigma(x) the full rank matrix as:
+    ```
+    eps_R ~ N(0, I_R), eps_K ~ N(0, I_K)
+    u = mu(x) + matmul(V(x), eps_R) + d(x) * eps_K
+    ```
+    where V(x) is a matrix of dimension
+      [num_classes * ensemble_size, R=num_factors]
+    and d(x) is a vector of dimension [num_classes * ensemble_size, 1]
+    num_factors << num_classes * ensemble_size => approx to sampling
+      ~ N(mu(x), sigma(x))
+
+    This is a MC softmax heteroscedastic drop in replacement for a
+    tf.keras.layers.Dense output layer. e.g. simply change:
+
+    ```python
+    logits = tf.keras.layers.Dense(...)(x)
+    ```
+
+    to
+
+    ```python
+    logits = MultiHeadMCSoftmaxDenseFA(...)(x)[0]
+    ```
+
+    Args:
+      num_classes: Integer. Number of classes for classification task.
+      num_factors: Integer. Number of factors to use in approximation to full
+        rank covariance matrix.
+      ensemble_size: Integer. Size of ensemble.
+      temperature: Float or scalar `Tensor` representing the softmax
+        temperature.
+      parameter_efficient: Boolean. Whether to use the parameter efficient
+        version of the method. If True then samples from the latent distribution
+        are generated as: mu(x) + v(x) * matmul(V, eps_R) + diag(d(x), eps_K)),
+        where eps_R ~ N(0, I_R), eps_K ~ N(0, I_K). If false then latent samples
+        are generated as: mu(x) + matmul(V(x), eps_R) + diag(d(x), eps_K)).
+        Computing V(x) as function of x increases the number of parameters
+        introduced by the method.
+      train_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during training.
+      test_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during testing/inference.
+      compute_pred_variance: Boolean. Whether to estimate the predictive
+        variance. If False the __call__ method will output None for the
+        predictive_variance tensor.
+      share_samples_across_batch: Boolean. If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: Boolean. If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      eps: Float. Clip probabilities into [eps, 1.0] before applying log.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
+      kernel_regularizer: Regularizer function applied to the `kernel` weights
+        matrix.
+      bias_regularizer: Regularizer function applied to the bias vector.
+      name: String. The name of the layer used for name scoping.
+
+    Returns:
+      MultiHeadMCSoftmaxDenseFA instance.
+    """
+    # no need to model correlations between classes in binary case
+    assert num_classes > 2
+    assert num_factors <= num_classes
+
+    super(MultiHeadMCSoftmaxDenseFA, self).__init__(
+        num_classes, logit_noise=tfp.distributions.Normal,
+        temperature=temperature, train_mc_samples=train_mc_samples,
+        test_mc_samples=test_mc_samples,
+        compute_pred_variance=compute_pred_variance,
+        share_samples_across_batch=share_samples_across_batch,
+        logits_only=logits_only, eps=eps, name=name)
+
+    self._num_factors = num_factors
+    self._parameter_efficient = parameter_efficient
+    self._ensemble_size = ensemble_size
+
+    if parameter_efficient:
+      self._scale_layer_homoscedastic = tf.keras.layers.Dense(
+          num_classes * ensemble_size,
+          name='scale_layer_homoscedastic', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
+      self._scale_layer_heteroscedastic = tf.keras.layers.Dense(
+          num_classes * ensemble_size,
+          name='scale_layer_heteroscedastic', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
+    else:
+      self._scale_layer = tf.keras.layers.Dense(
+          num_classes * ensemble_size * num_factors,
+          name='scale_layer', dtype=dtype,
+          kernel_regularizer=kernel_regularizer,
+          bias_regularizer=bias_regularizer)
+
+    self._loc_layer = tf.keras.layers.Dense(
+        num_classes * ensemble_size, name='loc_layer', dtype=dtype,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
+    self._diag_layer = tf.keras.layers.Dense(
+        num_classes * ensemble_size,
+        activation=tf.math.softplus, name='diag_layer',
+        dtype=dtype, kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer)
+
+  def _compute_mc_samples(self, locs, scale, num_samples, seed):
+    """Utility function to compute Monte-Carlo samples (using softmax).
+
+    Args:
+      locs: Tensor of shape [batch_size, total_mc_samples * ensemble_size,
+        1 if num_classes == 2 else num_classes]. Location parameters of the
+        distributions to be sampled.
+      scale: Tensor of shape [batch_size, total_mc_samples,
+        1 if num_classes == 2 else num_classes]. Scale parameters of the
+        distributions to be sampled.
+      num_samples: Integer. Number of Monte-Carlo samples to take.
+      seed: Python integer for seeding the random number generator.
+
+    Returns:
+      Tensor of shape [batch_size, num_samples,
+        1 if num_classes == 2 else num_classes]. All of the MC samples.
+    """
+    locs = tf.expand_dims(locs, axis=1)
+    noise_samples = self._compute_noise_samples(scale, num_samples, seed)
+    latents = locs + noise_samples
+    latents = tf.keras.layers.Reshape(
+        [num_samples, self._ensemble_size, self._num_classes])(latents)
+    if self._num_classes == 2:
+      return tf.math.sigmoid(latents / self._temperature)
+    else:
+      return tf.nn.softmax(latents / self._temperature)
+
+  def _compute_loc_param(self, inputs):
+    """Computes location parameter of the "logits distribution".
+
+    Args:
+      inputs: Tensor. The input to the heteroscedastic output layer.
+
+    Returns:
+      Tensor of shape [batch_size, num_classes].
+    """
+    return self._loc_layer(inputs)
+
+  def _compute_scale_param(self, inputs):
+    """Computes scale parameter of the "logits distribution".
+
+    Args:
+      inputs: Tensor. The input to the heteroscedastic output layer.
+
+    Returns:
+      Tuple of tensors of shape ([batch_size, num_classes * num_factors],
+      [batch_size, num_classes]).
+    """
+    if self._parameter_efficient:
+      return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+    else:
+      return (self._scale_layer(inputs),
+              self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+
+  def _compute_diagonal_noise_samples(self, diag_scale, num_samples, seed):
+    """Compute samples of the diagonal elements logit noise.
+
+    Args:
+      diag_scale: `Tensor` of shape [batch_size, num_classes * ensemble_size].
+        Diagonal elements of scale parameters of the distribution to be sampled.
+      num_samples: Integer. Number of Monte-Carlo samples to take.
+      seed: Python integer for seeding the random number generator.
+
+    Returns:
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
+        1 if num_classes == 2 else num_classes].
+    """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(diag_scale)[0]
+
+    dist = tfp.distributions.Normal(
+        loc=tf.zeros([num_noise_samples,
+                      self._num_classes * self._ensemble_size],
+                     dtype=diag_scale.dtype),
+        scale=tf.ones([num_noise_samples,
+                       self._num_classes * self._ensemble_size],
+                      dtype=diag_scale.dtype))
+
+    tf.random.set_seed(seed)
+    diag_noise_samples = dist.sample(num_samples, seed=seed)
+
+    # dist.sample(total_mc_samples) returns Tensor of shape
+    # [total_mc_samples, batch_size, d], here we reshape to
+    # [batch_size, total_mc_samples, d]
+    diag_noise_samples = tf.transpose(diag_noise_samples, [1, 0, 2])
+
+    return diag_noise_samples * tf.expand_dims(diag_scale, 1)
+
+  def _compute_standard_normal_samples(self, factor_loadings, num_samples,
+                                       seed):
+    """Utility function to compute samples from a standard normal distribution.
+
+    Args:
+      factor_loadings: `Tensor` of shape
+        [batch_size, num_classes * num_factors]. Factor loadings for scale
+        parameters of the distribution to be sampled.
+      num_samples: Integer. Number of Monte-Carlo samples to take.
+      seed: Python integer for seeding the random number generator.
+
+    Returns:
+      `Tensor`. Samples of shape: [batch_size, num_samples, num_factors].
+    """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(factor_loadings)[0]
+
+    dist = tfp.distributions.Normal(
+        loc=tf.zeros([num_noise_samples, self._num_factors],
+                     dtype=factor_loadings.dtype),
+        scale=tf.ones([num_noise_samples, self._num_factors],
+                      dtype=factor_loadings.dtype))
+
+    tf.random.set_seed(seed)
+    standard_normal_samples = dist.sample(num_samples, seed=seed)
+
+    # dist.sample(total_mc_samples) returns Tensor of shape
+    # [total_mc_samples, batch_size, d], here we reshape to
+    # [batch_size, total_mc_samples, d]
+    standard_normal_samples = tf.transpose(standard_normal_samples, [1, 0, 2])
+
+    if self._share_samples_across_batch:
+      standard_normal_samples = tf.tile(standard_normal_samples,
+                                        [tf.shape(factor_loadings)[0], 1, 1])
+
+    return standard_normal_samples
+
+  def _compute_noise_samples(self, scale, num_samples, seed):
+    """Utility function to compute the samples of the logit noise.
+
+    Args:
+      scale: Tuple of tensors of shape (
+        [batch_size, num_classes * ensemble_size * num_factors],
+        [batch_size, num_classes * ensemble_size]). Factor loadings and diagonal
+          elements for scale parameters of the distribution to be sampled.
+      num_samples: Integer. Number of Monte-Carlo samples to take.
+      seed: Python integer for seeding the random number generator.
+
+    Returns:
+      `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
+        1 if num_classes == 2 else num_classes].
+    """
+    factor_loadings, diag_scale = scale
+
+    # Compute the diagonal noise
+    diag_noise_samples = self._compute_diagonal_noise_samples(diag_scale,
+                                                              num_samples, seed)
+
+    # Now compute the factors
+    standard_normal_samples = self._compute_standard_normal_samples(
+        factor_loadings, num_samples, seed)
+
+    if self._parameter_efficient:
+      res = self._scale_layer_homoscedastic(standard_normal_samples)
+      res *= tf.expand_dims(
+          self._scale_layer_heteroscedastic(factor_loadings), 1)
+    else:
+      # reshape scale vector into factor loadings matrix
+      factor_loadings = tf.reshape(
+          factor_loadings,
+          [-1, self._num_classes * self._ensemble_size, self._num_factors])
+
+      # transform standard normal into ~ full rank covariance Gaussian samples
+      res = tf.einsum('ijk,iak->iaj', factor_loadings, standard_normal_samples)
+    return res + diag_noise_samples
+
+  def get_config(self):
+    config = {
+        'loc_layer': self._loc_layer.get_config(),
+        'diag_layer': self._diag_layer.get_config(),
+        'num_factors': self._num_factors,
+        'parameter_efficient': self._parameter_efficient,
+        'ensemble_size': self._ensemble_size
     }
 
     if self._parameter_efficient:
