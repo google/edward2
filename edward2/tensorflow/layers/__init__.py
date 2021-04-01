@@ -118,6 +118,7 @@ __all__ = [
     "MCSigmoidDenseFA",
     "MCSoftmaxDense",
     "MCSoftmaxDenseFA",
+    "MultiHeadMCSoftmaxDenseFA",
     "MixtureLogistic",
     "NCPCategoricalPerturb",
     "NCPNormalOutput",
