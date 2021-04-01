@@ -394,5 +394,6 @@ def mean_field_logits(logits,
   return logits / logits_scale
 
 
+
 def gen_int_seed():
   return random.randrange(2**63 - 1)
