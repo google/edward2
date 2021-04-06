@@ -25,7 +25,7 @@ from absl import logging
 from experimental.rank1_bnns import imagenet_model  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from uncertainty_baselines import schedules
+import uncertainty_baselines as ub
 from uncertainty_baselines.baselines.imagenet import utils
 import uncertainty_metrics as um
 
@@ -116,15 +116,17 @@ def main(argv):
     tf.tpu.experimental.initialize_tpu_system(resolver)
     strategy = tf.distribute.TPUStrategy(resolver)
 
-  builder = utils.ImageNetInput(data_dir=FLAGS.data_dir,
-                                use_bfloat16=FLAGS.use_bfloat16)
-  train_dataset = builder.as_dataset(split=tfds.Split.TRAIN,
-                                     batch_size=batch_size)
-  clean_test_dataset = builder.as_dataset(split=tfds.Split.TEST,
-                                          batch_size=batch_size)
-  train_dataset = strategy.experimental_distribute_dataset(train_dataset)
+  train_builder = ub.datasets.ImageNetDataset(
+      split=tfds.Split.TRAIN,
+      use_bfloat16=FLAGS.use_bfloat16)
+  train_dataset = train_builder.load(batch_size=batch_size, strategy=strategy)
+  test_builder = ub.datasets.ImageNetDataset(
+      split=tfds.Split.TEST,
+      use_bfloat16=FLAGS.use_bfloat16)
+  clean_test_dataset = test_builder.load(
+      batch_size=batch_size, strategy=strategy)
   test_datasets = {
-      'clean': strategy.experimental_distribute_dataset(clean_test_dataset)
+      'clean': clean_test_dataset,
   }
   if FLAGS.corruptions_interval > 0:
     corruption_types, max_intensity = utils.load_corrupted_test_info()
@@ -171,7 +173,7 @@ def main(argv):
         (FLAGS.train_epochs * 60) // 90,
         (FLAGS.train_epochs * 80) // 90,
     ]
-    learning_rate = schedules.WarmUpPiecewiseConstantSchedule(
+    learning_rate = ub.schedules.WarmUpPiecewiseConstantSchedule(
         steps_per_epoch=steps_per_epoch,
         base_learning_rate=base_lr,
         decay_ratio=0.1,

@@ -25,8 +25,7 @@ from absl import logging
 from experimental.mimo import imagenet_model  # local file import
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from uncertainty_baselines import schedules
-from uncertainty_baselines.baselines.imagenet import utils
+import uncertainty_baselines as ub
 import uncertainty_metrics as um
 
 flags.DEFINE_integer('ensemble_size', 2, 'Size of ensemble.')
@@ -97,14 +96,16 @@ def main(argv):
     tf.tpu.experimental.initialize_tpu_system(resolver)
     strategy = tf.distribute.TPUStrategy(resolver)
 
-  builder = utils.ImageNetInput(data_dir=FLAGS.data_dir,
-                                use_bfloat16=FLAGS.use_bfloat16)
-  train_dataset = builder.as_dataset(split=tfds.Split.TRAIN,
-                                     batch_size=train_batch_size)
-  test_dataset = builder.as_dataset(split=tfds.Split.TEST,
-                                    batch_size=test_batch_size)
-  train_dataset = strategy.experimental_distribute_dataset(train_dataset)
-  test_dataset = strategy.experimental_distribute_dataset(test_dataset)
+  train_builder = ub.datasets.ImageNetDataset(
+      split=tfds.Split.TRAIN,
+      use_bfloat16=FLAGS.use_bfloat16)
+  train_dataset = train_builder.load(
+      batch_size=train_batch_size, strategy=strategy)
+  test_builder = ub.datasets.ImageNetDataset(
+      split=tfds.Split.TEST,
+      use_bfloat16=FLAGS.use_bfloat16)
+  test_dataset = test_builder.load(
+      batch_size=test_batch_size, strategy=strategy)
 
   if FLAGS.use_bfloat16:
     policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
@@ -127,7 +128,7 @@ def main(argv):
         (FLAGS.train_epochs * int(FLAGS.lr_decay_epochs[1])) // 90,
         (FLAGS.train_epochs * int(FLAGS.lr_decay_epochs[2])) // 90,
     ]
-    learning_rate = schedules.WarmUpPiecewiseConstantSchedule(
+    learning_rate = ub.schedules.WarmUpPiecewiseConstantSchedule(
         steps_per_epoch=steps_per_epoch,
         base_learning_rate=base_lr,
         decay_ratio=0.1,
