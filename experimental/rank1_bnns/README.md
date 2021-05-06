@@ -7,13 +7,22 @@ of the weights and optimizes global mixture variational posterior distributions.
 This directory contains the original scripts used for the paper, as well as
 additional experimental setups.
 
-NOTE: An updated version of the Rank-1 BNNs codebase can be found in
+NOTE: An updated version of the codebase, further expanding on the original
+results, can be found in
 [Uncertainty Baselines](https://github.com/google/uncertainty-baselines).
 
-References:
+## References
 
-  [1]: Michael W. Dusenberry\*, Ghassen Jerfel\*, Yeming Wen, Yian Ma, Jasper
-       Snoek, Katherine Heller, Balaji Lakshminarayanan, Dustin Tran. Efficient
-       and Scalable Bayesian Neural Nets with Rank-1 Factors. In Proc. of
-       International Conference on Machine Learning (ICML) 2020.
-       https://arxiv.org/abs/2005.07186
+> M. W. Dusenberry, G. Jerfel, Y. Wen, Y. Ma, J. Snoek, K. Heller, B. Lakshminarayanan, and D. Tran.
+> [Efficient and scalable Bayesian neural nets with rank-1 factors.](https://arxiv.org/abs/2005.07186)
+> In International Conference onMachine Learning, 2020.
+
+```none
+@inproceedings{dusenberry2020efficient,
+  title={Efficient and Scalable {Bayesian} Neural Nets with Rank-1 Factors},
+  author={Dusenberry, Michael W. and Jerfel, Ghassen and Wen, Yeming and Ma, Yian and Snoek, Jasper and Heller,
+    Katherine and Lakshminarayanan, Balaji and Tran, Dustin},
+  booktitle={International Conference on Machine Learning},
+  year={2020},
+}
+```
