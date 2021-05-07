@@ -23,23 +23,25 @@ if you'd like to build on research-ready code.
 
 ## Installation
 
+To install the latest stable version, run
+
+```sh
+pip install edward2
+```
+
 To install the latest development version, run
 
 ```sh
 pip install "git+https://github.com/google/edward2.git#egg=edward2"
 ```
 
-There is not yet a stable version (nor an official release of this library).
-All APIs are subject to change.
-
 Edward2 supports two backends: TensorFlow (the default) and NumPy ([see below to
 activate](#using-the-numpy-backend)). Installing `edward2` does not
 automatically install or update TensorFlow or NumPy. To get these dependencies,
-use `pip install edward2[tensorflow] @
-"git+https://github.com/google/edward2.git#egg=edward2"` or `pip install
-edward2[numpy] @ ...`. Sometimes Edward2 uses the latest changes from TensorFlow
+use `pip install edward2[tensorflow]"` or `pip install
+edward2`. Sometimes Edward2 uses the latest changes from TensorFlow
 in which you'll need TensorFlow's nightly package: use
-`pip install edward2[tf-nightly] @ ...`.
+`pip install edward2[tf-nightly]`.
 
 ## 1. Models as Probabilistic Programs
 

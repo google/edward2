@@ -23,6 +23,7 @@ setup(
     name='edward2',
     version=__version__,
     description='Edward2',
+    long_description='\n'.join(__doc__.split('\n')[2:]),
     author='Edward2 Team',
     author_email='trandustin@google.com',
     url='http://github.com/google/edward2',

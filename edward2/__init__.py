@@ -47,6 +47,6 @@ except NameError:
     tensorflow
   except NameError:
     raise ImportError("Neither NumPy nor TensorFlow backends are available for "
-                      "Edward2. Please install the dependencies for either of"
+                      "Edward2. Please install the dependencies for either of "
                       "them.")
 # pylint: enable=g-import-not-at-top
