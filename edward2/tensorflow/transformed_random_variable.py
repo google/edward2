@@ -60,7 +60,7 @@ class TransformedDistribution(tfp.distributions.Distribution):
     overrides = {'base': self.base[slices]}
     return self.copy(**overrides)
 
-  def _call_sample_n(self, sample_shape, seed, name, **kwargs):
+  def _call_sample_n(self, sample_shape, seed, **kwargs):
     x = self.base.sample(sample_shape, seed, **kwargs)
     y = self.reversible_layer(x)
     return y
