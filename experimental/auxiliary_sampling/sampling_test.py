@@ -21,6 +21,8 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 
+from tensorflow.core.protobuf import rewriter_config_pb2  # pylint: disable=g-direct-tensorflow-import
+
 tfd = tfp.distributions
 
 
@@ -47,7 +49,13 @@ class SamplingTest(tf.test.TestCase):
 
     # Test benign auxiliary variable
     sample_op, _ = sampling.sample_auxiliary_op(p, q, 1e-10)
-    sess = tf.Session()
+    session_config = tf.ConfigProto(
+        graph_options=tf.GraphOptions(
+            rewrite_options=rewriter_config_pb2.RewriterConfig(
+                arithmetic_optimization=rewriter_config_pb2.RewriterConfig
+                .AGGRESSIVE)))
+
+    sess = tf.Session(config=session_config)
     sess.run(tf.initialize_all_variables())
     p.loc.load(1., session=sess)
     p.untransformed_scale.load(self._softplus_inverse_np(1.), session=sess)
