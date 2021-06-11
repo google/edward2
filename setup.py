@@ -1,8 +1,8 @@
 """Edward2.
 
-Edward2 is a probabilistic programming language in Python. It extends the NumPy
-or TensorFlow ecosystem so that one can declare models as probabilistic programs
-and manipulate a model's computation for flexible training, latent variable
+Edward2 is a probabilistic programming language in Python. It extends deep
+learning ecosystems so that one can declare models as probabilistic programs and
+manipulate a model's computation for flexible training, latent variable
 inference, and prediction.
 
 See more details in the [`README.md`](https://github.com/google/edward2).
@@ -31,6 +31,8 @@ setup(
     packages=find_packages(),
     install_requires=[],
     extras_require={
+        'jax': ['jax>=0.2.13',
+                'flax>=0.3.4'],
         'numpy': ['numpy>=1.7',
                   'scipy>=1.0.0'],
         'tensorflow': ['tensorflow>=2.0.0a0',

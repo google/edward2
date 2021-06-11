@@ -25,11 +25,18 @@ For user guides, see:
 """
 
 import warnings
+
+__all__ = []
+try:
+  from edward2 import jax
+  __all__ += ["jax"]
+except ImportError:
+  warnings.warn("JAX backend for Edward2 is not available.")
+
 try:
   from edward2 import numpy
-  __all__ = ["numpy"]
+  __all__ += ["numpy"]
 except ImportError:
-  __all__ = []
   warnings.warn("NumPy backend for Edward2 is not available.")
 
 try:
@@ -40,13 +47,8 @@ try:
 except ImportError:
   warnings.warn("TensorFlow backend for Edward2 is not available.")
 
-try:
-  numpy
-except NameError:
-  try:
-    tensorflow
-  except NameError:
-    raise ImportError("Neither NumPy nor TensorFlow backends are available for "
-                      "Edward2. Please install the dependencies for either of "
-                      "them.")
+
+if all(x not in __all__ for x in ("jax", "numpy", "tensorflow")):
+  raise ImportError("No backend is available for Edward2. Please install "
+                    "dependencies for JAX, NumPy, or TensorFlow.")
 # pylint: enable=g-import-not-at-top

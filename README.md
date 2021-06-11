@@ -1,8 +1,8 @@
 # Edward2
 
 Edward2 is a _simple_ probabilistic programming language. It provides core
-utilities in the NumPy and TensorFlow ecosystems so that one can write models
-as probabilistic programs and manipulate a model's computation for flexible
+utilities in deep learning ecosystems so that one can write models as
+probabilistic programs and manipulate a model's computation for flexible
 training and inference. It's organized as follows:
 
 * [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
@@ -35,13 +35,13 @@ To install the latest development version, run
 pip install "git+https://github.com/google/edward2.git#egg=edward2"
 ```
 
-Edward2 supports two backends: TensorFlow (the default) and NumPy ([see below to
-activate](#using-the-numpy-backend)). Installing `edward2` does not
-automatically install or update TensorFlow or NumPy. To get these dependencies,
-use `pip install edward2[tensorflow]"` or `pip install
-edward2`. Sometimes Edward2 uses the latest changes from TensorFlow
-in which you'll need TensorFlow's nightly package: use
-`pip install edward2[tf-nightly]`.
+Edward2 supports three backends: TensorFlow (the default), JAX, and NumPy ([see
+below to activate](#using-the-jax-or-numpy-backend)). Installing `edward2` does
+not automatically install any backend. To get these dependencies, use for
+example `pip install edward2[tensorflow]"`, replacing `tensorflow` for the
+appropriate backend. Sometimes Edward2 uses the latest changes from TensorFlow
+in which you'll need TensorFlow's nightly package: use `pip install edward2[tf-
+nightly]`.
 
 ## 1. Models as Probabilistic Programs
 
@@ -247,12 +247,13 @@ The returned `coeffs_samples` and `intercept_samples` contain 1,000 posterior
 samples for `coeffs` and `intercept` respectively. They may be used, for
 example, to evaluate the model's posterior predictive on new data.
 
-## Using the NumPy backend
+## Using the JAX or NumPy backend
 
 Using alternative backends is as simple as the following:
 
 ```python
-import edward2.numpy as ed
+import edward2.numpy as ed  # NumPy backend
+import edward2.jax as ed  # or, JAX backend
 ```
 
 In the NumPy backend, Edward2 wraps SciPy distributions. For example, here's
