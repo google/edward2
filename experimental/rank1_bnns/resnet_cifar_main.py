@@ -183,8 +183,7 @@ def main(argv):
   steps_per_eval = test_dataset_size // batch_size_eval
 
   if FLAGS.use_bfloat16:
-    policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
-    tf.keras.mixed_precision.experimental.set_policy(policy)
+    tf.keras.mixed_precision.set_global_policy('mixed_bfloat16')
 
   summary_writer = tf.summary.create_file_writer(
       os.path.join(FLAGS.output_dir, 'summaries'))
