@@ -25,9 +25,11 @@ MIN_SCALE_MONTE_CARLO = 1e-3
 class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
   """Base class for MC heteroscesastic output layers.
 
-  Collier, M., Mustafa, B., Kokiopoulou, E., Jenatton, R., & Berent, J. (2020).
-  A Simple Probabilistic Method for Deep Classification under Input-Dependent
-  Label Noise. arXiv preprint arXiv:2003.06778.
+  Mark Collier, Basil Mustafa, Efi Kokiopoulou, Rodolphe Jenatton and
+  Jesse Berent. Correlated Input-Dependent Label Noise in Large-Scale Image
+  Classification. In Proc. of the IEEE/CVF Conference on Computer Vision
+  and Pattern Recognition (CVPR), 2021, pp. 1551-1560.
+  https://arxiv.org/abs/2105.10305
   """
 
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
