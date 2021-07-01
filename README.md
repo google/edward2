@@ -5,18 +5,18 @@ utilities in deep learning ecosystems so that one can write models as
 probabilistic programs and manipulate a model's computation for flexible
 training and inference. It's organized as follows:
 
-* [`edward2/`](https://github.com/google/edward2/blob/master/edward2/):
+* [`edward2/`](https://github.com/google/edward2/blob/main/edward2/):
   Library code.
-* [`examples/`](https://github.com/google/edward2/blob/master/examples):
+* [`examples/`](https://github.com/google/edward2/blob/main/examples):
   Examples.
-* [`experimental/`](https://github.com/google/edward2/blob/master/experimental):
+* [`experimental/`](https://github.com/google/edward2/blob/main/experimental):
   Active research projects.
 
 Are you upgrading from Edward? Check out the guide
-[`Upgrading_from_Edward_to_Edward2.md`](https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md).
+[`Upgrading_from_Edward_to_Edward2.md`](https://github.com/google/edward2/blob/main/Upgrading_From_Edward_To_Edward2.md).
 The core utilities are fairly low-level: if you'd like a high-level module for
 uncertainty modeling, check out the guide for
-[Bayesian Layers](https://github.com/google/edward2/tree/master/edward2/tensorflow/layers).
+[Bayesian Layers](https://github.com/google/edward2/tree/main/edward2/tensorflow/layers).
 We recommend the
 [Uncertainty Baselines](https://github.com/google/uncertainty-baselines)
 if you'd like to build on research-ready code.
@@ -48,7 +48,7 @@ nightly]`.
 ### Random Variables
 
 In Edward2, we use
-[`RandomVariables`](https://github.com/google/edward2/blob/master/edward2/tensorflow/random_variable.py)
+[`RandomVariables`](https://github.com/google/edward2/blob/main/edward2/tensorflow/random_variable.py)
 to specify a probabilistic model's structure.
 A random variable `rv` carries a probability distribution (`rv.distribution`),
 which is a TensorFlow Distribution instance governing the random variable's methods
@@ -154,7 +154,7 @@ posterior_coeffs, posterior_intercept = logistic_regression_posterior(
 Training and testing probabilistic models typically require more than just
 samples from the generative process. To enable flexible training and testing, we
 manipulate the model's computation using
-[tracing](https://github.com/google/edward2/blob/master/edward2/tracer.py).
+[tracing](https://github.com/google/edward2/blob/main/edward2/tracer.py).
 
 A tracer is a function that acts on another function `f` and its arguments
 `*args`, `**kwargs`. It performs various computations before returning an output

@@ -179,7 +179,7 @@ __Edward2__. You set up variational inference manually and/or build your own
 abstractions.
 
 Below we use Edward2's
-[tracing](https://github.com/google/edward2/blob/master/edward2/trace.py)
+[tracing](https://github.com/google/edward2/blob/main/edward2/trace.py)
 in order to manipulate model computation. We define the variational
 approximation—another Edward2 program—and apply tracers to write the
 evidence lower bound (Hinton & Camp, 1993; Jordan, Ghahramani, Jaakkola, & Saul,

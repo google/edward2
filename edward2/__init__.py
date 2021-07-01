@@ -18,9 +18,9 @@
 For user guides, see:
 
 + [Overview](
-   https://github.com/google/edward2/blob/master/README.md)
+   https://github.com/google/edward2/blob/main/README.md)
 + [Upgrading from Edward to Edward2](
-   https://github.com/google/edward2/blob/master/Upgrading_From_Edward_To_Edward2.md)
+   https://github.com/google/edward2/blob/main/Upgrading_From_Edward_To_Edward2.md)
 
 """
 

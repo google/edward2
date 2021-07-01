@@ -7,10 +7,10 @@ abstraction over deterministic and stochastic functions and allows for
 scalability via the underlying system.
 
 For examples using Bayesian Layers, see
-[`baselines/`](https://github.com/google/edward2/blob/master/baselines),
-[`examples/`](https://github.com/google/edward2/blob/master/examples), and the
+[`baselines/`](https://github.com/google/edward2/blob/main/baselines),
+[`examples/`](https://github.com/google/edward2/blob/main/examples), and the
 active research projects in
-[`experimental/`](https://github.com/google/edward2/blob/master/experimental).
+[`experimental/`](https://github.com/google/edward2/blob/main/experimental).
 
 ## 0. Motivation
 
@@ -40,8 +40,8 @@ design points:
   To enable different methods to estimate these integrals, each estimator is its own Layer. For example, the Bayesian extension of Keras' Conv2D layer has several estimators such as `ed.layers.Conv2DReparameterization` and `ed.layers.Conv2DFlipout`. Gradients for each layer estimator work automatically with `tf.GradientTape`.
 * __Type Signature.__ The Bayesian extension of a deterministic layer maintains its typical
 constructor arguments. It also maintains its signature for input and output Tensor shapes. This means you can swap any deterministic layer in your network with the equivalent Bayesian one, and the model type-checks (of course, more effort is required to get the new model to work).
-* __Distribution over parameters.__ To specify distributions over parameters, use Keras' `kernel_initializer` and `bias_initializer`. See [`ed.initializers`](https://github.com/google/edward2/blob/master/edward2/tensorflow/initializers.py) for Bayesian Layers' built-in additions.
-* __Distribution regularizers.__ To specify regularizers such as the KL penalty in variational inference, use Keras' `kernel_regularizer` and `bias_regularizer`. See [`ed.regularizers`](https://github.com/google/edward2/blob/master/edward2/tensorflow/regularizers.py) for Bayesian Layers' built-in additions.
+* __Distribution over parameters.__ To specify distributions over parameters, use Keras' `kernel_initializer` and `bias_initializer`. See [`ed.initializers`](https://github.com/google/edward2/blob/main/edward2/tensorflow/initializers.py) for Bayesian Layers' built-in additions.
+* __Distribution regularizers.__ To specify regularizers such as the KL penalty in variational inference, use Keras' `kernel_regularizer` and `bias_regularizer`. See [`ed.regularizers`](https://github.com/google/edward2/blob/main/edward2/tensorflow/regularizers.py) for Bayesian Layers' built-in additions.
 
 Here's a snippet of what typical code looks like. We use a Bayesian CNN using
 [TF 2.0's tutorial
@@ -114,7 +114,7 @@ value of the function at different inputs. GPs have the same design points:
 
 * __Computing the integral.__ Each estimator is its own Layer. This includes `ed.layers.GaussianProcess` for exact (albeit expensive) integration and `ed.layers.SparseGaussianProcess` for inducing variable approximations.
 * __Type Signature.__ For the equivalent deterministic layer, GPs maintain its typical arguments as well as tensor-shaped inputs and outputs. For example, `units` in a Gaussian process layer determine the GP's output dimensionality, where `ed.layers.GaussianProcess(32)` is the Bayesian nonparametric extension of `tf.keras.layers.Dense(32)`. Instead of an `activation` function argument, GP layers have mean and covariance function arguments which default to the zero function and squared exponential kernel respectively.
-* __Distribution regularizers.__ To specify regularizers such as the KL penalty in variational inference, use Keras' `kernel_regularizer` and `bias_regularizer`. See [`ed.regularizers`](https://github.com/google/edward2/blob/master/edward2/tensorflow/regularizers.py) for Bayesian Layers' built-in additions.
+* __Distribution regularizers.__ To specify regularizers such as the KL penalty in variational inference, use Keras' `kernel_regularizer` and `bias_regularizer`. See [`ed.regularizers`](https://github.com/google/edward2/blob/main/edward2/tensorflow/regularizers.py) for Bayesian Layers' built-in additions.
 
 Here's a snippet of what typical code looks like. We use a 3-layer deep GP
 trained with variational inference.
