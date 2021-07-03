@@ -73,6 +73,7 @@ from edward2.tensorflow.layers.random_feature import RandomFeatureGaussianProces
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
 from edward2.tensorflow.layers.recurrent import LSTMCellRank1
 from edward2.tensorflow.layers.recurrent import LSTMCellReparameterization
+from edward2.tensorflow.layers.routing import RoutingLayer
 from edward2.tensorflow.layers.stochastic_output import MixtureLogistic
 
 __all__ = [
@@ -128,6 +129,7 @@ __all__ = [
     "NeuralProcess",
     "RandomFeatureGaussianProcess",
     "Reverse",
+    "RoutingLayer",
     "SinkhornAutoregressiveFlow",
     "SparseGaussianProcess",
     "SpectralNormalization",
