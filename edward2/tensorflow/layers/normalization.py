@@ -281,6 +281,7 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
     return x
 
 
+
 class SpectralNormalization(tf.keras.layers.Wrapper):
   """Implements spectral normalization for Dense layer."""
 
@@ -541,3 +542,4 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
   def restore_weights(self):
     """Restores layer weights to maintain gradient update (See Alg 1 of [1])."""
     return self.layer.kernel.assign(self.w)
+

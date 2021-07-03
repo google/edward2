@@ -468,3 +468,4 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     else:
       # Return covariance estimate during inference.
       return self.compute_predictive_covariance(gp_feature=inputs)
+
