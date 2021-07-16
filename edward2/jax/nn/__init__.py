@@ -17,8 +17,12 @@
 
 from edward2.jax.nn import utils
 from edward2.jax.nn.dense import DenseBatchEnsemble
+from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFA
+from edward2.jax.nn.heteroscedastic_lib import MCSoftmaxDenseFA
 
 __all__ = [
     "DenseBatchEnsemble",
+    "MCSoftmaxDenseFA",
+    "MCSigmoidDenseFA",
     "utils",
 ]
