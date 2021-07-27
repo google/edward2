@@ -45,6 +45,8 @@ default_rbf_bias_init = nn.initializers.uniform(scale=2. * jnp.pi)
 # Default field value for kwargs, to be used for data class declaration.
 default_kwarg_dict = lambda: dataclasses.field(default_factory=dict)
 
+SUPPORTED_LIKELIHOOD = ('binary_logistic', 'poisson', 'gaussian')
+
 
 class RandomFourierFeatures(nn.Module):
   """A random fourier feature (RFF) layer that approximates a kernel model.
@@ -127,3 +129,193 @@ class RandomFourierFeatures(nn.Module):
     bias = self.variable(self.collection_name, 'bias', lambda: bias_val)
 
     return kernel, bias
+
+
+class LaplaceRandomFeatureCovariance(nn.Module):
+  """Computes the Gaussian Process covariance using Laplace method.
+
+  Attributes:
+    hidden_features: the number of random fourier features.
+    ridge_penalty: Initial Ridge penalty to weight covariance matrix. This value
+      is used to stablize the eigenvalues of weight covariance estimate so that
+      the matrix inverse can be computed for Cov = inv(t(X) @ X + s * I). The
+      ridge factor s cannot be too large since otherwise it will dominate the
+      t(X) * X term and make covariance estimate not meaningful.
+    momentum: A discount factor used to compute the moving average for posterior
+      precision matrix. Analogous to the momentum factor in batch normalization.
+      If `None` then update covariance matrix using a naive sum without
+      momentum, which is desirable if the goal is to compute the exact
+      covariance matrix by passing through data once (say in the final epoch).
+      In this case, make sure to reset the precision matrix variable between
+      epochs by replacing it with self.initial_precision_matrix().
+    likelihood: The likelihood to use for computing Laplace approximation for
+      the covariance matrix. Can be one of ('binary_logistic', 'poisson',
+      'gaussian').
+  """
+  hidden_features: int
+  ridge_penalty: float = 1.
+  momentum: Optional[float] = None
+  likelihood: str = 'gaussian'
+  collection_name: str = 'laplace_covariance'
+  dtype: Dtype = jnp.float32
+
+  def setup(self):
+    if self.momentum is not None:
+      if self.momentum < 0. or self.momentum > 1.:
+        raise ValueError(f'`momentum` must be between (0, 1). '
+                         f'Got {self.momentum}.')
+
+    if self.likelihood not in SUPPORTED_LIKELIHOOD:
+      raise ValueError(f'"likelihood" must be one of {SUPPORTED_LIKELIHOOD}, '
+                       f'got {self.likelihood}.')
+
+  @nn.compact
+  def __call__(self,
+               gp_features: Array,
+               gp_logits: Optional[Array] = None,
+               diagonal_only: bool = True) -> Optional[Array]:
+    """Updates the precision matrix and computes the predictive covariance.
+
+    NOTE:
+    The precision matrix will be updated only during training (i.e., when
+    `self.collection_name` are in the list of mutable variables). The covariance
+    matrix will be computed only during inference to avoid repeated calls to the
+    (expensive) `linalg.inv` op.
+
+    Args:
+      gp_features: The nd-array of random fourier features, shape (batch_size,
+        ..., hidden_features).
+      gp_logits: The nd-array of predictive logits, shape (batch_size, ...,
+        logit_dim). Cannot be None if self.likelihood is not `gaussian`.
+      diagonal_only: Whether to return only the diagonal elements of the
+        predictive covariance matrix (i.e., the predictive variance).
+
+    Returns:
+      The predictive variances of shape (batch_size, ) if diagonal_only=True,
+      otherwise the predictive covariance matrix of shape
+      (batch_size, batch_size).
+    """
+    gp_features = jnp.asarray(gp_features, self.dtype)
+
+    # Flatten GP features and logits to 2-d, by doing so we treat all the
+    # non-final dimensions as the batch dimensions.
+    gp_features = jnp.reshape(gp_features, [-1, self.hidden_features])
+
+    if gp_logits is not None:
+      gp_logits = jnp.asarray(gp_logits, self.dtype)
+      gp_logits = jnp.reshape(gp_logits, [gp_features.shape[0], -1])
+
+    precision_matrix = self.variable(self.collection_name, 'precision_matrix',
+                                     lambda: self.initial_precision_matrix())  # pylint: disable=unnecessary-lambda
+
+    # Updates the precision matrix during training.
+    initializing = self.is_mutable_collection('params')
+    training = self.is_mutable_collection(self.collection_name)
+
+    if training and not initializing:
+      precision_matrix.value = self.update_precision_matrix(
+          gp_features, gp_logits, precision_matrix.value)
+
+    # Computes covariance matrix during inference.
+    if not training:
+      return self.compute_predictive_covariance(gp_features, precision_matrix,
+                                                diagonal_only)
+
+  def initial_precision_matrix(self):
+    """Returns the initial diagonal precision matrix."""
+    return jnp.eye(self.hidden_features, dtype=self.dtype) * self.ridge_penalty
+
+  def update_precision_matrix(self, gp_features: Array,
+                              gp_logits: Optional[Array],
+                              precision_matrix: Array) -> Array:
+    """Updates precision matrix given a new batch.
+
+    Args:
+      gp_features: random features from the new batch, shape (batch_size,
+        hidden_features)
+      gp_logits: predictive logits from the new batch, shape (batch_size,
+        logit_dim). Currently only logit_dim=1 is supported.
+      precision_matrix: the current precision matrix, shape (hidden_features,
+        hidden_features).
+
+    Returns:
+      Updated precision matrix, shape (hidden_features, hidden_features).
+
+    Raises:
+      (ValueError) If the logit is None or not univariate when likelihood is
+        not Gaussian.
+    """
+    if self.likelihood != 'gaussian':
+      if gp_logits is None:
+        raise ValueError(
+            f'`gp_logits` cannot be None when likelihood=`{self.likelihood}`')
+
+      if gp_logits.ndim > 1 and gp_logits.shape[-1] != 1:
+        raise ValueError(
+            f'likelihood `{self.likelihood}` only support univariate logits. '
+            f'Got logits dimension: {gp_logits.shape[-1]}')
+
+    # Computes precision matrix within new batch.
+    if self.likelihood == 'binary_logistic':
+      prob = nn.sigmoid(gp_logits)
+      prob_multiplier = prob * (1. - prob)
+    elif self.likelihood == 'poisson':
+      prob_multiplier = jnp.exp(gp_logits)
+    else:
+      prob_multiplier = 1.
+
+    gp_features_adj = jnp.sqrt(prob_multiplier) * gp_features
+    batch_prec_mat = jnp.matmul(jnp.transpose(gp_features_adj), gp_features_adj)
+
+    # Updates precision matrix.
+    if self.momentum is None:
+      # Performs exact update without momentum.
+      precision_matrix_updated = precision_matrix + batch_prec_mat
+    else:
+      batch_size = gp_features.shape[0]
+      precision_matrix_updated = (
+          self.momentum * precision_matrix +
+          (1 - self.momentum) * batch_prec_mat / batch_size)
+    return precision_matrix_updated
+
+  def compute_predictive_covariance(self, gp_features: Array,
+                                    precision_matrix: nn.Variable,
+                                    diagonal_only: bool) -> Array:
+    """Computes the predictive covariance.
+
+    Approximates the Gaussian process posterior using random features.
+    Given training random feature Phi_tr (num_train, num_hidden) and testing
+    random feature Phi_ts (batch_size, num_hidden). The predictive covariance
+    matrix is computed as (assuming Gaussian likelihood):
+
+    s * Phi_ts @ inv(t(Phi_tr) * Phi_tr + s * I) @ t(Phi_ts),
+
+    where s is the ridge factor to be used for stablizing the inverse, and I is
+    the identity matrix with shape (num_hidden, num_hidden).
+
+    Args:
+      gp_features: the random feature of testing data to be used for computing
+        the covariance matrix. Shape (batch_size, gp_hidden_size).
+      precision_matrix: the model's precision matrix.
+      diagonal_only: whether to return only the diagonal elements of the
+        predictive covariance matrix (i.e., the predictive variances).
+
+    Returns:
+      The predictive variances of shape (batch_size, ) if diagonal_only=True,
+      otherwise the predictive covariance matrix of shape
+      (batch_size, batch_size).
+    """
+    precision_matrix_inv = jnp.linalg.inv(precision_matrix.value)
+    cov_feature_product = jnp.matmul(precision_matrix_inv,
+                                     jnp.transpose(gp_features))
+
+    if diagonal_only:
+      # Compute diagonal element only, shape (batch_size, ).
+      # Using the identity diag(A @ B) = col_sum(A * tr(B)).
+      gp_covar = jnp.sum(
+          gp_features * jnp.transpose(cov_feature_product), axis=-1)
+    else:
+      # Compute full covariance matrix, shape (batch_size, batch_size).
+      gp_covar = jnp.matmul(gp_features, cov_feature_product)
+
+    return self.ridge_penalty * gp_covar

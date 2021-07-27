@@ -106,5 +106,231 @@ class RandomFeatureTest(parameterized.TestCase):
                                **self.kernel_approx_tolerance)
 
 
+class LaplaceRandomFeatureCovarianceTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.seed = 0
+    self.collection_name = 'laplace_covariance'
+    self.num_random_features = 1024
+    self.batch_size = 31
+    self.ridge_penalty = 0.32
+
+    self.kernel_approx_tolerance = dict(atol=5e-2, rtol=1e-2)
+
+  @parameterized.named_parameters(('gaussian_multi_class', 'gaussian', 42),
+                                  ('binary_univariate', 'binary_logistic', 1),
+                                  ('poisson_univariate', 'poisson', 1))
+  def test_laplace_covariance_shape(self, likelihood, logit_dim):
+    """Tests if the shape of the covariance matrix is correct."""
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, logit_key, init_key = jax.random.split(rng, 3)
+
+    gp_features = jax.random.uniform(
+        rff_key, (self.batch_size, self.num_random_features))
+    gp_logits = jax.random.uniform(logit_key, (self.batch_size, logit_dim))
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood=likelihood,
+    )
+
+    # Intialize and apply one update.
+    init_vars = cov_layer.init(init_key, gp_features, gp_logits)
+    cov_null, mutated_vars = cov_layer.apply(
+        init_vars, gp_features, gp_logits, mutable=[cov_layer.collection_name])
+
+    # Evaluate covariance.
+    cov_diag = cov_layer.apply(
+        mutated_vars, gp_features, gp_logits, diagonal_only=True)
+    cov_mat = cov_layer.apply(
+        mutated_vars, gp_features, gp_logits, diagonal_only=False)
+
+    # No covariance is returned during mutable update.
+    self.assertIsNone(cov_null)
+
+    # Shape of returned covariance depends on diagonal_only=True / False.
+    self.assertEqual(cov_diag.shape, (self.batch_size,))
+    self.assertEqual(cov_mat.shape, (self.batch_size, self.batch_size))
+
+  @parameterized.named_parameters(
+      ('binary_multivariate_logit', 'binary_logistic', 3),
+      ('binary_no_logit', 'binary_logistic', None),
+      ('poisson_multivariate_logit', 'binary_logistic', 2),
+      ('poisson_no_logit', 'poisson', None))
+  def test_laplace_covariance_likelhood_error(self, likelihood, logit_dim):
+    """Tests if no-Gaussian model throw error for multivariate / null logits."""
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, logit_key, init_key = jax.random.split(rng, 3)
+
+    gp_features = jax.random.uniform(
+        rff_key, (self.batch_size, self.num_random_features))
+    gp_logits = jax.random.uniform(logit_key,
+                                   (self.batch_size,
+                                    logit_dim)) if logit_dim else None
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood=likelihood,
+    )
+    init_vars = cov_layer.init(init_key, gp_features, gp_logits)
+
+    with self.assertRaises(ValueError):
+      _ = cov_layer.apply(
+          init_vars,
+          gp_features,
+          gp_logits,
+          mutable=[cov_layer.collection_name])
+
+  def test_laplace_covariance_gaussian_update(self):
+    """Tests if orthogonal data leads to an identity covariance matrix."""
+    sample_size = self.num_random_features * 2
+
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, init_key = jax.random.split(rng, 2)
+
+    # Make orthogonal data using SVD.
+    gp_features = jax.random.uniform(
+        rff_key, (sample_size, self.num_random_features))
+    gp_features_ortho, _, _ = jnp.linalg.svd(gp_features, full_matrices=False)
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood='gaussian',
+        ridge_penalty=self.ridge_penalty)
+
+    # Intialize and apply one update.
+    init_vars = cov_layer.init(init_key, gp_features_ortho)
+    _, mutated_vars = cov_layer.apply(
+        init_vars, gp_features_ortho, mutable=[cov_layer.collection_name])
+
+    # Check precision matrices after update.
+    # Under exact update and Gaussian likelihood, the precision matrix should be
+    # (tr(U) @ U + ridge * I) which equals to (1 + ridge) * I.
+    updated_mat_computed = mutated_vars[
+        cov_layer.collection_name]['precision_matrix']
+    updated_mat_expected = jnp.eye(
+        self.num_random_features) * (1. + self.ridge_penalty)
+
+    np.testing.assert_allclose(updated_mat_computed, updated_mat_expected,
+                               rtol=1e-5, atol=1e-5)
+
+  @parameterized.named_parameters(('gaussian_multi_class', 'gaussian', 4),
+                                  ('binary_univariate', 'binary_logistic', 1),
+                                  ('poisson_univariate', 'poisson', 1))
+  def test_laplace_covariance_exact_update(self, likelihood, logit_dim):
+    """Tests if exact update returns correct result."""
+    # Perform exact update by setting momentum to `None`.
+    momentum = None
+
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, logit_key, init_key = jax.random.split(rng, 3)
+
+    gp_features = jax.random.uniform(
+        rff_key, (self.batch_size, self.num_random_features))
+    gp_logits = jax.random.uniform(logit_key,
+                                   (self.batch_size,
+                                    logit_dim)) if logit_dim else None
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood=likelihood,
+        ridge_penalty=self.ridge_penalty,
+        momentum=momentum)
+
+    # Intialize and apply one update.
+    init_vars = cov_layer.init(init_key, gp_features, gp_logits)
+    _, mutated_vars = cov_layer.apply(
+        init_vars, gp_features, gp_logits, mutable=[cov_layer.collection_name])
+
+    # Check precision matrices at initialization and after update.
+    init_mat_computed = init_vars[cov_layer.collection_name]['precision_matrix']
+    init_mat_expected = jnp.eye(self.num_random_features) * self.ridge_penalty
+
+    updated_mat_computed = mutated_vars[
+        cov_layer.collection_name]['precision_matrix']
+    updated_mat_expected = cov_layer.update_precision_matrix(
+        gp_features, gp_logits, 0.) + init_mat_expected
+
+    np.testing.assert_allclose(init_mat_computed, init_mat_expected)
+    np.testing.assert_allclose(updated_mat_computed, updated_mat_expected)
+
+  @parameterized.named_parameters(
+      ('gaussian_multi_class_0', 'gaussian', 4, 0.),
+      ('gaussian_multi_class_0.52', 'gaussian', 4, .52),
+      ('gaussian_multi_class_1', 'gaussian', 4, 1.),
+      ('binary_univariate_0', 'binary_logistic', 1, 0.),
+      ('binary_univariate_0.18', 'binary_logistic', 1, .18),
+      ('binary_univariate_1', 'binary_logistic', 1, 1.),
+      ('poisson_univariate_0', 'poisson', 1, 0.),
+      ('poisson_univariate_0.73', 'poisson', 1, .73),
+      ('poisson_univariate_1', 'poisson', 1, 1.))
+  def test_laplace_covariance_momentum_update(self, likelihood, logit_dim,
+                                              momentum):
+    """Tests if momentum update is correct."""
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, logit_key, init_key = jax.random.split(rng, 3)
+
+    gp_features = jax.random.uniform(
+        rff_key, (self.batch_size, self.num_random_features))
+    gp_logits = jax.random.uniform(logit_key,
+                                   (self.batch_size,
+                                    logit_dim)) if logit_dim else None
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood=likelihood,
+        ridge_penalty=self.ridge_penalty,
+        momentum=momentum)
+
+    # Intialize and apply one update.
+    init_vars = cov_layer.init(init_key, gp_features, gp_logits)
+    _, mutated_vars = cov_layer.apply(
+        init_vars, gp_features, gp_logits, mutable=[cov_layer.collection_name])
+
+    # Check precision matrices at initialization and after update.
+    init_mat_computed = init_vars[cov_layer.collection_name]['precision_matrix']
+    init_mat_expected = jnp.eye(self.num_random_features) * self.ridge_penalty
+
+    updated_mat_computed = mutated_vars[
+        cov_layer.collection_name]['precision_matrix']
+    updated_mat_expected = cov_layer.update_precision_matrix(
+        gp_features, gp_logits, 0.) + momentum * init_mat_expected
+
+    np.testing.assert_allclose(init_mat_computed, init_mat_expected)
+    np.testing.assert_allclose(updated_mat_computed, updated_mat_expected)
+
+  @parameterized.named_parameters(('gaussian_multi_class', 'gaussian', 4),
+                                  ('binary_univariate', 'binary_logistic', 1),
+                                  ('poisson_univariate', 'poisson', 1))
+  def test_laplace_covariance_diagonal_covariance(self, likelihood, logit_dim):
+    """Tests if computed predictive variance is the diagonal of covar matrix."""
+    rng = jax.random.PRNGKey(self.seed)
+    rff_key, logit_key, init_key = jax.random.split(rng, 3)
+
+    gp_features = jax.random.uniform(
+        rff_key, (self.batch_size, self.num_random_features))
+    gp_logits = jax.random.uniform(logit_key, (self.batch_size, logit_dim))
+
+    cov_layer = ed.nn.LaplaceRandomFeatureCovariance(
+        hidden_features=self.num_random_features,
+        likelihood=likelihood,
+        ridge_penalty=self.ridge_penalty)
+
+    # Intialize and apply one update.
+    init_vars = cov_layer.init(init_key, gp_features, gp_logits)
+    _, mutated_vars = cov_layer.apply(
+        init_vars, gp_features, gp_logits, mutable=[cov_layer.collection_name])
+
+    # Evaluate covariance.
+    cov_diag = cov_layer.apply(
+        mutated_vars, gp_features, gp_logits, diagonal_only=True)
+    cov_mat = cov_layer.apply(
+        mutated_vars, gp_features, gp_logits, diagonal_only=False)
+
+    np.testing.assert_allclose(
+        cov_diag, jnp.diag(cov_mat), rtol=1e-6, atol=1e-6)
+
+
 if __name__ == '__main__':
   absltest.main()
