@@ -17,12 +17,20 @@
 
 ## References:
 
-[1]: Ali Rahimi and Benjamin Recht. Random Features for Large-Scale Kernel
+[1]: Liu et al. Simple and principled uncertainty estimation with deterministic
+     deep learning via distance awareness. In _Neural Information Processing
+     Systems_, 2020.
+     https://arxiv.org/abs/2006.10108
+[2]: Xu et al. Understanding and Improving Layer Normalization.  In _Neural
+     Information Processing Systems_, 2019.
+     https://papers.nips.cc/paper/2019/file/2f4fe03d77724a7217006e5d16728874-Paper.pdf
+[3]: Ali Rahimi and Benjamin Recht. Random Features for Large-Scale Kernel
      Machines. In _Neural Information Processing Systems_, 2007.
      https://people.eecs.berkeley.edu/~brecht/papers/07.rah.rec.nips.pdf
 """
 import dataclasses
-from typing import Any, Callable, Iterable, Optional, Union
+import functools
+from typing import Any, Callable, Iterable, Mapping, Optional, Union
 
 import flax.linen as nn
 
@@ -48,11 +56,82 @@ default_kwarg_dict = lambda: dataclasses.field(default_factory=dict)
 SUPPORTED_LIKELIHOOD = ('binary_logistic', 'poisson', 'gaussian')
 
 
+class RandomFeatureGaussianProcess(nn.Module):
+  """A Gaussian process layer using random Fourier features [1].
+
+  Attributes:
+    features: the number of output units.
+    hidden_features: the number of hidden random fourier features.
+    normalize_input: whether to normalize the input using nn.LayerNorm.
+    norm_kwargs: Optional keyword arguments to the input nn.LayerNorm layer.
+    hidden_kwargs: Optional keyword arguments to the random feature layer.
+    output_kwargs: Optional keyword arguments to the predictive logit layer.
+    covmat_kwargs: Optional keyword arguments to the predictive covmat layer.
+  """
+  features: int
+  hidden_features: int = 1024
+  normalize_input: bool = True
+
+  # Optional keyword arguments.
+  norm_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  hidden_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  output_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  covmat_kwargs: Mapping[str, Any] = default_kwarg_dict()
+
+  def setup(self):
+    """Defines model layers."""
+    # pylint:disable=invalid-name,not-a-mapping
+    if self.normalize_input:
+      # Prefer a parameter-free version of LayerNorm by default [2]. Can be
+      # overwritten by passing norm_kwargs=dict(use_bias=..., use_scales=...).
+      LayerNorm = functools.partial(
+          nn.LayerNorm, use_bias=False, use_scale=False)
+      self.norm_layer = LayerNorm(**self.norm_kwargs)
+
+    self.hidden_layer = RandomFourierFeatures(
+        features=self.hidden_features, **self.hidden_kwargs)
+
+    self.output_layer = nn.Dense(features=self.features, **self.output_kwargs)
+    self.covmat_layer = LaplaceRandomFeatureCovariance(
+        hidden_features=self.hidden_features, **self.covmat_kwargs)
+    # pylint:enable=invalid-name,not-a-mapping
+
+  def __call__(self,
+               inputs: Array,
+               return_full_covmat: bool = False,
+               return_random_features: bool = False) -> Array:
+    """Computes Gaussian process outputs.
+
+    Args:
+      inputs: the nd-array of shape (batch_size, ..., input_dim).
+      return_full_covmat: whether to return the full covariance matrix, shape
+        (batch_size, batch_size), or only return the predictive variances with
+        shape (batch_size, ).
+      return_random_features: whether to return the random fourier features for
+        the inputs.
+
+    Returns:
+      A tuple of predictive logits, predictive covmat and (optionally)
+      random Fourier features.
+    """
+    gp_inputs = self.norm_layer(inputs) if self.normalize_input else inputs
+    gp_features = self.hidden_layer(gp_inputs)
+
+    gp_logits = self.output_layer(gp_features)
+    gp_covmat = self.covmat_layer(
+        gp_features, gp_logits, diagonal_only=not return_full_covmat)
+
+    # Returns predictive logits, covmat and (optionally) random features.
+    if return_random_features:
+      return gp_logits, gp_covmat, gp_features
+    return gp_logits, gp_covmat
+
+
 class RandomFourierFeatures(nn.Module):
   """A random fourier feature (RFF) layer that approximates a kernel model.
 
   The random feature transformation is a one-hidden-layer network with
-  non-trainable weights (see, e.g., Algorithm 1 of [1]). Specifically:
+  non-trainable weights (see, e.g., Algorithm 1 of [3]). Specifically:
 
   f(x) = activation(x @ kernel + bias) * output_scale.
 
@@ -61,7 +140,7 @@ class RandomFourierFeatures(nn.Module):
   Attributes:
     features: the number of output units.
     feature_scalefeature_scale: scale to apply to the output
-      (default: sqrt(2. / features), see Algorithm 1 of [1]).
+      (default: sqrt(2. / features), see Algorithm 1 of [3]).
     activation: activation function to apply to the output.
     kernel_init: initializer function for the weight matrix.
     bias_init: initializer function for the bias.

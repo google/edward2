@@ -14,25 +14,204 @@
 # limitations under the License.
 
 """Tests for random_feature."""
+import functools
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import edward2 as ed_tf
 import edward2.jax as ed
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-RBF_KERN_FUNC = ed_tf.layers.gaussian_process.ExponentiatedQuadratic(
-    variance=1., lengthscale=1.)
+
+def exp_quadratic(x1, x2):
+  return jnp.exp(-jnp.sum((x1 - x2)**2) / 2.)
 
 
-def _generate_normal_data(num_sample, num_dim, loc=0.):
+def linear(x1, x2):
+  return jnp.sum(x1 * x2)
+
+
+def cov_map(xs, xs2=None, cov_func=None):
+  """Compute a covariance matrix from a covariance function and data points.
+
+  Args:
+    xs: array of data points, stacked along the leading dimension.
+    xs2: second array of data points, stacked along the non-leading dimension.
+    cov_func: callable function, maps pairs of data points to scalars.
+
+  Returns:
+    A 2d array `a` such that `a[i, j] = cov_func(xs[i], xs[j])`.
+  """
+  if xs2 is None:
+    return jax.vmap(lambda x: jax.vmap(lambda y: cov_func(x, y))(xs))(xs)
+  else:
+    return jax.vmap(lambda x: jax.vmap(lambda y: cov_func(x, y))(xs))(xs2).T
+
+
+def _compute_posterior_kernel(x_tr, x_ts, ridge_penalty, kernel_func=None):
+  """Computes the posterior covariance matrix of a Gaussian process."""
+  if kernel_func is None:
+    kernel_func = functools.partial(cov_map, cov_func=linear)
+
+  num_sample = x_tr.shape[0]
+
+  k_tt = kernel_func(x_tr)
+  k_tt_ridge = k_tt + ridge_penalty * jnp.eye(num_sample)
+
+  k_ts = kernel_func(x_tr, x_ts)
+  k_tt_inv_k_ts = jnp.linalg.solve(k_tt_ridge, k_ts)
+
+  k_ss = kernel_func(x_ts)
+
+  return k_ss - jnp.matmul(jnp.transpose(k_ts), k_tt_inv_k_ts)
+
+
+def _generate_normal_data(num_sample, num_dim, loc=0., seed=None):
   """Generates random data sampled from i.i.d. normal distribution."""
+  np.random.seed(seed)
   return np.random.normal(
       size=(num_sample, num_dim), loc=loc, scale=1. / np.sqrt(num_dim))
+
+
+class RandomFeatureGaussianProcessTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.seed = 0
+
+    self.ridge_penalty = 1.
+    self.num_data_dim = 4
+    self.num_test_sample = 16
+    self.num_train_sample = 2000
+    self.num_random_features = 1024
+    self.rbf_func = functools.partial(cov_map, cov_func=exp_quadratic)
+
+    self.x_train = _generate_normal_data(
+        self.num_train_sample, self.num_data_dim, seed=12)
+    self.x_test = _generate_normal_data(
+        self.num_test_sample, self.num_data_dim, seed=21)
+
+    self.rbf_approx_maximum_tol = 5e-3
+    self.rbf_approx_average_tol = 5e-4
+    self.primal_dual_maximum_diff = 1e-6
+    self.primal_dual_average_diff = 1e-7
+
+  def one_step_rfgp_result(self, train_data, test_data, **eval_kwargs):
+    """Returns the RFGP result after one-step covariance update."""
+    rfgp = ed.nn.RandomFeatureGaussianProcess(
+        features=1,
+        hidden_features=self.num_random_features,
+        normalize_input=False,
+        covmat_kwargs=dict(ridge_penalty=self.ridge_penalty))
+
+    # Computes posterior covariance on test data.
+    init_key = jax.random.PRNGKey(self.seed)
+    init_variables = rfgp.init(init_key, inputs=train_data)
+    state, params = init_variables.pop('params')
+    del init_variables
+
+    # Perform one-step update on training data.
+    unused_rfgp_logits_train, updated_state = rfgp.apply(
+        {
+            'params': params,
+            **state
+        },
+        inputs=train_data,
+        mutable=list(state.keys()))
+    del unused_rfgp_logits_train
+
+    # Returns the evaluate result on test data.
+    # Note we don't specify mutable collection during eval.
+    updated_variables = {'params': params, **updated_state}
+    return rfgp.apply(updated_variables, inputs=test_data, **eval_kwargs)
+
+  def test_rfgp_posterior_approximation_exact_rbf(self):
+    """Tests if posterior covmat approximates that from a RBF model."""
+    # Evaluates on test data.
+    _, rfgp_covmat_test = self.one_step_rfgp_result(
+        self.x_train, self.x_test, return_full_covmat=True)
+
+    # Compares with exact RBF posterior covariance.
+    rbf_covmat_test = _compute_posterior_kernel(self.x_train, self.x_test,
+                                                self.ridge_penalty,
+                                                self.rbf_func)
+    covmat_maximum_diff = jnp.max(jnp.abs(rbf_covmat_test - rfgp_covmat_test))
+    covmat_average_diff = jnp.mean(jnp.abs(rbf_covmat_test - rfgp_covmat_test))
+
+    self.assertLess(covmat_maximum_diff, self.rbf_approx_maximum_tol)
+    self.assertLess(covmat_average_diff, self.rbf_approx_average_tol)
+
+  def test_rfgp_posterior_approximation_dual_form(self):
+    """Tests if the primal-form posterior matches with the dual form."""
+    # Computes the covariance matrix using primal-form formula.
+    x_train = _generate_normal_data(128, self.num_data_dim)
+    x_test = _generate_normal_data(64, self.num_data_dim)
+
+    _, _, rfgp_features_train = self.one_step_rfgp_result(
+        train_data=x_train, test_data=x_train,
+        return_full_covmat=True, return_random_features=True)
+    _, rfgp_covmat_primal, rfgp_features_test = self.one_step_rfgp_result(
+        train_data=x_train, test_data=x_test,
+        return_full_covmat=True, return_random_features=True)
+
+    # Computing random feature posterior covariance using primal formula.
+    linear_kernel_func = functools.partial(cov_map, cov_func=linear)
+    rfgp_covmat_dual = _compute_posterior_kernel(
+        rfgp_features_train, rfgp_features_test,
+        ridge_penalty=self.ridge_penalty,
+        kernel_func=linear_kernel_func)
+
+    covmat_diff = jnp.abs(rfgp_covmat_dual - rfgp_covmat_primal)
+    covmat_maximum_diff = jnp.max(covmat_diff)
+    covmat_average_diff = jnp.mean(covmat_diff)
+
+    self.assertLess(covmat_maximum_diff, self.primal_dual_maximum_diff)
+    self.assertLess(covmat_average_diff, self.primal_dual_average_diff)
+
+  @parameterized.named_parameters(
+      ('diag_covmat_no_rff', False, False),
+      ('diag_covmat_with_rff', False, True),
+      ('full_covmat_no_rff', True, False),
+      ('full_covmat_with_rff', True, True),
+  )
+  def test_rfgp_output_shape(self, return_full_covmat, return_random_features):
+    """Tests if the shape of output covmat and random features are correct."""
+    rfgp_results = self.one_step_rfgp_result(
+        train_data=self.x_train,
+        test_data=self.x_test,
+        return_full_covmat=return_full_covmat,
+        return_random_features=return_random_features)
+
+    expected_results_len = 2 + return_random_features
+    observed_covmat_shape = rfgp_results[1].shape
+    expected_covmat_shape = ((self.num_test_sample,) if not return_full_covmat
+                             else (self.num_test_sample, self.num_test_sample))
+    self.assertLen(rfgp_results, expected_results_len)
+    self.assertEqual(observed_covmat_shape, expected_covmat_shape)
+
+    if return_random_features:
+      expected_feature_shape = (self.num_test_sample, self.num_random_features)
+      observed_feature_shape = rfgp_results[2].shape
+      self.assertEqual(expected_feature_shape, observed_feature_shape)
+
+  def test_rfgp_default_parameter_collections(self):
+    rfgp = ed.nn.RandomFeatureGaussianProcess(
+        features=1, hidden_features=self.num_random_features)
+
+    # Computes posterior covariance on test data.
+    init_key = jax.random.PRNGKey(self.seed)
+    init_variables = rfgp.init(init_key, inputs=self.x_train)
+    state, params = init_variables.pop('params')
+    del init_variables
+
+    # Note: the norm_layer should not show up in `param`
+    # since by default it does not have trainable parameters.
+    self.assertEqual(list(params.keys()), ['output_layer'])
+    self.assertEqual(
+        list(state.keys()), ['random_features', 'laplace_covariance'])
 
 
 class RandomFeatureTest(parameterized.TestCase):
@@ -45,7 +224,7 @@ class RandomFeatureTest(parameterized.TestCase):
     self.num_data_dim = 128
     self.num_train_sample = 512
     self.num_random_features = 10240
-    self.rbf_kern_func = RBF_KERN_FUNC
+    self.rbf_kern_func = functools.partial(cov_map, cov_func=exp_quadratic)
 
     self.x_train = _generate_normal_data(self.num_train_sample,
                                          self.num_data_dim)

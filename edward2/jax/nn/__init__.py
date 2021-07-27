@@ -20,13 +20,15 @@ from edward2.jax.nn.dense import DenseBatchEnsemble
 from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFA
 from edward2.jax.nn.heteroscedastic_lib import MCSoftmaxDenseFA
 from edward2.jax.nn.random_feature import LaplaceRandomFeatureCovariance
+from edward2.jax.nn.random_feature import RandomFeatureGaussianProcess
 from edward2.jax.nn.random_feature import RandomFourierFeatures
 
 __all__ = [
     "DenseBatchEnsemble",
     "MCSoftmaxDenseFA",
     "MCSigmoidDenseFA",
-    "RandomFourierFeatures",
     "LaplaceRandomFeatureCovariance",
+    "RandomFeatureGaussianProcess",
+    "RandomFourierFeatures",
     "utils",
 ]
