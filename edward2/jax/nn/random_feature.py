@@ -30,7 +30,7 @@
 """
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, Mapping, Optional, Union
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 import flax.linen as nn
 
@@ -179,7 +179,14 @@ class RandomFourierFeatures(nn.Module):
     """
     # Initializes variables.
     input_dim = inputs.shape[-1]
-    kernel, bias = self.initialize_random_features(input_dim)
+
+    kernel_rng, bias_rng = random.split(self.rng, num=2)
+    kernel_shape = (input_dim, self.features)
+
+    kernel = self.variable(self.collection_name, 'kernel', self.kernel_init,
+                           kernel_rng, kernel_shape, self.dtype)
+    bias = self.variable(self.collection_name, 'bias', self.bias_init,
+                         bias_rng, (self.features,), self.dtype)
 
     # Specifies multiplication dimension.
     contracting_dims = ((inputs.ndim - 1,), (0,))
@@ -192,22 +199,6 @@ class RandomFourierFeatures(nn.Module):
     outputs = outputs + jnp.broadcast_to(bias.value, outputs.shape)
 
     return self._feature_scale * self.activation(outputs)
-
-  def initialize_random_features(
-      self, input_dim: int) -> Union[nn.Variable, nn.Variable]:
-    """Initialize the untrainable kernel and bias."""
-    kernel_shape = (input_dim, self.features)
-    kernel_rng, bias_rng = random.split(self.rng, num=2)
-
-    # Initialization random feature values.
-    kernel_val = self.kernel_init(kernel_rng, kernel_shape, self.dtype)
-    bias_val = self.bias_init(bias_rng, (self.features,), self.dtype)
-
-    # Assign to variables.
-    kernel = self.variable(self.collection_name, 'kernel', lambda: kernel_val)
-    bias = self.variable(self.collection_name, 'bias', lambda: bias_val)
-
-    return kernel, bias
 
 
 class LaplaceRandomFeatureCovariance(nn.Module):
