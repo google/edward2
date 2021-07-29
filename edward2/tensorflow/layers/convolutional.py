@@ -207,21 +207,23 @@ class Conv2DFlipout(Conv2DReparameterization):
       outputs = self.activation(outputs)
     return outputs
 
+  def convolution_op(self, inputs, kernel):
+    padding = self.padding
+    if self.padding == 'causal':
+      padding = 'valid'
+    if not isinstance(padding, (list, tuple)):
+      padding = padding.upper()
+    return tf.nn.convolution(
+        inputs,
+        kernel,
+        strides=self.strides,
+        padding=padding,
+        data_format='NHWC' if self.data_format == 'channels_last' else 'NCHW',
+        dilations=self.dilation_rate)
+
   def _apply_kernel(self, inputs):
     input_shape = tf.shape(inputs)
     batch_dim = input_shape[0]
-    if self._convolution_op is None:
-      padding = self.padding
-      if self.padding == 'causal':
-        padding = 'valid'
-      if not isinstance(padding, (list, tuple)):
-        padding = padding.upper()
-      self._convolution_op = functools.partial(
-          tf.nn.convolution,
-          strides=self.strides,
-          padding=padding,
-          data_format='NHWC' if self.data_format == 'channels_last' else 'NCHW',
-          dilations=self.dilation_rate)
 
     if self.data_format == 'channels_first':
       channels = input_shape[1]
@@ -243,9 +245,9 @@ class Conv2DFlipout(Conv2DReparameterization):
                           inputs.dtype)
     kernel_mean = self.kernel.distribution.mean()
     perturbation = self.kernel - kernel_mean
-    outputs = self._convolution_op(inputs, kernel_mean)
-    outputs += self._convolution_op(inputs * sign_input,
-                                    perturbation) * sign_output
+    outputs = self.convolution_op(inputs, kernel_mean)
+    outputs += self.convolution_op(inputs * sign_input,
+                                   perturbation) * sign_output
     return outputs
 
 
