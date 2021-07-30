@@ -15,7 +15,6 @@
 
 """Uncertainty-based convolutional layers."""
 
-import functools
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import initializers
@@ -293,21 +292,23 @@ class Conv1DFlipout(Conv1DReparameterization):
       outputs = self.activation(outputs)
     return outputs
 
+  def convolution_op(self, inputs, kernel):
+    padding = self.padding
+    if self.padding == 'causal':
+      padding = 'valid'
+    if not isinstance(padding, (list, tuple)):
+      padding = padding.upper()
+    return tf.nn.convolution(
+        inputs,
+        kernel,
+        strides=self.strides,
+        padding=padding,
+        data_format='NWC' if self.data_format == 'channels_last' else 'NCW',
+        dilations=self.dilation_rate)
+
   def _apply_kernel(self, inputs):
     input_shape = tf.shape(inputs)
     batch_dim = input_shape[0]
-    if self._convolution_op is None:
-      padding = self.padding
-      if self.padding == 'causal':
-        padding = 'valid'
-      if not isinstance(padding, (list, tuple)):
-        padding = padding.upper()
-      self._convolution_op = functools.partial(
-          tf.nn.convolution,
-          strides=self.strides,
-          padding=padding,
-          data_format='NWC' if self.data_format == 'channels_last' else 'NCW',
-          dilations=self.dilation_rate)
 
     if self.data_format == 'channels_first':
       channels = input_shape[1]
@@ -327,9 +328,9 @@ class Conv1DFlipout(Conv1DReparameterization):
         inputs.dtype)
     kernel_mean = self.kernel.distribution.mean()
     perturbation = self.kernel - kernel_mean
-    outputs = self._convolution_op(inputs, kernel_mean)
-    outputs += self._convolution_op(inputs * sign_input,
-                                    perturbation) * sign_output
+    outputs = self.convolution_op(inputs, kernel_mean)
+    outputs += self.convolution_op(inputs * sign_input,
+                                   perturbation) * sign_output
     return outputs
 
 
@@ -494,24 +495,26 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
         bias_constraint=constraints.get(bias_constraint),
         **kwargs)
 
+  def convolution_op(self, inputs, kernel):
+    padding = self.padding
+    if self.padding == 'causal':
+      padding = 'valid'
+    if not isinstance(padding, (list, tuple)):
+      padding = padding.upper()
+    return tf.nn.convolution(
+        inputs,
+        kernel,
+        strides=self.strides,
+        padding=padding,
+        data_format='NHWC' if self.data_format == 'channels_last' else 'NCHW',
+        dilations=self.dilation_rate)
+
   def call(self, inputs, training=None):
     if not isinstance(self.kernel, random_variable.RandomVariable):
       return super().call(inputs)
     self.call_weights()
     if training is None:
       training = tf.keras.backend.learning_phase()
-    if self._convolution_op is None:
-      padding = self.padding
-      if self.padding == 'causal':
-        padding = 'valid'
-      if not isinstance(padding, (list, tuple)):
-        padding = padding.upper()
-      self._convolution_op = functools.partial(
-          tf.nn.convolution,
-          strides=self.strides,
-          padding=padding,
-          data_format='NHWC' if self.data_format == 'channels_last' else 'NCHW',
-          dilations=self.dilation_rate)
 
     def dropped_inputs():
       """Forward pass with dropout."""
@@ -526,9 +529,9 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
       log_variance = log_alpha + tf.math.log(tf.square(mean) +
                                              tf.keras.backend.epsilon())
 
-      means = self._convolution_op(inputs, mean)
+      means = self.convolution_op(inputs, mean)
       stddevs = tf.sqrt(
-          self._convolution_op(tf.square(inputs), tf.exp(log_variance)) +
+          self.convolution_op(tf.square(inputs), tf.exp(log_variance)) +
           tf.keras.backend.epsilon())
       if self.use_bias:
         if self.data_format == 'channels_first':
