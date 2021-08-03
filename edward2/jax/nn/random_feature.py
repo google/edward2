@@ -27,6 +27,9 @@
 [3]: Ali Rahimi and Benjamin Recht. Random Features for Large-Scale Kernel
      Machines. In _Neural Information Processing Systems_, 2007.
      https://people.eecs.berkeley.edu/~brecht/papers/07.rah.rec.nips.pdf
+[4]: Zhiyun Lu, Eugene Ie, Fei Sha. Uncertainty Estimation with Infinitesimal
+     Jackknife.  _arXiv preprint arXiv:2006.07584_, 2020.
+     https://arxiv.org/abs/2006.07584
 """
 import dataclasses
 import functools
