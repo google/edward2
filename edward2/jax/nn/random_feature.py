@@ -47,8 +47,13 @@ Initializer = Callable[[PRNGKey, Shape, Dtype], Array]
 
 # Default config for random features.
 default_rbf_activation = jnp.cos
-default_rbf_kernel_init = nn.initializers.normal(stddev=1.)
 default_rbf_bias_init = nn.initializers.uniform(scale=2. * jnp.pi)
+# Using "he_normal" style random feature distribution. Effectively, this is
+# equivalent to approximating a RBF kernel but with the input standardized by
+# its dimensionality (i.e., input_scaled = input * sqrt(2. / dim_input)) and
+# empirically leads to better performance for neural network inputs.
+default_rbf_kernel_init = nn.initializers.variance_scaling(
+    scale=2.0, mode='fan_in', distribution='normal')
 
 # Default field value for kwargs, to be used for data class declaration.
 default_kwarg_dict = lambda: dataclasses.field(default_factory=dict)
@@ -149,7 +154,7 @@ class RandomFourierFeatures(nn.Module):
     dtype: the dtype of the computation (default: float32).
   """
   features: int
-  feature_scale: Optional[jnp.float32] = None
+  feature_scale: Optional[jnp.float32] = 1.
   activation: Callable[[Array], Array] = default_rbf_activation
   kernel_init: Initializer = default_rbf_kernel_init
   bias_init: Initializer = default_rbf_bias_init

@@ -21,6 +21,8 @@ from absl.testing import parameterized
 
 import edward2.jax as ed
 
+import flax.linen as nn
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -94,6 +96,10 @@ class RandomFeatureGaussianProcessTest(parameterized.TestCase):
     self.x_test = _generate_normal_data(
         self.num_test_sample, self.num_data_dim, seed=21)
 
+    # Uses classic RBF random feature distribution.
+    self.hidden_kwargs = dict(
+        kernel_init=nn.initializers.normal(stddev=1.), feature_scale=None)
+
     self.rbf_approx_maximum_tol = 5e-3
     self.rbf_approx_average_tol = 5e-4
     self.primal_dual_maximum_diff = 1e-6
@@ -105,6 +111,7 @@ class RandomFeatureGaussianProcessTest(parameterized.TestCase):
         features=1,
         hidden_features=self.num_random_features,
         normalize_input=False,
+        hidden_kwargs=self.hidden_kwargs,
         covmat_kwargs=dict(ridge_penalty=self.ridge_penalty))
 
     # Computes posterior covariance on test data.
@@ -231,13 +238,19 @@ class RandomFeatureTest(parameterized.TestCase):
     self.x_test = _generate_normal_data(self.num_train_sample,
                                         self.num_data_dim)
 
+    # Uses classic RBF random feature distribution.
+    self.hidden_kwargs = dict(
+        kernel_init=nn.initializers.normal(stddev=1.), feature_scale=None)
+
     self.kernel_approx_tolerance = dict(atol=5e-2, rtol=1e-2)
 
   def test_random_feature_mutable_collection(self):
     """Tests if RFF variables are properly nested under a mutable collection."""
     rng = jax.random.PRNGKey(self.seed)
     rff_layer = ed.nn.RandomFourierFeatures(
-        features=self.num_random_features, collection_name=self.collection_name)
+        features=self.num_random_features,
+        collection_name=self.collection_name,
+        **self.hidden_kwargs)
 
     # Computes forward pass with mutable collection specified.
     init_vars = rff_layer.init(rng, self.x_train)
@@ -260,7 +273,8 @@ class RandomFeatureTest(parameterized.TestCase):
   def test_random_feature_nd_input(self, input_shape):
     rng = jax.random.PRNGKey(self.seed)
     x = jnp.ones(input_shape)
-    rff_layer = ed.nn.RandomFourierFeatures(features=self.num_random_features)
+    rff_layer = ed.nn.RandomFourierFeatures(
+        features=self.num_random_features, **self.hidden_kwargs)
     y, _ = rff_layer.init_with_output(rng, x)
 
     expected_output_shape = input_shape[:-1] + (self.num_random_features,)
@@ -270,7 +284,9 @@ class RandomFeatureTest(parameterized.TestCase):
     """Tests if default RFF layer approximates a RBF kernel matrix."""
     rng = jax.random.PRNGKey(self.seed)
     rff_layer = ed.nn.RandomFourierFeatures(
-        features=self.num_random_features, collection_name=self.collection_name)
+        features=self.num_random_features,
+        collection_name=self.collection_name,
+        **self.hidden_kwargs)
 
     # Extracts random features by computing forward pass.
     init_vars = rff_layer.init(rng, self.x_train)
