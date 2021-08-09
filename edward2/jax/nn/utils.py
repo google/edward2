@@ -15,11 +15,12 @@
 
 """JAX layer and utils."""
 
-from typing import Iterable, Callable
+from typing import Callable, Iterable, Optional
 
 from jax import random
 import jax.numpy as jnp
 
+Array = jnp.ndarray
 DType = type(jnp.float32)
 InitializeFn = Callable[[jnp.ndarray, Iterable[int], DType], jnp.ndarray]
 
@@ -48,3 +49,55 @@ def make_sign_initializer(random_sign_init: float) -> InitializeFn:
       x = random.normal(key, shape, dtype) * (-random_sign_init) + 1.0
       return x.astype(dtype)
     return initializer
+
+
+def mean_field_logits(logits: Array,
+                      covmat: Optional[Array] = None,
+                      mean_field_factor: float = 1.,
+                      likelihood: str = 'logistic'):
+  """Adjust the model logits so its softmax approximates the posterior mean [4].
+
+  Arguments:
+    logits: A float ndarray of shape (batch_size, num_classes).
+    covmat: A float ndarray of shape (batch_size, ). If None then it is assumed
+      to be a vector of 1.'s.
+    mean_field_factor: The scale factor for mean-field approximation, used to
+      adjust the influence of posterior variance in posterior mean
+      approximation. If covmat=None then it is used as the scaling parameter for
+      temperature scaling.
+    likelihood: name of the likelihood for integration in Gaussian-approximated
+      latent posterior. Must be one of ('logistic', 'binary_logistic',
+      'poisson').
+
+  Returns:
+    A float ndarray of uncertainty-adjusted logits, shape
+    (batch_size, num_classes).
+
+  Raises:
+    (ValueError) If likelihood is not one of ('logistic', 'binary_logistic',
+    'poisson').
+  """
+  if likelihood not in ('logistic', 'binary_logistic', 'poisson'):
+    raise ValueError(
+        f'Likelihood" must be one of (\'logistic\', \'binary_logistic\', \'poisson\'), got {likelihood}.'
+    )
+
+  if mean_field_factor < 0:
+    return logits
+
+  # Defines predictive variance.
+  variances = 1. if covmat is None else covmat
+
+  # Computes scaling coefficient for mean-field approximation.
+  if likelihood == 'poisson':
+    logits_scale = jnp.exp(-variances * mean_field_factor / 2.)  # pylint:disable=invalid-unary-operand-type
+  else:
+    logits_scale = jnp.sqrt(1. + variances * mean_field_factor)
+
+  # Pads logits_scale to compatible dimension.
+  while logits_scale.ndim < logits.ndim:
+    logits_scale = jnp.expand_dims(logits_scale, axis=-1)
+
+  return logits / logits_scale
+
+
