@@ -31,10 +31,10 @@ DenseLayer = tf.keras.layers.Dense(10)
 Conv2DLayer = tf.keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid')
 
 
-def _compute_spectral_norm(weight):
+def _compute_spectral_norm(weight, input_shape):
   if weight.ndim > 2:
     # Computes Conv2D via FFT transform as in [1].
-    weight = np.fft.fft2(weight, weight.shape[1:3], axes=[0, 1])
+    weight = np.fft.fft2(weight, input_shape[1:3], axes=[0, 1])
   return np.max(np.linalg.svd(weight, compute_uv=False))
 
 
@@ -82,10 +82,11 @@ class NormalizationTest(tf.test.TestCase, parameterized.TestCase):
     sn_layer.update_weights()
     normalized_kernel = sn_layer.layer.kernel.numpy()
 
-    spectral_norm_computed = _compute_spectral_norm(normalized_kernel)
+    spectral_norm_computed = _compute_spectral_norm(normalized_kernel,
+                                                    input_shape)
     spectral_norm_expected = self.norm_multiplier
     self.assertAllClose(
-        spectral_norm_computed, spectral_norm_expected, atol=5e-2)
+        spectral_norm_computed, spectral_norm_expected, atol=1e-2)
 
     # Test that the normalized layer is K-Lipschitz. In particular, if the layer
     # is a function f, then ||f(x1) - f(x2)||_2 <= K * ||(x1 - x2)||_2, where K
