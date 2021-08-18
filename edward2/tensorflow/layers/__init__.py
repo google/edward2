@@ -68,6 +68,7 @@ from edward2.tensorflow.layers.normalization import ensemble_batchnorm
 from edward2.tensorflow.layers.normalization import EnsembleSyncBatchNorm
 from edward2.tensorflow.layers.normalization import SpectralNormalization
 from edward2.tensorflow.layers.normalization import SpectralNormalizationConv2D
+from edward2.tensorflow.layers.posterior_network import PosteriorNetworkLayer
 from edward2.tensorflow.layers.random_feature import LaplaceRandomFeatureCovariance
 from edward2.tensorflow.layers.random_feature import RandomFeatureGaussianProcess
 from edward2.tensorflow.layers.recurrent import LSTMCellFlipout
@@ -126,6 +127,7 @@ __all__ = [
     "NCPNormalOutput",
     "NCPNormalPerturb",
     "NeuralProcess",
+    "PosteriorNetworkLayer",
     "RandomFeatureGaussianProcess",
     "Reverse",
     "SinkhornAutoregressiveFlow",
