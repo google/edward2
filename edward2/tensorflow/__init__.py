@@ -19,6 +19,7 @@ from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import initializers
 from edward2.tensorflow import layers
+from edward2.tensorflow import losses
 from edward2.tensorflow import regularizers
 from edward2.tensorflow.generated_random_variables import *  # pylint: disable=wildcard-import
 from edward2.tensorflow.generated_random_variables import make_random_variable
@@ -44,6 +45,7 @@ __all__ = [
     "generated_random_variables",
     "initializers",
     "layers",
+    "losses",
     "make_log_joint_fn",
     "make_random_variable",
     "regularizers",
