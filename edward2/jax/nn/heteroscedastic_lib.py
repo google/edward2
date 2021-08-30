@@ -172,7 +172,7 @@ class MCSoftmaxDenseFA(nn.Module):
       else:
         # reshape scale vector into factor loadings matrix
         factor_loadings = jnp.reshape(factor_loadings,
-                                      [-1, 1, self.num_factors])
+                                      [-1, self.num_classes, self.num_factors])
 
         # transform standard normal into ~ full rank covariance Gaussian samples
         res = jnp.einsum('ijk,iak->iaj',
@@ -393,7 +393,7 @@ class MCSigmoidDenseFA(nn.Module):
       else:
         # reshape scale vector into factor loadings matrix
         factor_loadings = jnp.reshape(factor_loadings,
-                                      [-1, 1, self.num_factors])
+                                      [-1, self.num_outputs, self.num_factors])
 
         # transform standard normal into ~ full rank covariance Gaussian samples
         res = jnp.einsum('ijk,iak->iaj',
