@@ -32,7 +32,7 @@
 
 from typing import Any, Callable, Mapping, Optional, Tuple
 
-from flax.core import FrozenDict
+import flax.core
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -177,14 +177,15 @@ class SpectralNormalization(nn.Module):
     self.sow("intermediates", "w", w_hat)
 
     # Update params.
-    params = dict(params)
-    params.update(**{self.kernel_name: w_hat})
-    return self.layer.apply({"params": params}, inputs)
+    params = flax.core.unfreeze(params)
+    params[self.kernel_name] = w_hat
+    layer_params = flax.core.freeze({"params": params})
+    return self.layer.apply(layer_params, inputs)
 
 
 class SpectralNormalizationConv2D(SpectralNormalization):
   __doc__ = "Implements spectral normalization for Conv layers based on [2].\n" + "\n".join(
       SpectralNormalization.__doc__.split("\n")[1:])
 
-  kernel_apply_kwargs: Mapping[str, Any] = FrozenDict(
+  kernel_apply_kwargs: Mapping[str, Any] = flax.core.FrozenDict(
       feature_group_count=1, padding="SAME", use_bias=False)
