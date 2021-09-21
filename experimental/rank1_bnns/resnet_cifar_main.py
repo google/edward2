@@ -16,7 +16,6 @@
 # Lint as: python3
 """ResNet-32x4 with rank-1 distributions."""
 import functools
-import itertools
 import os
 import time
 from absl import app
@@ -24,6 +23,7 @@ from absl import flags
 from absl import logging
 
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
+import robustness_metrics as rm
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import uncertainty_baselines as ub
@@ -237,23 +237,12 @@ def main(argv):
           corrupt_metrics['test/ece_{}'.format(dataset_name)] = (
               um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
 
-    test_diversity = {}
-    training_diversity = {}
     if FLAGS.ensemble_size > 1:
+      metrics['test/diversity'] = rm.metrics.AveragePairwiseDiversity()
       for i in range(FLAGS.ensemble_size):
         metrics['test/nll_member_{}'.format(i)] = tf.keras.metrics.Mean()
         metrics['test/accuracy_member_{}'.format(i)] = (
             tf.keras.metrics.SparseCategoricalAccuracy())
-      test_diversity = {
-          'test/disagreement': tf.keras.metrics.Mean(),
-          'test/average_kl': tf.keras.metrics.Mean(),
-          'test/cosine_similarity': tf.keras.metrics.Mean(),
-      }
-      training_diversity = {
-          'train/disagreement': tf.keras.metrics.Mean(),
-          'train/average_kl': tf.keras.metrics.Mean(),
-          'train/cosine_similarity': tf.keras.metrics.Mean(),
-      }
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
@@ -282,14 +271,6 @@ def main(argv):
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
         probs = tf.nn.softmax(logits)
-        # Diversity evaluation.
-        if FLAGS.version2 and FLAGS.ensemble_size > 1:
-          per_probs = tf.reshape(
-              probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-
-          diversity_results = um.average_pairwise_diversity(
-              per_probs, FLAGS.ensemble_size)
-
         if FLAGS.num_train_samples > 1:
           probs = tf.reshape(probs,
                              tf.concat([[FLAGS.num_train_samples, -1],
@@ -358,9 +339,6 @@ def main(argv):
       metrics['train/negative_log_likelihood'].update_state(
           negative_log_likelihood)
       metrics['train/accuracy'].update_state(labels, probs)
-      if FLAGS.version2 and FLAGS.ensemble_size > 1:
-        for k, v in diversity_results.items():
-          training_diversity['train/' + k].update_state(v)
 
     strategy.run(step_fn, args=(next(iterator),))
 
@@ -390,12 +368,7 @@ def main(argv):
         if dataset_name == 'clean':
           per_probs_tensor = tf.reshape(
               probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-          diversity_results = um.average_pairwise_diversity(
-              per_probs_tensor, FLAGS.ensemble_size)
-
-          for k, v in diversity_results.items():
-            test_diversity['test/' + k].update_state(v)
-
+          metrics['test/diversity'].add_batch(per_probs_tensor)
           for i in range(FLAGS.ensemble_size):
             member_probs = per_probs[i]
             member_nll = tf.keras.losses.sparse_categorical_crossentropy(
@@ -488,11 +461,10 @@ def main(argv):
       logging.info('Member %d Test Loss: %.4f, Accuracy: %.2f%%',
                    i, metrics['test/nll_member_{}'.format(i)].result(),
                    metrics['test/accuracy_member_{}'.format(i)].result() * 100)
-    total_metrics = itertools.chain(metrics.items(),
-                                    training_diversity.items(),
-                                    test_diversity.items())
-    total_results = {name: metric.result() for name, metric in total_metrics}
+    total_results = {name: metric.result() for name, metric in metrics.items()}
     total_results.update(corrupt_results)
+    # Results from Robustness Metrics themselves return a dict, so flatten them.
+    total_results = utils.flatten_dictionary(total_results)
     with summary_writer.as_default():
       for name, result in total_results.items():
         tf.summary.scalar(name, result, step=epoch + 1)
@@ -506,7 +478,9 @@ def main(argv):
       objective = work_unit.get_measurement_series(name)
       objective.create_measurement(result, epoch + 1)
 
-    for _, metric in total_metrics:
+    for _, metric in metrics.items():
+      metric.reset_states()
+    for _, metric in corrupt_metrics.items():
       metric.reset_states()
     summary_writer.flush()
 

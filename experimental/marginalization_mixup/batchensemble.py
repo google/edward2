@@ -25,6 +25,7 @@ from absl import logging
 from experimental.marginalization_mixup import batchensemble_model  # local file import
 from experimental.marginalization_mixup import data_utils  # local file import
 import numpy as np
+import robustness_metrics as rm
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from uncertainty_baselines import schedules
@@ -411,8 +412,9 @@ def main(argv):
       if FLAGS.ensemble_size > 1:
         per_probs = tf.reshape(
             probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-        diversity_results = um.average_pairwise_diversity(
-            per_probs, FLAGS.ensemble_size)
+        diversity_metric = rm.metrics.AveragePairwiseDiversity()
+        diversity_metric.add_batch(per_probs)
+        diversity_results = diversity_metric.result()
         for k, v in diversity_results.items():
           training_diversity['train/' + k].update_state(v)
 
@@ -475,8 +477,9 @@ def main(argv):
       if FLAGS.ensemble_size > 1:
         per_probs_tensor = tf.reshape(
             probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-        diversity_results = um.average_pairwise_diversity(
-            per_probs_tensor, FLAGS.ensemble_size)
+        diversity_metric = rm.metrics.AveragePairwiseDiversity()
+        diversity_metric.add_batch(per_probs_tensor)
+        diversity_results = diversity_metric.result()
         if dataset_name == 'clean':
           for k, v in diversity_results.items():
             test_diversity['test/' + k].update_state(v)

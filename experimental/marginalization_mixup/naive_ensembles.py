@@ -29,6 +29,7 @@ from absl import flags
 from absl import logging
 
 from experimental.marginalization_mixup import data_utils  # local file import
+import robustness_metrics as rm
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from uncertainty_baselines import schedules
@@ -447,17 +448,9 @@ def main(argv):
         'test/member_accuracy_mean': (
             tf.keras.metrics.SparseCategoricalAccuracy()),
         'test/member_ece_mean': um.ExpectedCalibrationError(
-            num_bins=FLAGS.num_bins)
+            num_bins=FLAGS.num_bins),
+        'test/diversity': rm.metrics.AveragePairwiseDiversity(),
     }
-
-    test_diversity = {}
-    corrupt_diversity = {}
-    if FLAGS.ensemble_size > 1:
-      test_diversity = {
-          'test/disagreement': tf.keras.metrics.Mean(),
-          'test/average_kl': tf.keras.metrics.Mean(),
-          'test/cosine_similarity': tf.keras.metrics.Mean(),
-      }
 
     if FLAGS.corruptions_interval > 0:
       corrupt_metrics = {}
@@ -474,12 +467,6 @@ def main(argv):
               tf.keras.metrics.SparseCategoricalAccuracy())
           corrupt_metrics['test/member_ece_mean_{}'.format(dataset_name)] = (
               um.ExpectedCalibrationError(num_bins=FLAGS.num_bins))
-          corrupt_diversity['corrupt_diversity/average_kl_{}'.format(
-              dataset_name)] = tf.keras.metrics.Mean()
-          corrupt_diversity['corrupt_diversity/cosine_similarity_{}'.format(
-              dataset_name)] = tf.keras.metrics.Mean()
-          corrupt_diversity['corrupt_diversity/disagreement_{}'.format(
-              dataset_name)] = tf.keras.metrics.Mean()
 
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(FLAGS.output_dir)
@@ -572,19 +559,8 @@ def main(argv):
                            num_or_size_splits=FLAGS.ensemble_size,
                            axis=0)
 
-      if FLAGS.ensemble_size > 1:
-        per_probs_tensor = tf.reshape(
-            probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
-        diversity_results = um.average_pairwise_diversity(
-            per_probs_tensor, FLAGS.ensemble_size)
-        if dataset_name == 'clean':
-          for k, v in diversity_results.items():
-            test_diversity['test/' + k].update_state(v)
-        elif dataset_name != 'validation':
-          for k, v in diversity_results.items():
-            corrupt_diversity['corrupt_diversity/{}_{}'.format(
-                k, dataset_name)].update_state(v)
-
+      per_probs_tensor = tf.reshape(
+          probs, tf.concat([[FLAGS.ensemble_size, -1], probs.shape[1:]], 0))
       probs = tf.reduce_mean(per_probs, axis=0)
       negative_log_likelihood = tf.reduce_mean(
           tf.keras.losses.sparse_categorical_crossentropy(labels, probs))
@@ -598,6 +574,7 @@ def main(argv):
         metrics['test/member_accuracy_mean'].update_state(
             tiled_labels, tiled_probs)
         metrics['test/member_ece_mean'].update_state(tiled_labels, tiled_probs)
+        metrics['test/diversity'].add_batch(per_probs_tensor)
       elif dataset_name != 'validation':
         corrupt_metrics['test/nll_{}'.format(dataset_name)].update_state(
             negative_log_likelihood)
@@ -703,13 +680,10 @@ def main(argv):
     corrupt_results = {}
     if (FLAGS.corruptions_interval > 0 and
         (epoch + 1) % FLAGS.corruptions_interval == 0):
-      # This includes corrupt_diversity whose disagreement normalized by its
-      # corrupt mean error rate.
       corrupt_results = utils.aggregate_corrupt_metrics(
           corrupt_metrics,
           corruption_types,
           max_intensity,
-          corrupt_diversity=corrupt_diversity,
           output_dir=FLAGS.output_dir)
 
     logging.info('Train Loss: %.4f, Accuracy: %.2f%%',
@@ -719,16 +693,17 @@ def main(argv):
                  metrics['test/negative_log_likelihood'].result(),
                  metrics['test/accuracy'].result() * 100)
 
-    total_metrics = metrics.copy()
-    total_metrics.update(test_diversity)
-    total_results = {name: metric.result()
-                     for name, metric in total_metrics.items()}
+    total_results = {name: metric.result() for name, metric in metrics.items()}
     total_results.update(corrupt_results)
+    # Results from Robustness Metrics themselves return a dict, so flatten them.
+    total_results = utils.flatten_dictionary(total_results)
     with summary_writer.as_default():
       for name, result in total_results.items():
         tf.summary.scalar(name, result, step=epoch + 1)
 
     for metric in metrics.values():
+      metric.reset_states()
+    for metric in corrupt_metrics.values():
       metric.reset_states()
 
     if (FLAGS.checkpoint_interval > 0 and
