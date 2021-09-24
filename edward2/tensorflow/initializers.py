@@ -781,7 +781,7 @@ class OrthogonalRandomFeatures(tf.keras.initializers.Orthogonal):
     self.random_norm = random_norm
 
   def _sample_orthogonal_matrix(self, shape, dtype):
-    return super(OrthogonalRandomFeatures, self).__call__(shape, dtype=dtype)
+    return super(OrthogonalRandomFeatures, self).__call__(shape, dtype=dtype)  # pytype: disable=attribute-error  # typed-keras
 
   def __call__(self, shape, dtype=tf.float32, **kwargs):
     # Sample orthogonal matrices.

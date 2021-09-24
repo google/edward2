@@ -108,7 +108,7 @@ class DiscreteAutoregressiveFlow(tf.keras.layers.Layer):
 
   def __call__(self, inputs, *args, **kwargs):
     if not isinstance(inputs, random_variable.RandomVariable):
-      return super(DiscreteAutoregressiveFlow, self).__call__(
+      return super(DiscreteAutoregressiveFlow, self).__call__(  # pytype: disable=attribute-error  # typed-keras
           inputs, *args, **kwargs)
     return transformed_random_variable.TransformedRandomVariable(inputs, self)
 
@@ -310,7 +310,7 @@ class DiscreteBipartiteFlow(tf.keras.layers.Layer):
 
   def __call__(self, inputs, *args, **kwargs):
     if not isinstance(inputs, random_variable.RandomVariable):
-      return super(DiscreteBipartiteFlow, self).__call__(
+      return super(DiscreteBipartiteFlow, self).__call__(  # pytype: disable=attribute-error  # typed-keras
           inputs, *args, **kwargs)
     return transformed_random_variable.TransformedRandomVariable(inputs, self)
 
@@ -404,7 +404,7 @@ class SinkhornAutoregressiveFlow(tf.keras.layers.Layer):
 
   def __call__(self, inputs, *args, **kwargs):
     if not isinstance(inputs, random_variable.RandomVariable):
-      return super(SinkhornAutoregressiveFlow, self).__call__(
+      return super(SinkhornAutoregressiveFlow, self).__call__(  # pytype: disable=attribute-error  # typed-keras
           inputs, *args, **kwargs)
     return transformed_random_variable.TransformedRandomVariable(inputs, self)
 

@@ -78,7 +78,7 @@ class ActNorm(tf.keras.layers.Layer):
           1. / (tf.sqrt(variance) + self.epsilon))
 
     if not isinstance(inputs, random_variable.RandomVariable):
-      return super(ActNorm, self).__call__(inputs, *args, **kwargs)
+      return super(ActNorm, self).__call__(inputs, *args, **kwargs)  # pytype: disable=attribute-error  # typed-keras
     return transformed_random_variable.TransformedRandomVariable(inputs, self)
 
   def call(self, inputs):
