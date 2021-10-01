@@ -57,6 +57,7 @@ from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDense
 from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFA
 from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFACustomLayers
 from edward2.tensorflow.layers.heteroscedastic import MultiHeadMCSoftmaxDenseFA
+from edward2.tensorflow.layers.hetsngp import HeteroscedasticSNGPLayer
 from edward2.tensorflow.layers.made import MADE
 from edward2.tensorflow.layers.neural_process import Attention
 from edward2.tensorflow.layers.neural_process import NeuralProcess
@@ -111,6 +112,7 @@ __all__ = [
     "EnsembleHeteroscedasticOutputs",
     "ExactSigmoidDense",
     "GaussianProcess",
+    "HeteroscedasticSNGPLayer",
     "LaplaceRandomFeatureCovariance",
     "LinearKernel",
     "LSTMCellFlipout",
