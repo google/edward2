@@ -15,6 +15,8 @@
 
 """Library of methods to compute heteroscedastic classification predictions."""
 
+from typing import Callable, Collection, Optional
+
 from edward2.tensorflow.layers import utils
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -1758,3 +1760,229 @@ class EnsembleHeteroscedasticOutputs(tf.keras.layers.Layer):
             logits = log_probs
 
       return logits, log_probs, probs
+
+
+class MCSoftmaxDenseFASegmentation(MCSoftmaxDenseFA):
+  """Softmax heteroscedastic layer for 4D inputs."""
+
+  def __init__(self, num_classes: int, num_factors: int,
+               temperature: float = 1.0,
+               parameter_efficient: bool = False,
+               train_mc_samples: int = 1000,
+               test_mc_samples: int = 1000,
+               compute_pred_variance: bool = False,
+               share_samples_across_batch: bool = False,
+               logits_only: bool = False,
+               eps: float = 1e-7, dtype: Optional[tf.dtypes.DType] = None,
+               kernel_regularizer: Optional[
+                   Callable[[tf.Tensor], tf.Tensor]] = None,
+               bias_regularizer: Optional[
+                   Callable[[tf.Tensor], tf.Tensor]] = None,
+               name: str = 'MCSoftmaxDenseFASegmentation'):
+    """Creates an instance of MCSoftmaxDenseFASegmentation.
+
+    if we assume:
+    ```
+    u ~ N(mu(x), sigma(x))
+    y = softmax(u / temperature)
+    ```
+
+    we can do a low rank approximation of sigma(x) the full rank matrix as:
+    ```
+    eps_R ~ N(0, I_R), eps_K ~ N(0, I_K)
+    u = mu(x) + matmul(V(x), eps_R) + d(x) * eps_K
+    ```
+    where V(x) is a matrix of dimension [num_classes, R=num_factors]
+    and d(x) is a vector of dimension [num_classes, 1]
+    num_factors << num_classes => approx to sampling ~ N(mu(x), sigma(x))
+
+    This is a MC softmax heteroscedastic drop-in replacement for a
+    tf.keras.layers.Dense output layer for 4D inputs. e.g. simply change:
+
+    ```python
+    logits = tf.keras.layers.Dense(...)(x)
+    ```
+
+    to
+
+    ```python
+    logits = MCSoftmaxDenseFASegmentation(...)(x)[0]
+    ```
+
+    Args:
+      num_classes: Number of classes for classification task.
+      num_factors: Number of factors to use in approximation to full
+        rank covariance matrix.
+      temperature: The softmax temperature.
+      parameter_efficient: Whether to use the parameter efficient
+        version of the method. If True then samples from the latent distribution
+        are generated as: mu(x) + v(x) * matmul(V, eps_R) + diag(d(x), eps_K)),
+        where eps_R ~ N(0, I_R), eps_K ~ N(0, I_K). If False then latent samples
+        are generated as: mu(x) + matmul(V(x), eps_R) + diag(d(x), eps_K)).
+        Computing V(x) as function of x increases the number of parameters
+        introduced by the method.
+      train_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during training.
+      test_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during testing/inference.
+      compute_pred_variance: Whether to estimate the predictive
+        variance. If False the __call__ method will output None for the
+        predictive_variance tensor.
+      share_samples_across_batch: If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: If True, only return the logits from the __call__
+        method. Set True to serialize tf.keras.Sequential models.
+      eps: Clip probabilities into [eps, 1.0] before applying log.
+      dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
+        with the layer.
+      kernel_regularizer: Regularizer function applied to the `kernel` weights
+        matrix.
+      bias_regularizer: Regularizer function applied to the bias vector.
+      name: The name of the layer used for name scoping.
+
+    Returns:
+      MCSoftmaxDenseFASegmentation instance.
+    """
+    super(MCSoftmaxDenseFASegmentation, self).__init__(
+        num_classes, num_factors, temperature=temperature,
+        parameter_efficient=parameter_efficient,
+        train_mc_samples=train_mc_samples, test_mc_samples=test_mc_samples,
+        compute_pred_variance=compute_pred_variance,
+        share_samples_across_batch=share_samples_across_batch,
+        logits_only=logits_only, eps=eps, dtype=None, kernel_regularizer=None,
+        bias_regularizer=None, name=name)
+
+  def _genrate_4d_standard_normal_samples(self,
+                                          dimensions: Collection[tf.Tensor],
+                                          num_samples: int, seed: int,
+                                          dtype: tf.dtypes.DType) -> tf.Tensor:
+    """Computes samples from a 4 dimensional standard Normal distribution.
+
+    Args:
+      dimensions: Collection[Tensor] of length 4 containing the dimensions of
+        the Gaussian to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+      seed: Seed for the random number generator.
+      dtype: Valid Tensorflow dtype. The dtype of the returned samples.
+
+    Returns:
+      Tensor. Standard normal samples of shape: [dimensions[0], num_samples,
+        dimensions[1], dimensions[2], dimensions[3]].
+    """
+    assert len(dimensions) == 4
+    dist = tfp.distributions.Normal(
+        loc=tf.zeros(dimensions, dtype=dtype),
+        scale=tf.ones(dimensions, dtype=dtype))
+
+    tf.random.set_seed(seed)
+    standard_normal_samples = dist.sample(num_samples, seed=seed)
+
+    # dist.sample(total_mc_samples) returns Tensor of shape
+    # [total_mc_samples, batch_size, ...], here we reshape to
+    # [batch_size, total_mc_samples, ...]
+    standard_normal_samples = tf.transpose(standard_normal_samples,
+                                           [1, 0, 2, 3, 4])
+    return standard_normal_samples
+
+  def _compute_diagonal_noise_samples(self, diag_scale: tf.Tensor,
+                                      num_samples: int, seed: int) -> tf.Tensor:
+    """Computes samples of the diagonal elements logit noise.
+
+    Args:
+      diag_scale: Tensor of shape [batch_size, height, width, num_classes].
+        Diagonal elements of scale parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+      seed: Seed for the random number generator.
+
+    Returns:
+      Tensor. Logit noise samples of shape: [batch_size, height, width,
+        num_samples, 1 if num_classes == 2 else num_classes].
+    """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(diag_scale)[0]
+
+    height, width = tf.shape(diag_scale)[1:3]
+
+    diag_noise_samples = self._genrate_4d_standard_normal_samples(
+        (num_noise_samples, height, width, self._num_classes), num_samples,
+        seed, diag_scale.dtype)
+
+    return diag_noise_samples * tf.expand_dims(diag_scale, 1)
+
+  def _compute_standard_normal_samples(self, factor_loadings: tf.Tensor,
+                                       num_samples: int,
+                                       seed: int) -> tf.Tensor:
+    """Utility that computes samples from a standard normal distribution.
+
+    Args:
+      factor_loadings: Tensor of shape
+        [batch_size, height, width, num_classes * num_factors]. Factor loadings
+        for scale parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+      seed: Seed for the random number generator.
+
+    Returns:
+      Tensor. Samples of shape: [batch_size, num_samples, height, width,
+        num_factors].
+    """
+    if self._share_samples_across_batch:
+      num_noise_samples = 1
+    else:
+      num_noise_samples = tf.shape(factor_loadings)[0]
+
+    height, width = tf.shape(factor_loadings)[1:3]
+
+    standard_normal_samples = self._genrate_4d_standard_normal_samples(
+        (num_noise_samples, height, width, self._num_factors), num_samples,
+        seed, factor_loadings.dtype)
+
+    if self._share_samples_across_batch:
+      return tf.tile(
+          standard_normal_samples, [tf.shape(factor_loadings)[0], 1, 1, 1, 1])
+    else:
+      return standard_normal_samples
+
+  def _compute_noise_samples(self, scale: Collection[tf.Tensor],
+                             num_samples: int, seed: int) -> tf.Tensor:
+    """Utility function that computes the samples of the logit noise.
+
+    Args:
+      scale: Collection[Tensor] of shape (
+        [batch_size, height, width, num_classes * num_factors],
+        [batch_size, height, width, num_classes]). Factor loadings and diagonal
+        elements for scale parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+      seed: Seed for the random number generator.
+
+    Returns:
+      Tensor. Logit noise samples of shape: [batch_size, num_samples, height,
+        width, 1 if num_classes == 2 else num_classes].
+    """
+    factor_loadings, diag_scale = scale
+
+    # Compute the diagonal noise
+    diag_noise_samples = self._compute_diagonal_noise_samples(diag_scale,
+                                                              num_samples, seed)
+
+    # Now compute the factors
+    standard_normal_samples = self._compute_standard_normal_samples(
+        factor_loadings, num_samples, seed)
+
+    if self._parameter_efficient:
+      res = self._scale_layer_homoscedastic(standard_normal_samples)
+      res *= tf.expand_dims(
+          self._scale_layer_heteroscedastic(factor_loadings), 1)
+    else:
+      # reshape scale vector into factor loadings matrix
+      batch_size, height, width = tf.shape(factor_loadings)[:3]
+      factor_loadings = tf.reshape(
+          factor_loadings,
+          [batch_size, height, width, self._num_classes, self._num_factors])
+
+      # transform standard normal into ~ full rank covariance Gaussian samples
+      res = tf.einsum('ihwjk,iahwk->iahwj', factor_loadings,
+                      standard_normal_samples)
+    return res + diag_noise_samples

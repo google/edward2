@@ -557,5 +557,131 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
       self.evaluate([tf.compat.v1.global_variables_initializer(),
                      tf.compat.v1.local_variables_initializer()])
 
+
+def segmentation_test_cases():
+  return parameterized.named_parameters(
+      {
+          'testcase_name': '_classes_10_factors_5',
+          'num_classes': 10,
+          'num_factors': 5,
+      }, {
+          'testcase_name': '_classes_10_factors_0',
+          'num_classes': 10,
+          'num_factors': 0,
+      },)
+
+
+class SegmentationClassifier(tf.keras.Model):
+  """Segmentation classifier."""
+
+  def __init__(self, num_classes, num_factors):
+    super().__init__()
+
+    self.hidden_layer = tf.keras.layers.Dense(16)
+    self.output_layer = ed.layers.MCSoftmaxDenseFASegmentation(
+        num_classes, num_factors)
+
+  def call(self, inputs, training=True):
+    if tf.executing_eagerly():
+      hidden = self.hidden_layer(inputs, training=training)
+      return self.output_layer(hidden, training=training)
+    else:
+      with tf.compat.v1.variable_scope('scope', use_resource=True):
+        hidden = self.hidden_layer(inputs, training=training)
+        return self.output_layer(hidden, training=training)
+
+
+class SegLayerTest(tf.test.TestCase, parameterized.TestCase):
+
+  def setUp(self):
+    if not tf.executing_eagerly():
+      tf.compat.v1.enable_resource_variables()
+    super().setUp()
+
+  # Helpers for SegLayerTest.
+  def create_dataset(self, num_classes):
+    x = np.random.normal(size=(4, 32, 32, 16))
+    y = np.random.choice(num_classes, size=(4, 32, 32))
+    return tf.convert_to_tensor(x), tf.convert_to_tensor(y)
+
+  @segmentation_test_cases()
+  def test_layer_construction(self, num_classes, num_factors):
+    output_layer = ed.layers.MCSoftmaxDenseFASegmentation(
+        num_classes, num_factors)
+
+    self.assertIsNotNone(output_layer)
+
+  @segmentation_test_cases()
+  def test_model_construction(self, num_classes, num_factors):
+    classifier = SegmentationClassifier(num_classes, num_factors)
+
+    self.assertIsNotNone(classifier)
+
+  @segmentation_test_cases()
+  def test_model_outputs(self, num_classes, num_factors):
+    x, _ = self.create_dataset(num_classes)
+
+    classifier = SegmentationClassifier(num_classes, num_factors)
+
+    res = classifier(x)
+    probs = res[2]
+    log_probs = res[1]
+
+    self.assertIsNotNone(probs)
+    self.assertIsNotNone(log_probs)
+
+    self.initialise()
+    total_probs = tf.reduce_sum(probs, axis=-1)
+    for prob in self.evaluate(total_probs).flatten():
+      self.assertAlmostEqual(prob, 1.0, 2)
+
+    res = classifier(x, training=False)
+    probs = res[2]
+    log_probs = res[1]
+
+    self.assertIsNotNone(probs)
+    self.assertIsNotNone(log_probs)
+
+    total_probs = tf.reduce_sum(probs, axis=-1)
+    for prob in self.evaluate(total_probs).flatten():
+      self.assertAlmostEqual(prob, 1.0, 2)
+
+  @segmentation_test_cases()
+  def test_train_step(self, num_classes, num_factors):
+    x, y = self.create_dataset(num_classes)
+
+    classifier = SegmentationClassifier(num_classes, num_factors)
+
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+
+    if tf.executing_eagerly():
+      optimizer = tf.keras.optimizers.Adam()
+      def train_step(inputs, labels, model):
+        """Defines a single training step: Update weights based on one batch."""
+        with tf.GradientTape() as tape:
+          log_preds = model(inputs)[1]
+          loss_value = loss_fn(labels, log_preds)
+
+        grads = tape.gradient(loss_value, model.trainable_weights)
+        grads, _ = tf.clip_by_global_norm(grads, 2.5)
+        optimizer.apply_gradients(zip(grads, model.trainable_weights))
+        return loss_value
+
+      loss_value = train_step(x, y, classifier).numpy()
+    else:
+      optimizer = tf.compat.v1.train.AdamOptimizer()
+      log_preds = classifier(x)[1]
+      loss_value = loss_fn(y, log_preds)
+      train_op = optimizer.minimize(loss_value)
+      self.initialise()
+      loss_value, _ = self.evaluate([loss_value, train_op])
+
+    self.assertGreater(loss_value, 0)
+
+  def initialise(self):
+    if not tf.executing_eagerly():
+      self.evaluate([tf.compat.v1.global_variables_initializer(),
+                     tf.compat.v1.local_variables_initializer()])
+
 if __name__ == '__main__':
   tf.test.main()

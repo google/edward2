@@ -56,6 +56,7 @@ from edward2.tensorflow.layers.heteroscedastic import MCSigmoidDenseFA
 from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDense
 from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFA
 from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFACustomLayers
+from edward2.tensorflow.layers.heteroscedastic import MCSoftmaxDenseFASegmentation
 from edward2.tensorflow.layers.heteroscedastic import MultiHeadMCSoftmaxDenseFA
 from edward2.tensorflow.layers.hetsngp import HeteroscedasticSNGPLayer
 from edward2.tensorflow.layers.made import MADE
@@ -123,6 +124,7 @@ __all__ = [
     "MCSoftmaxDense",
     "MCSoftmaxDenseFA",
     "MCSoftmaxDenseFACustomLayers",
+    "MCSoftmaxDenseFASegmentation",
     "MultiHeadMCSoftmaxDenseFA",
     "MixtureLogistic",
     "NCPCategoricalPerturb",
