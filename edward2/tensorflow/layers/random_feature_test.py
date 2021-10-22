@@ -173,20 +173,69 @@ class GaussianProcessTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_no_matrix_update_during_test(self):
     """Tests if the precision matrix is not updated during testing."""
-    rfgp_model = ed.layers.RandomFeatureGaussianProcess(units=1)
+    # Enable exact updates so precision matrix update can be detected.
+    rfgp_model = ed.layers.RandomFeatureGaussianProcess(
+        units=1, gp_cov_momentum=-1)
 
     # Training.
     _, gp_covmat_null = rfgp_model(self.x_tr, training=True)
-    precision_mat_before_test = rfgp_model._gp_cov_layer.precision_matrix
+    prec_mat_before_call = rfgp_model._gp_cov_layer.precision_matrix.numpy()
 
-    # Testing.
+    # First inference call.
     _ = rfgp_model(self.x_ts, training=False)
-    precision_mat_after_test = rfgp_model._gp_cov_layer.precision_matrix
+    prec_mat_first_call = rfgp_model._gp_cov_layer.precision_matrix.numpy()
+    cov_mat_first_call = rfgp_model._gp_cov_layer.covariance_matrix.numpy()
+
+    # Second inference call.
+    _ = rfgp_model(self.x_ts, training=False)
+    prec_mat_second_call = rfgp_model._gp_cov_layer.precision_matrix.numpy()
+    cov_mat_second_call = rfgp_model._gp_cov_layer.covariance_matrix.numpy()
+
+    # Second training call.
+    _, gp_covmat_null = rfgp_model(self.x_tr, training=True)
+    prec_mat_resumed_train = rfgp_model._gp_cov_layer.precision_matrix.numpy()
 
     self.assertAllClose(
         gp_covmat_null, tf.eye(self.num_train_sample), atol=1e-4)
-    self.assertAllClose(
-        precision_mat_before_test, precision_mat_after_test, atol=1e-4)
+    # Tests if precision matrix stays the same during repeated calls.
+    self.assertAllClose(prec_mat_first_call, prec_mat_before_call, atol=1e-4)
+    self.assertAllClose(prec_mat_second_call, prec_mat_before_call, atol=1e-4)
+    # Tests if precision matrix is updated during resumed training.
+    self.assertNotAllClose(
+        prec_mat_resumed_train, prec_mat_before_call, atol=1e-4)
+    # Tests if covaraince matrix stays the same during repeated calls.
+    self.assertAllClose(cov_mat_first_call, tf.linalg.inv(prec_mat_before_call))
+    self.assertAllClose(cov_mat_second_call,
+                        tf.linalg.inv(prec_mat_before_call))
+
+  def test_if_update_covmat_flags(self):
+    """Tests if covariance update is properly flipped during train / test."""
+    rfgp_model = ed.layers.RandomFeatureGaussianProcess(units=1)
+
+    # First training call  after which `if_update_covariance` should be True.
+    _ = rfgp_model(self.x_tr, training=True)
+    update_cov_before_call = (
+        rfgp_model._gp_cov_layer.if_update_covariance.numpy())
+
+    # First inference call after which `if_update_covariance` should be False.
+    _ = rfgp_model(self.x_ts, training=False)
+    update_cov_first_call = (
+        rfgp_model._gp_cov_layer.if_update_covariance.numpy())
+
+    # Second inference call after which `if_update_covariance` should be False.
+    _ = rfgp_model(self.x_ts, training=False)
+    update_cov_second_call = (
+        rfgp_model._gp_cov_layer.if_update_covariance.numpy())
+
+    # Second training call after which `if_update_covariance` should be True.
+    _ = rfgp_model(self.x_tr, training=True)
+    update_cov_resumed_train = (
+        rfgp_model._gp_cov_layer.if_update_covariance.numpy())
+
+    self.assertTrue(update_cov_before_call)
+    self.assertFalse(update_cov_first_call)
+    self.assertFalse(update_cov_second_call)
+    self.assertTrue(update_cov_resumed_train)
 
   def test_state_saving_and_loading(self):
     """Tests if the loaded model returns same results."""

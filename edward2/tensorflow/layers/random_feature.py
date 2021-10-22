@@ -341,13 +341,29 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
             initializer=tf.keras.initializers.Identity(self.ridge_penalty),
             trainable=False,
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+
+    self.covariance_matrix = (
+        self.add_weight(
+            name='gp_covariance_matrix',
+            shape=(gp_feature_dim, gp_feature_dim),
+            dtype=self.dtype,
+            trainable=False,
+            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+
+    # Boolean flag to indicate whether to update the covariance matrix (i.e.,
+    # by inverting the newly updated precision matrix) during inference.
+    self.if_update_covariance = (
+        self.add_weight(
+            name='update_gp_covariance',
+            dtype=tf.bool,
+            shape=(),
+            trainable=False,
+            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+
     self.built = True
 
-  def make_precision_matrix_update_op(self,
-                                      gp_feature,
-                                      logits,
-                                      precision_matrix):
-    """Defines update op for the precision matrix of feature weights."""
+  def update_feature_precision_matrix(self, gp_feature, logits):
+    """Computes the updated precision matrix of feature weights."""
     if self.likelihood != 'gaussian':
       if logits is None:
         raise ValueError(
@@ -380,15 +396,14 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       # matrices.
       precision_matrix_minibatch = precision_matrix_minibatch / batch_size
       precision_matrix_new = (
-          self.momentum * precision_matrix +
+          self.momentum * self.precision_matrix +
           (1. - self.momentum) * precision_matrix_minibatch)
     else:
       # Compute exact population-wise covariance without momentum.
       # If use this option, make sure to pass through data only once.
-      precision_matrix_new = precision_matrix + precision_matrix_minibatch
+      precision_matrix_new = self.precision_matrix + precision_matrix_minibatch
 
-    # Returns the update op.
-    return precision_matrix.assign(precision_matrix_new)
+    return precision_matrix_new
 
   def reset_precision_matrix(self):
     """Resets precision matrix to its initial value.
@@ -399,6 +414,22 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     precision_matrix_reset_op = self.precision_matrix.assign(
         self.initial_precision_matrix)
     self.add_update(precision_matrix_reset_op)
+
+  def update_feature_covariance_matrix(self):
+    """Computes the feature covariance if self.if_update_covariance=True.
+
+    GP layer computes the covariancce matrix of the random feature coefficient
+    by inverting the precision matrix. Since this inversion op is expensive,
+    we will invoke it only when there is new update to the precision matrix
+    (where self.if_update_covariance will be flipped to `True`.).
+
+    Returns:
+      The updated covariance_matrix.
+    """
+    # Compute covariance matrix update only when `if_update_covariance=True`.
+    return tf.cond(
+        self.if_update_covariance, lambda: tf.linalg.inv(self.precision_matrix),
+        lambda: self.covariance_matrix)
 
   def compute_predictive_covariance(self, gp_feature):
     """Computes posterior predictive variance.
@@ -420,12 +451,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     Returns:
       (tf.Tensor) Predictive covariance matrix, shape (batch_size, batch_size).
     """
-    # Computes the covariance matrix of the feature coefficient.
-    feature_cov_matrix = tf.linalg.inv(self.precision_matrix)
-
     # Computes the covariance matrix of the gp prediction.
-    cov_feature_product = tf.matmul(
-        feature_cov_matrix, gp_feature, transpose_b=True) * self.ridge_penalty
+    cov_feature_product = tf.matmul(self.covariance_matrix, gp_feature,
+                                    transpose_b=True) * self.ridge_penalty
     gp_cov_matrix = tf.matmul(gp_feature, cov_feature_product)
     return gp_cov_matrix
 
@@ -457,14 +485,38 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     training = self._get_training_value(training)
 
     if training:
-      # Define and register the update op for feature precision matrix.
-      precision_matrix_update_op = self.make_precision_matrix_update_op(
-          gp_feature=inputs,
-          logits=logits,
-          precision_matrix=self.precision_matrix)
+      # Computes the updated feature precision matrix.
+      precision_matrix_updated = self.update_feature_precision_matrix(
+          gp_feature=inputs, logits=logits)
+
+      # Updates precision matrix.
+      precision_matrix_update_op = self.precision_matrix.assign(
+          precision_matrix_updated)
+
+      # Enables covariance update in the next inference call.
+      enable_covariance_update_op = self.if_update_covariance.assign(
+          tf.constant(True, dtype=tf.bool))
+
       self.add_update(precision_matrix_update_op)
+      self.add_update(enable_covariance_update_op)
+
       # Return null estimate during training.
       return tf.eye(batch_size, dtype=self.dtype)
     else:
-      # Return covariance estimate during inference.
+      # Lazily computes feature covariance matrix during inference.
+      covariance_matrix_updated = self.update_feature_covariance_matrix()
+
+      # Store updated covariance matrix.
+      covariance_matrix_update_op = self.covariance_matrix.assign(
+          covariance_matrix_updated)
+
+      # Disable covariance update in future inference calls (to avoid the
+      # expensive tf.linalg.inv op) unless there are new updates to precision
+      # matrix.
+      disable_covariance_update_op = self.if_update_covariance.assign(
+          tf.constant(False, dtype=tf.bool))
+
+      self.add_update(covariance_matrix_update_op)
+      self.add_update(disable_covariance_update_op)
+
       return self.compute_predictive_covariance(gp_feature=inputs)
