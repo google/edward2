@@ -33,10 +33,11 @@
 """
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, Mapping, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional, Tuple, Union
 
 import flax.linen as nn
 
+import jax
 from jax import lax
 from jax import random
 import jax.numpy as jnp
@@ -62,6 +63,7 @@ default_rbf_kernel_init = nn.initializers.variance_scaling(
 default_kwarg_dict = lambda: dataclasses.field(default_factory=dict)
 
 SUPPORTED_LIKELIHOOD = ('binary_logistic', 'poisson', 'gaussian')
+MIN_SCALE_MONTE_CARLO = 1e-3
 
 
 class RandomFeatureGaussianProcess(nn.Module):
@@ -397,3 +399,294 @@ class LaplaceRandomFeatureCovariance(nn.Module):
       gp_covar = jnp.matmul(gp_features, cov_feature_product)
 
     return self.ridge_penalty * gp_covar
+
+
+class MCSigmoidDenseFASNGP(nn.Module):
+  """Heteroscedastic SNGP for data with sigmoid output activation.
+
+  Output layer which combines the benefits of the heteroscedastic
+  (https://arxiv.org/abs/2105.10305) and SNGP (https://arxiv.org/abs/2006.10108)
+  methods. Assumes spectral normalization is applied to network producing
+  `inputs` to the __call__ method.
+
+  Attributes:
+      num_outputs: Number of outputs for classification task.
+      num_factors: Number of factors to use in approximation to full rank
+        covariance matrix.
+      temperature: The softmax temperature.
+      parameter_efficient: Whether to use the parameter efficient
+        version of the method. If True then samples from the latent distribution
+        are generated as: mu(x) + v(x) * matmul(V, eps_R) + diag(d(x), eps_K)),
+        where eps_R ~ N(0, I_R), eps_K ~ N(0, I_K). If False then latent samples
+        are generated as: mu(x) + matmul(V(x), eps_R) + diag(d(x), eps_K)).
+        Computing V(x) as function of x increases the number of parameters
+        introduced by the method.
+      train_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during training.
+      test_mc_samples: The number of Monte-Carlo samples used to estimate the
+        predictive distribution during testing/inference.
+      share_samples_across_batch: If True, the latent noise samples
+        are shared across batch elements. If encountering XLA compilation errors
+        due to dynamic shape inference setting = True may solve.
+      logits_only: If True, only return the logits from the __call__ method.
+      return_locs: If True, return the location parameter of the Gaussian
+        latent variable in place of the `logits`.
+      eps: Clip probabilities into [eps, 1.0] before applying log.
+      het_var_weight: Weighting on the heteroscedastic variance when computing
+        samples from the Gaussian latent variable.
+      sngp_var_weight: Weighting on the GP variance when computing samples from
+        the Gaussian latent variable.
+      hidden_features: Number of features for Random Fourier Feature GP
+        approximation.
+      normalize_input: Whether to normalize the input for the GP layer.
+      norm_kwargs: Normalization keywords for the GP layer.
+      hidden_kwargs: Hidden layer keywords for the GP layer.
+      output_kwargs: Output keywords for the GP layer.
+      covmat_kwargs: Covariance matrix keywords for the GP layer.
+  """
+  num_outputs: int
+  num_factors: int  # set num_factors = 0 for diagonal method
+  temperature: float = 1.0
+  parameter_efficient: bool = False
+  train_mc_samples: int = 1000
+  test_mc_samples: int = 1000
+  share_samples_across_batch: bool = False
+  logits_only: bool = False
+  return_locs: bool = False
+  eps: float = 1e-7
+  het_var_weight: float = 1.0
+  sngp_var_weight: float = 0.0
+
+  hidden_features: int = 1024
+  normalize_input: bool = True
+
+  # Optional keyword arguments.
+  norm_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  hidden_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  output_kwargs: Mapping[str, Any] = default_kwarg_dict()
+  covmat_kwargs: Mapping[str, Any] = default_kwarg_dict()
+
+  def setup(self):
+    if self.parameter_efficient:
+      self._scale_layer_homoscedastic = nn.Dense(
+          self.num_outputs, name='scale_layer_homoscedastic')
+      self._scale_layer_heteroscedastic = nn.Dense(
+          self.num_outputs, name='scale_layer_heteroscedastic')
+    elif self.num_factors > 0:
+      self._scale_layer = nn.Dense(
+          self.num_outputs * self.num_factors, name='scale_layer')
+
+    self._loc_layer = RandomFeatureGaussianProcess(
+        features=self.num_outputs,
+        hidden_features=self.hidden_features,
+        normalize_input=self.normalize_input,
+        norm_kwargs=self.norm_kwargs,
+        hidden_kwargs=self.hidden_kwargs,
+        output_kwargs=self.output_kwargs,
+        covmat_kwargs=self.covmat_kwargs,
+        name='loc_layer')
+    self._diag_layer = nn.Dense(self.num_outputs, name='diag_layer')
+
+  def _compute_loc_param(self, inputs: Array) -> Array:
+    """Computes location parameter of the "logits distribution".
+
+    Args:
+      inputs: The input to the heteroscedastic output layer.
+
+    Returns:
+      Array of shape [batch_size, num_classes].
+    """
+    return self._loc_layer(inputs)
+
+  def _compute_scale_param(self, inputs: Array, covmat_sngp: Array,
+                           training: int) -> Tuple[Array, Array]:
+    """Computes scale parameter of the "logits distribution".
+
+    Args:
+      inputs: The input to the heteroscedastic output layer.
+      covmat_sngp: GP output layer covariance matrix.
+      training: in training mode or not.
+
+    Returns:
+      2-Tuple of Array of shape
+      ([batch_size, num_classes * max(num_factors, 1)],
+      [batch_size, num_classes]).
+    """
+    if self.parameter_efficient or self.num_factors <= 0:
+      low_rank = inputs
+      diag = jax.nn.softplus(self._diag_layer(inputs)) + MIN_SCALE_MONTE_CARLO
+    else:
+      low_rank = self._scale_layer(inputs)
+      diag = jax.nn.softplus(self._diag_layer(inputs)) + MIN_SCALE_MONTE_CARLO
+
+    initializing = self.is_mutable_collection('params')
+    if training or initializing:
+      diag_comp = diag
+    else:
+      # assume diagonal_only=True
+      sngp_marginal_vars = jnp.expand_dims(covmat_sngp, -1)
+      diag_comp = jnp.sqrt(self.het_var_weight * jnp.square(diag) +
+                           self.sngp_var_weight * sngp_marginal_vars)
+
+    return low_rank, diag_comp
+
+  def _compute_diagonal_noise_samples(self, diag_scale: Array,
+                                      num_samples: int) -> Array:
+    """Computes samples of the diagonal elements logit noise.
+
+    Args:
+      diag_scale: Array of shape [batch_size, num_classes]. Diagonal
+        elements of scale parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+
+    Returns:
+      Array. Logit noise samples of shape:
+        [batch_size, num_samples, num_outputs].
+    """
+    if self.share_samples_across_batch:
+      samples_per_batch = 1
+    else:
+      samples_per_batch = diag_scale.shape[0]
+
+    key = self.make_rng('diag_noise_samples')
+    return jnp.expand_dims(diag_scale, 1) * jax.random.normal(
+        key, shape=(samples_per_batch, num_samples, 1))
+
+  def _compute_standard_normal_samples(self, factor_loadings: Array,
+                                       num_samples: int) -> Array:
+    """Utility that computes samples from a standard normal distribution.
+
+    Args:
+      factor_loadings: Array of shape
+        [batch_size, num_classes * num_factors]. Factor loadings for scale
+        parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+
+    Returns:
+      Array. Samples of shape: [batch_size, num_samples, num_factors].
+    """
+    if self.share_samples_across_batch:
+      samples_per_batch = 1
+    else:
+      samples_per_batch = factor_loadings.shape[0]
+
+    key = self.make_rng('standard_norm_noise_samples')
+    standard_normal_samples = jax.random.normal(
+        key, shape=(samples_per_batch, num_samples, self.num_factors))
+
+    if self.share_samples_across_batch:
+      standard_normal_samples = jnp.tile(standard_normal_samples,
+                                         [factor_loadings.shape[0], 1, 1])
+
+    return standard_normal_samples
+
+  def _compute_noise_samples(self, scale: Tuple[Array, Array],
+                             num_samples: int) -> Array:
+    """Utility function that computes additive noise samples.
+
+    Args:
+      scale: Tuple of Array of shape (
+        [batch_size, num_classes * num_factors],
+        [batch_size, num_classes]). Factor loadings and diagonal elements
+        for scale parameters of the distribution to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+
+    Returns:
+      Array. Logit noise samples of shape:
+        [batch_size, num_samples, num_outputs].
+    """
+    factor_loadings, diag_scale = scale
+
+    # Compute the diagonal noise
+    diag_noise_samples = self._compute_diagonal_noise_samples(diag_scale,
+                                                              num_samples)
+
+    if self.num_factors > 0:
+      # Now compute the factors
+      standard_normal_samples = self._compute_standard_normal_samples(
+          factor_loadings, num_samples)
+
+      if self.parameter_efficient:
+        res = self._scale_layer_homoscedastic(standard_normal_samples)
+        res *= jnp.expand_dims(
+            self._scale_layer_heteroscedastic(factor_loadings), 1)
+      else:
+        # reshape scale vector into factor loadings matrix
+        factor_loadings = jnp.reshape(factor_loadings,
+                                      [-1, self.num_outputs, self.num_factors])
+
+        # transform standard normal into ~ full rank covariance Gaussian samples
+        res = jnp.einsum('ijk,iak->iaj',
+                         factor_loadings, standard_normal_samples)
+      return res + diag_noise_samples
+    return diag_noise_samples
+
+  def _compute_mc_samples(self, locs: Array, scale: Array,
+                          num_samples: int) -> Array:
+    """Utility function that computes Monte-Carlo samples (using sigmoid).
+
+    Args:
+      locs: Array of shape [batch_size, total_mc_samples, num_outputs].
+        Location parameters of the distributions to be sampled.
+      scale: Array of shape [batch_size, total_mc_samples, num_outputs].
+        Scale parameters of the distributions to be sampled.
+      num_samples: Number of Monte-Carlo samples to take.
+
+    Returns:
+      Array of shape [batch_size, num_samples, num_outputs]. Average over the
+        MC samples.
+    """
+    locs = jnp.expand_dims(locs, axis=1)
+
+    noise_samples = self._compute_noise_samples(scale, num_samples)
+
+    latents = locs + noise_samples
+    samples = jax.nn.sigmoid(latents / self.temperature)
+
+    return jnp.mean(samples, axis=1)
+
+  @nn.compact
+  def __call__(self, inputs: Array, training: int = True) -> Union[
+      Tuple[Array, Array], Tuple[Array, Array, Array, Array]]:
+    """Computes predictive and log predictive distributions.
+
+    Uses Monte Carlo estimate of sigmoid approximation to HetSNGP model to
+    compute predictive distribution.
+
+    Args:
+      inputs: The input to the heteroscedastic output layer.
+      training: Whether we are training or not.
+
+    Returns:
+      Tuple of Array: (logits, covmat_sngp) if logits_only = True. Otherwise,
+      tuple of (logits, covmat_sngp, log_probs, probs). Logits
+      represents the argument to a sigmoid function that would yield probs
+      (logits = inverse_sigmoid(probs)), so logits can be used with the
+      sigmoid cross-entropy loss function.
+    """
+    # return_random_features set to False, so guaranteed to return 2-tuple
+    locs, covmat_sngp = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none,unbalanced-tuple-unpacking
+    # guaranteed to return 2-tuple due to scale_layer construction
+    scale = self._compute_scale_param(inputs, covmat_sngp, training)  # pylint: disable=assignment-from-none
+
+    if training:
+      total_mc_samples = self.train_mc_samples
+    else:
+      total_mc_samples = self.test_mc_samples
+
+    probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)
+
+    probs_mean = jnp.clip(probs_mean, a_min=self.eps)
+    log_probs = jnp.log(probs_mean)
+
+    # inverse sigmoid
+    probs_mean = jnp.clip(probs_mean, a_min=self.eps, a_max=1.0 - self.eps)
+    logits = log_probs - jnp.log(1.0 - probs_mean)
+
+    if self.return_locs:
+      logits = locs
+
+    if self.logits_only:
+      return logits, covmat_sngp
+
+    return logits, covmat_sngp, log_probs, probs_mean
