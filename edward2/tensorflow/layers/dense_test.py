@@ -568,6 +568,18 @@ class DenseTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(predictions.shape, manual_predictions.shape)
     self.assertAllClose(predictions, manual_predictions)
 
+  @parameterized.parameters((1,), (3,))
+  def testDenseMultihead(self, ensemble_size):
+    batch_size = 2
+    input_dim = 4
+    output_dim = 5
+    inputs = np.random.rand(batch_size, ensemble_size,
+                            input_dim).astype(np.float32)
+    inputs = tf.reshape(inputs, (batch_size, ensemble_size * input_dim))
+    layer = ed.layers.DenseMultihead(output_dim, ensemble_size=ensemble_size)
+    outputs = layer(inputs, training=True)
+    self.assertEqual(outputs.shape, (batch_size, ensemble_size, output_dim))
+
 
 if __name__ == "__main__":
   tf.test.main()

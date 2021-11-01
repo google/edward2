@@ -37,6 +37,7 @@ from edward2.tensorflow.layers.dense import DenseDVI
 from edward2.tensorflow.layers.dense import DenseFlipout
 from edward2.tensorflow.layers.dense import DenseHierarchical
 from edward2.tensorflow.layers.dense import DenseHyperBatchEnsemble
+from edward2.tensorflow.layers.dense import DenseMultihead
 from edward2.tensorflow.layers.dense import DenseRank1
 from edward2.tensorflow.layers.dense import DenseReparameterization
 from edward2.tensorflow.layers.dense import DenseVariationalDropout

@@ -16,7 +16,7 @@
 # Lint as: python3
 """Wide ResNet architecture with multiple input and outputs."""
 import functools
-from experimental.mimo import layers  # local file import
+import edward2 as ed
 import tensorflow as tf
 
 BATCHNORM_L2 = 3e-4
@@ -120,11 +120,12 @@ def wide_resnet(input_shape, depth, width_multiplier, num_classes,
   x = tf.keras.layers.Activation('relu')(x)
   x = tf.keras.layers.AveragePooling2D(pool_size=8)(x)
   x = tf.keras.layers.Flatten()(x)
-  x = layers.DenseMultihead(
+  x = ed.layers.DenseMultihead(
       num_classes,
       kernel_initializer='he_normal',
       activation=None,
       ensemble_size=ensemble_size,
       kernel_regularizer=l1_l2(l1=scaled_l1, l2=scaled_l2),
-      bias_regularizer=l1_l2(l1=scaled_l1, l2=scaled_l2))(x)
+      bias_regularizer=l1_l2(l1=scaled_l1, l2=scaled_l2))(
+          x)
   return tf.keras.Model(inputs=inputs, outputs=x)
