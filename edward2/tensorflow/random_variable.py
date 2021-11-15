@@ -19,6 +19,35 @@ import functools
 import tensorflow as tf
 
 
+# TODO(b/202447704): Update to use public Protocol when available.
+class RandomVariableTraceType:
+  """Class outlining Tracing Protocol for RandomVariable."""
+
+  def __init__(self, instance_id):
+    self.instance_id = instance_id
+
+  def is_subtype_of(self, other):
+    return self == other
+
+  def most_specific_common_supertype(self, others):
+    if not all(self == other for other in others):
+      return None
+
+    return self
+
+  def __hash__(self) -> int:
+    return self.instance_id
+
+  def __eq__(self, other) -> bool:
+    if not isinstance(other, RandomVariableTraceType):
+      return False
+
+    return self.instance_id == other.instance_id
+
+  def __repr__(self):
+    return f"RandomVariableTraceType(instance_id={self.instance_id})"
+
+
 class RandomVariable(object):
   """Class for random variables.
 
@@ -188,6 +217,9 @@ class RandomVariable(object):
   def get_shape(self):
     """Get shape of random variable."""
     return self.shape
+
+  def __tf_tracing_type__(self, _):
+    return RandomVariableTraceType(id(self))
 
   # This enables the RandomVariable's overloaded "right" binary operators to
   # run when the left operand is an ndarray, because it accords the

@@ -64,6 +64,18 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     with self.assertRaises(NotImplementedError):
       _ = ed.RandomVariable(FakeDistributionNoSample())
 
+  def testTraceType(self):
+    x_1 = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
+    x_2 = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
+    trace_type_1 = x_1.__tf_tracing_type__(None)
+    trace_type_2 = x_2.__tf_tracing_type__(None)
+
+    self.assertEqual(trace_type_1, trace_type_1)
+    self.assertTrue(trace_type_1.is_subtype_of(trace_type_1))
+
+    self.assertNotEqual(trace_type_1, trace_type_2)
+    self.assertFalse(trace_type_1.is_subtype_of(trace_type_2))
+
   def testGradientsFirstOrder(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0., 1.))
     def f(x):
