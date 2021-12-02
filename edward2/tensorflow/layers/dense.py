@@ -1315,13 +1315,14 @@ class DenseMultihead(tf.keras.layers.Dense):
     self.ensemble_size = ensemble_size
 
   def call(self, inputs):
-    batch_size = tf.shape(inputs)[0]
     # NOTE: This restricts this layer from being called on tensors of ndim > 2.
     outputs = super().call(inputs)
-    outputs = tf.reshape(
-        outputs,
-        [batch_size, self.ensemble_size, self.units // self.ensemble_size])
-    return outputs
+    # The shape of `outputs` is (batch_size, output_dim * ensemble_size). We
+    # split and stack to return a tensor of shape (batch_size, ensemble_size,
+    # output_dim).
+    ensemble_outputs_list = tf.split(outputs, self.ensemble_size, axis=-1)
+    ensemble_outputs = tf.stack(ensemble_outputs_list, axis=1)
+    return ensemble_outputs
 
   def get_config(self):
     config = {
