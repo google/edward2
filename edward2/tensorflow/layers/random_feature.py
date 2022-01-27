@@ -128,7 +128,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     self.num_inducing = num_inducing
 
     self.normalize_input = normalize_input
-    self.gp_input_scale = 1. / tf.sqrt(gp_kernel_scale)
+    self.gp_input_scale = (
+        1. / tf.sqrt(gp_kernel_scale) if gp_kernel_scale is not None else None)
     self.gp_feature_scale = tf.sqrt(2. / float(num_inducing))
 
     self.scale_random_features = scale_random_features
@@ -249,7 +250,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     gp_inputs = inputs
     if self.normalize_input:
       gp_inputs = self._input_norm_layer(gp_inputs)
-    elif self.use_custom_random_features:
+    elif self.use_custom_random_features and self.gp_input_scale is not None:
       # Supports lengthscale for custom random feature layer by directly
       # rescaling the input.
       gp_input_scale = tf.cast(self.gp_input_scale, inputs.dtype)
