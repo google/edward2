@@ -151,8 +151,8 @@ def get_next_tracer():
   a random draw from Normal(0., 1.) doubled, and `y` is a constant 0.84, thus
   z = 2 * Normal(0., 1.) + 0.84.
   """
+  tracer = _tracer_stack.stack.pop()
   try:
-    tracer = _tracer_stack.stack.pop()
     yield tracer
   finally:
     _tracer_stack.stack.append(tracer)
