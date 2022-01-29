@@ -427,10 +427,14 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     Returns:
       The updated covariance_matrix.
     """
+    # Cast precision_matrix to a linalg.inv compatible format.
+    precision_matrix = tf.cast(self.precision_matrix, tf.float32)
+    covariance_matrix = tf.cast(self.covariance_matrix, tf.float32)
     # Compute covariance matrix update only when `if_update_covariance=True`.
-    return tf.cond(
-        self.if_update_covariance, lambda: tf.linalg.inv(self.precision_matrix),
-        lambda: self.covariance_matrix)
+    covariance_matrix_updated = tf.cond(
+        self.if_update_covariance,
+        lambda: tf.linalg.inv(precision_matrix), lambda: covariance_matrix)
+    return tf.cast(covariance_matrix_updated, self.dtype)
 
   def compute_predictive_covariance(self, gp_feature):
     """Computes posterior predictive variance.
