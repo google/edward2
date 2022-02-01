@@ -31,7 +31,7 @@ class DenseBatchEnsemble(nn.Module):
     features: the number of output features.
     ens_size: the number of ensemble members.
     activation: activation function.
-    use_ensemble_bias: whether to add a bias to the BE output (default: True).
+    use_bias: whether to add a bias to the BE output (default: True).
     dtype: the dtype of the computation (default: float32).
     kernel_init: initializer function for the weight matrix.
     bias_init: initializer function for the bias.
@@ -39,11 +39,11 @@ class DenseBatchEnsemble(nn.Module):
   features: int
   ens_size: int
   activation: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
-  use_ensemble_bias: bool = True
+  use_bias: bool = True
   dtype: Optional[DType] = None
   alpha_init: InitializeFn = nn.initializers.ones
   gamma_init: InitializeFn = nn.initializers.ones
-  kernel_init: InitializeFn = nn.initializers.xavier_uniform()
+  kernel_init: InitializeFn = nn.initializers.lecun_normal()
   bias_init: InitializeFn = nn.initializers.zeros
 
   @nn.compact
@@ -71,7 +71,7 @@ class DenseBatchEnsemble(nn.Module):
     inputs = jnp.reshape(inputs, (self.ens_size, -1) + inputs_shape[1:])
     outputs = jnp.einsum('E...C,EC,CD,ED->E...D', inputs, alpha, kernel, gamma)
 
-    if self.use_ensemble_bias:
+    if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.ens_size, self.features),
                         dtype)
       bias_shape = (self.ens_size,) + (1,) * (outputs.ndim - 2) + (
