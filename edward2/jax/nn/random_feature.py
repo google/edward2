@@ -35,6 +35,7 @@ import dataclasses
 import functools
 from typing import Any, Callable, Iterable, Mapping, Optional, Tuple, Union
 
+from edward2.jax.nn import dense
 import flax.linen as nn
 
 import jax
@@ -690,3 +691,39 @@ class MCSigmoidDenseFASNGP(nn.Module):
       return logits, covmat_sngp
 
     return logits, covmat_sngp, log_probs, probs_mean
+
+
+class MCSigmoidDenseFASNGPBE(MCSigmoidDenseFASNGP):
+  """Heteroscedastic SNGP + BE for data with sigmoid output activation.
+  """
+
+  ens_size: int = 1
+
+  def setup(self):
+    if self.parameter_efficient:
+      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
+          self.num_outputs,
+          ens_size=self.ens_size,
+          name='scale_layer_homoscedastic')
+      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
+          self.num_outputs,
+          ens_size=self.ens_size,
+          name='scale_layer_heteroscedastic')
+    elif self.num_factors > 0:
+      self._scale_layer = dense.DenseBatchEnsemble(
+          self.num_outputs * self.num_factors,
+          ens_size=self.ens_size,
+          name='scale_layer')
+
+    self._loc_layer = RandomFeatureGaussianProcess(
+        features=self.num_outputs,
+        hidden_features=self.hidden_features,
+        normalize_input=self.normalize_input,
+        norm_kwargs=self.norm_kwargs,
+        hidden_kwargs=self.hidden_kwargs,
+        output_kwargs=self.output_kwargs,
+        covmat_kwargs=self.covmat_kwargs,
+        name='loc_layer')
+    self._diag_layer = dense.DenseBatchEnsemble(self.num_outputs,
+                                                ens_size=self.ens_size,
+                                                name='diag_layer')

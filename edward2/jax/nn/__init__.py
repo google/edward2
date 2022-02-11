@@ -18,19 +18,25 @@
 from edward2.jax.nn import utils
 from edward2.jax.nn.dense import DenseBatchEnsemble
 from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFA
+from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFABE
 from edward2.jax.nn.heteroscedastic_lib import MCSoftmaxDenseFA
+from edward2.jax.nn.heteroscedastic_lib import MCSoftmaxDenseFABE
 from edward2.jax.nn.normalization import SpectralNormalization
 from edward2.jax.nn.normalization import SpectralNormalizationConv2D
 from edward2.jax.nn.random_feature import LaplaceRandomFeatureCovariance
 from edward2.jax.nn.random_feature import MCSigmoidDenseFASNGP
+from edward2.jax.nn.random_feature import MCSigmoidDenseFASNGPBE
 from edward2.jax.nn.random_feature import RandomFeatureGaussianProcess
 from edward2.jax.nn.random_feature import RandomFourierFeatures
 
 __all__ = [
     "DenseBatchEnsemble",
     "MCSoftmaxDenseFA",
+    "MCSoftmaxDenseFABE",
     "MCSigmoidDenseFA",
+    "MCSigmoidDenseFABE",
     "MCSigmoidDenseFASNGP",
+    "MCSigmoidDenseFASNGPBE",
     "LaplaceRandomFeatureCovariance",
     "RandomFeatureGaussianProcess",
     "RandomFourierFeatures",
