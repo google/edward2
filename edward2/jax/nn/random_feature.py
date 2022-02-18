@@ -43,6 +43,8 @@ from jax import lax
 from jax import random
 import jax.numpy as jnp
 
+linalg = lax.linalg
+
 # Jax-related data types.
 PRNGKey = Any
 Shape = Iterable[int]
@@ -372,7 +374,9 @@ class LaplaceRandomFeatureCovariance(nn.Module):
     s * Phi_ts @ inv(t(Phi_tr) * Phi_tr + s * I) @ t(Phi_ts),
 
     where s is the ridge factor to be used for stablizing the inverse, and I is
-    the identity matrix with shape (num_hidden, num_hidden).
+    the identity matrix with shape (num_hidden, num_hidden). The above
+    description is formal only: the actual implementation uses a Cholesky
+    factorization of the covariance matrix t(Phi_tr) * Phi_tr + s * I.
 
     Args:
       gp_features: the random feature of testing data to be used for computing
@@ -386,18 +390,16 @@ class LaplaceRandomFeatureCovariance(nn.Module):
       otherwise the predictive covariance matrix of shape
       (batch_size, batch_size).
     """
-    precision_matrix_inv = jnp.linalg.inv(precision_matrix.value)
-    cov_feature_product = jnp.matmul(precision_matrix_inv,
-                                     jnp.transpose(gp_features))
+    chol = linalg.cholesky(precision_matrix.value)
+    chol_t_cov_feature_product = linalg.triangular_solve(
+        chol, gp_features.T, left_side=True, lower=True)
 
     if diagonal_only:
       # Compute diagonal element only, shape (batch_size, ).
-      # Using the identity diag(A @ B) = col_sum(A * tr(B)).
-      gp_covar = jnp.sum(
-          gp_features * jnp.transpose(cov_feature_product), axis=-1)
+      gp_covar = jnp.square(chol_t_cov_feature_product).sum(0)
     else:
       # Compute full covariance matrix, shape (batch_size, batch_size).
-      gp_covar = jnp.matmul(gp_features, cov_feature_product)
+      gp_covar = chol_t_cov_feature_product.T @ chol_t_cov_feature_product
 
     return self.ridge_penalty * gp_covar
 
