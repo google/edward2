@@ -30,15 +30,17 @@
     https://nbviewer.jupyter.org/gist/shoyer/fa9a29fd0880e2e033d7696585978bfc
 """
 
-from typing import Any, Callable, Mapping, Optional, Tuple
+from typing import Any, Callable, Iterable, Mapping, Optional, Tuple, Union
 
 import flax.core
 import flax.linen as nn
 import jax
+from jax import lax
 import jax.numpy as jnp
 import numpy as np
 
 # conventional Flax types
+Axes = Union[int, Iterable[int]]
 Array = Any
 Dtype = Any
 PRNGKey = Any
@@ -189,3 +191,130 @@ class SpectralNormalizationConv2D(SpectralNormalization):
 
   kernel_apply_kwargs: Mapping[str, Any] = flax.core.FrozenDict(
       feature_group_count=1, padding="SAME", use_bias=False)
+
+
+# Taken from
+# https://github.com/google/flax/blob/main/flax/linen/normalization.py
+def _compute_stats(x: Array, axes: Axes,
+                   axis_name: Optional[str] = None,
+                   axis_index_groups: Any = None):
+  """Computes mean and variance statistics."""
+  def _abs_sq(x):
+    """Computes the elementwise square of the absolute value |x|^2."""
+    if jnp.iscomplexobj(x):
+      return lax.square(lax.real(x)) + lax.square(lax.imag(x))
+    else:
+      return lax.square(x)
+  # promote x to at least float32, this avoids half precision computation
+  # but preserves double or complex floating points
+  x = jnp.asarray(x, jnp.promote_types(jnp.float32, jnp.result_type(x)))
+  mean = jnp.mean(x, axes)
+  mean2 = jnp.mean(_abs_sq(x), axes)
+  if axis_name is not None:
+    concatenated_mean = jnp.concatenate([mean, mean2])
+    mean, mean2 = jnp.split(
+        lax.pmean(
+            concatenated_mean,
+            axis_name=axis_name,
+            axis_index_groups=axis_index_groups), 2)
+  # mean2 - _abs_sq(mean) is not guaranteed to be non-negative due
+  # to floating point round-off errors.
+  var = jnp.maximum(0., mean2 - _abs_sq(mean))
+  return mean, var
+
+
+# Adapted from
+# https://github.com/google/flax/blob/main/flax/linen/normalization.py
+def _normalize_ensemble(
+    mdl: nn.Module, x: Array, mean: Array, var: Array,
+    reduction_axes: Axes, feature_axes: Axes,
+    dtype: Dtype, param_dtype: Dtype,
+    epsilon: float,
+    use_bias: bool, use_scale: bool,
+    bias_init: Callable[[PRNGKey, Shape, Dtype], Array],
+    scale_init: Callable[[PRNGKey, Shape, Dtype], Array],
+    ens_size: int):
+  """"Normalizes input per ensemble member with learnable biases and scales."""
+  def _canonicalize_axes(rank: int, axes: Axes) -> Tuple[int, ...]:
+    """Returns a tuple of deduplicated, sorted, and positive axes."""
+    if not isinstance(axes, Iterable):
+      axes = (axes,)
+    return tuple(set([rank + axis if axis < 0 else axis for axis in axes]))
+  reduction_axes = _canonicalize_axes(x.ndim, reduction_axes)
+  feature_axes = _canonicalize_axes(x.ndim, feature_axes)
+  stats_shape = list(x.shape)
+  for axis in reduction_axes:
+    stats_shape[axis] = 1
+  mean = mean.reshape(stats_shape)
+  var = var.reshape(stats_shape)
+  # We broadcast operations by reshaping ens_size as the first outer axis.
+  feature_shape = [1] * x.ndim
+  reduced_feature_shape = [ens_size]
+  for ax in feature_axes:
+    feature_shape[ax] = x.shape[ax]
+    reduced_feature_shape.append(x.shape[ax])
+  feature_shape = [ens_size] + feature_shape
+  y = x - mean
+  mul = lax.rsqrt(var + epsilon)
+  y = jnp.reshape(y, (ens_size, -1) + y.shape[1:])
+  mul = jnp.reshape(mul, (ens_size, -1) + mul.shape[1:])
+  if use_scale:
+    scale = mdl.param("scale", scale_init, reduced_feature_shape,
+                      param_dtype).reshape(feature_shape)
+    mul *= scale
+  y *= mul
+  if use_bias:
+    bias = mdl.param("bias", bias_init, reduced_feature_shape,
+                     param_dtype).reshape(feature_shape)
+    y += bias
+  y = jnp.reshape(y, (-1,) + y.shape[2:])
+  return jnp.asarray(y, dtype)
+
+
+class LayerNormEnsemble(nn.Module):
+  """Layer normalization applied separately to each ensemble member.
+
+  The implementation is vectorized so that most computation is shared (as it is
+  mathematically) and the shift and scale transforms are parallelized across
+  the ensemble dimension.
+
+  Attributes:
+    ens_size: Ensemble size.
+    epsilon: A small float added to variance to avoid dividing by zero.
+    dtype: the dtype of the computation (default: float32).
+    param_dtype: the dtype passed to parameter initializers (default: float32).
+    use_bias:  If True, bias (beta) is added.
+    use_scale: If True, multiply by scale (gamma). When the next layer is linear
+      (also e.g. nn.relu), this can be disabled since the scaling will be done
+      by the next layer.
+    bias_init: Initializer for bias, by default, zero.
+    scale_init: Initializer for scale, by default, one.
+  """
+  ens_size: int
+  epsilon: float = 1e-6
+  dtype: Any = jnp.float32
+  param_dtype: Dtype = jnp.float32
+  use_bias: bool = True
+  use_scale: bool = True
+  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
+  scale_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.ones
+
+  @nn.compact
+  def __call__(self, x):
+    """Applies layer normalization on the input.
+
+    Args:
+      x: Inputs of shape [batch * ens_size, ..., hidden_size].
+
+    Returns:
+      Normalized inputs (the same shape as inputs).
+    """
+    reduction_axes = (-1,)
+    feature_axes = (-1,)
+    mean, var = _compute_stats(x, reduction_axes, None, None)
+    return _normalize_ensemble(
+        self, x, mean, var, reduction_axes, feature_axes,
+        self.dtype, self.param_dtype, self.epsilon,
+        self.use_bias, self.use_scale,
+        self.bias_init, self.scale_init,
+        ens_size=self.ens_size)

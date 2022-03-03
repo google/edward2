@@ -28,6 +28,7 @@ import edward2.jax as ed
 import flax
 import flax.linen as nn
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 DenseLayer = nn.Dense(10)
@@ -101,6 +102,37 @@ class NormalizationTest(parameterized.TestCase):
     delta_input = np.linalg.norm(delta_vec)
     delta_output = np.linalg.norm(output2 - output1)
     self.assertLessEqual(delta_output, self.norm_multiplier * delta_input)
+
+  def test_layer_norm_ensemble(self):
+    """Tests that layer norm ensemble == layer norm in a for loop."""
+    rng = jax.random.PRNGKey(0)
+    batch_size = 2
+    ens_size = 3
+    length = 5
+    hidden_size = 7
+    rng, next_rng = jax.random.split(rng)
+    x = jax.random.normal(rng, (batch_size * ens_size, length, hidden_size))
+
+    model1 = ed.nn.LayerNormEnsemble(
+        ens_size=ens_size,
+        bias_init=nn.initializers.uniform(),
+        scale_init=nn.initializers.uniform())
+    rng, _ = jax.random.split(next_rng)
+    params = model1.init(rng, x)
+    y1 = model1.apply(params, x)
+
+    model2 = []
+    for _ in range(ens_size):
+      model2.append(nn.LayerNorm())
+
+    y2 = []
+    for i, xi in enumerate(jnp.split(x, ens_size, axis=0)):
+      paramsi = jax.tree_map(lambda param: param[i], params)  # pylint: disable=cell-var-from-loop
+      y2.append(model2[i].apply(paramsi, xi))
+
+    y2 = jnp.concatenate(y2, 0)
+    np.testing.assert_array_equal(y1, y2)
+    self.assertEqual(y1.shape, x.shape)
 
 
 if __name__ == "__main__":
