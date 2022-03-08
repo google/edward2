@@ -20,10 +20,10 @@ from absl.testing import parameterized
 import edward2.jax as ed
 import jax
 import jax.numpy as jnp
-import tensorflow as tf
+import numpy as np
 
 
-class BatchensembleTest(parameterized.TestCase, tf.test.TestCase):
+class DenseTest(parameterized.TestCase):
 
   @parameterized.parameters(
       (4, [3, 20], 0.0, 10),     # 2-Dimensional input
@@ -67,8 +67,8 @@ class BatchensembleTest(parameterized.TestCase, tf.test.TestCase):
     loop_outputs_list = jnp.concatenate(loop_outputs, axis=0)
     expected_outputs_shape = tiled_inputs.shape[:-1] + (output_dim,)
     self.assertEqual(tiled_outputs.shape, expected_outputs_shape)
-    self.assertAllClose(tiled_outputs, loop_outputs_list)
-    pass
+    np.testing.assert_allclose(tiled_outputs, loop_outputs_list,
+                               rtol=1e-06, atol=1e-06)
 
 
 if __name__ == "__main__":

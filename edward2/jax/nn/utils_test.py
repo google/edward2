@@ -18,15 +18,12 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 import edward2.jax as ed
-
 import jax
 import jax.numpy as jnp
-
 import numpy as np
-import tensorflow as tf
 
 
-class MeanFieldLogitsTest(parameterized.TestCase, tf.test.TestCase):
+class MeanFieldLogitsTest(parameterized.TestCase):
 
   def testMeanFieldLogitsLikelihood(self):
     """Tests if scaling is correct under different likelihood."""
@@ -47,8 +44,8 @@ class MeanFieldLogitsTest(parameterized.TestCase, tf.test.TestCase):
         mean_field_factor=mean_field_factor,
         likelihood='poisson')
 
-    self.assertAllClose(logits_logistic, logits / 2., atol=1e-4)
-    self.assertAllClose(logits_poisson, logits * np.exp(1.5), atol=1e-4)
+    np.testing.assert_allclose(logits_logistic, logits / 2., atol=1e-4)
+    np.testing.assert_allclose(logits_poisson, logits * np.exp(1.5), atol=1e-4)
 
   def testMeanFieldLogitsTemperatureScaling(self):
     """Tests using mean_field_logits as temperature scaling method."""
@@ -67,8 +64,8 @@ class MeanFieldLogitsTest(parameterized.TestCase, tf.test.TestCase):
     logits_scale_by_two = ed.nn.utils.mean_field_logits(
         logits, covmat=None, mean_field_factor=3.)
 
-    self.assertAllClose(logits_no_change, logits, atol=1e-4)
-    self.assertAllClose(logits_scale_by_two, logits / 2., atol=1e-4)
+    np.testing.assert_allclose(logits_no_change, logits, atol=1e-4)
+    np.testing.assert_allclose(logits_scale_by_two, logits / 2., atol=1e-4)
 
 
 if __name__ == '__main__':
