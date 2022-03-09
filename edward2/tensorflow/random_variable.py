@@ -19,7 +19,8 @@ import functools
 import tensorflow as tf
 
 
-class RandomVariableTraceType(tf.types.experimental.TraceType):
+# TODO(b/202447704): Update to use public Protocol when available.
+class RandomVariableTraceType:
   """Class outlining Tracing Protocol for RandomVariable."""
 
   def __init__(self, instance_id):
