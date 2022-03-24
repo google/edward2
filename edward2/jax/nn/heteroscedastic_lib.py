@@ -16,10 +16,15 @@
 # Lint as: python3
 """Library of methods to compute heteroscedastic classification predictions."""
 
+from typing import Iterable, Callable
+
 from edward2.jax.nn import dense
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+
+DType = type(jnp.float32)
+InitializeFn = Callable[[jnp.ndarray, Iterable[int], DType], jnp.ndarray]
 
 MIN_SCALE_MONTE_CARLO = 1e-3
 
@@ -476,21 +481,33 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
   """
 
   ens_size: int = 1
+  alpha_init: InitializeFn = nn.initializers.ones
+  gamma_init: InitializeFn = nn.initializers.ones
+  kernel_init: InitializeFn = nn.initializers.lecun_normal()
 
   def setup(self):
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
           self.num_classes,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
           self.num_classes,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = dense.DenseBatchEnsemble(
           self.num_classes * self.num_factors,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer')
 
     self._loc_layer = dense.DenseBatchEnsemble(self.num_classes,
@@ -506,26 +523,44 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
   """
 
   ens_size: int = 1
+  alpha_init: InitializeFn = nn.initializers.ones
+  gamma_init: InitializeFn = nn.initializers.ones
+  kernel_init: InitializeFn = nn.initializers.lecun_normal()
 
   def setup(self):
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
           self.num_outputs,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
           self.num_outputs,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = dense.DenseBatchEnsemble(
           self.num_outputs * self.num_factors,
           ens_size=self.ens_size,
+          alpha_init=self.alpha_init,
+          gamma_init=self.gamma_init,
+          kernel_init=self.kernel_init,
           name='scale_layer')
 
     self._loc_layer = dense.DenseBatchEnsemble(self.num_outputs,
                                                ens_size=self.ens_size,
+                                               alpha_init=self.alpha_init,
+                                               gamma_init=self.gamma_init,
+                                               kernel_init=self.kernel_init,
                                                name='loc_layer')
     self._diag_layer = dense.DenseBatchEnsemble(self.num_outputs,
                                                 ens_size=self.ens_size,
+                                                alpha_init=self.alpha_init,
+                                                gamma_init=self.gamma_init,
+                                                kernel_init=self.kernel_init,
                                                 name='diag_layer')

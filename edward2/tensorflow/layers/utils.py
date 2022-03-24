@@ -346,6 +346,36 @@ def smart_constant_value(pred):
   return pred_value
 
 
+def monte_carlo_softmax(logits, var, num_samples=50, temp_scale=1.0):
+  """Estimates softmax mean using Monte Carlo sampling.
+
+  Arguments:
+    logits: A float tensor of shape (batch_size, num_classes).
+    var: A float tensor of shape (batch_size, ).
+    num_samples: The sample size for Monte Carlo sampling.
+    temp_scale: The temperature scaling to re-scale var.
+
+  Returns:
+    A float tensor of shape (batch_size, num_classes)
+  """
+  stddev = tf.sqrt(var * temp_scale)
+  shape = tuple(list(logits.shape) + [num_samples])
+  # rand_samples (batch_size, num_classes, num_samples)
+  rand_samples = tf.random.normal(shape)
+  # means (batch_size, num_classes, num_samples)
+  means = tf.broadcast_to(tf.expand_dims(logits, axis=-1), shape)
+  # We expand stddev twice to (batch_size, 1, 1), and then broadcase to
+  # (batch_size, num_classes, num_samples)
+  stddevs = tf.broadcast_to(
+      tf.expand_dims(tf.expand_dims(stddev, axis=1), axis=1), shape)
+  # sampled_logits (batch_size, num_classes, num_samples)
+  sampled_logits = means + tf.multiply(stddevs, rand_samples)
+  # We first take softmax over axis=1 to get sampled_softmax
+  # Then average over the last axis=-1 to get the mean softmax
+  sampled_softmax = tf.nn.softmax(sampled_logits, axis=1)
+  return tf.math.reduce_mean(sampled_softmax, axis=-1)
+
+
 def mean_field_logits(logits,
                       covmat=None,
                       mean_field_factor=1.,
