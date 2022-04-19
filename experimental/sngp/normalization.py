@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Implementation of spectral normalization for Dense and Conv2D layers.
 
 ## References:
