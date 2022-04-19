@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """ResNet-32x4 with rank-1 distributions."""
 import functools
 import os

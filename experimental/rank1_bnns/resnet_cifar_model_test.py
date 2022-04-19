@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Tests for Rank-1 ResNet-32x4."""
 from absl.testing import parameterized
 from experimental.rank1_bnns import resnet_cifar_model  # local file import
