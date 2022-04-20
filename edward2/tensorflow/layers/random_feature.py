@@ -155,10 +155,10 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     if self.use_custom_random_features:
       # Default to Gaussian RBF kernel with orthogonal random features.
       self.random_features_bias_initializer = tf.random_uniform_initializer(
-          minval=0., maxval=2. * math.pi)
+          minval=0., maxval=2. * math.pi, seed=0)
       if self.custom_random_features_initializer is None:
         self.custom_random_features_initializer = (
-            initializers.OrthogonalRandomFeatures(stddev=1.0))
+            initializers.OrthogonalRandomFeatures(stddev=1.0, seed=0))
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
 
