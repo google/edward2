@@ -218,7 +218,7 @@ class HeteroscedasticSNGPLayer(MCSoftmaxDenseFA):
       else:
         total_mc_samples = self._test_mc_samples
 
-      probs_mean = self._compute_predictive_mean(
+      probs_mean, _ = self._compute_predictive_mean(
           locs, scale, total_mc_samples, seed)
 
       pred_variance = None

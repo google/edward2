@@ -37,7 +37,8 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
   def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
                temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
                compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, name='MCSoftmaxOutputLayerBase'):
+               logits_only=False, eps=1e-7, return_unaveraged_logits=False,
+               name='MCSoftmaxOutputLayerBase'):
     """Creates an instance of MCSoftmaxOutputLayerBase.
 
     Args:
@@ -63,6 +64,8 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       eps: Float. Clip probabilities into [eps, 1.0] softmax or
         [eps, 1.0 - eps] sigmoid before applying log (softmax), or inverse
         sigmoid.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -88,6 +91,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     self._share_samples_across_batch = share_samples_across_batch
     self._logits_only = logits_only
     self._eps = eps
+    self._return_unaveraged_logits = return_unaveraged_logits
     self._name = name
 
   def _compute_noise_samples(self, scale, num_samples, seed):
@@ -162,14 +166,14 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
 
     Returns:
       Tensor of shape [batch_size, 1 if num_classes == 2 else num_classes]
-      - the mean of the MC samples.
+      - the mean of the MC samples and Tensor containing the unaveraged samples.
     """
     if self._compute_pred_variance and seed is None:
       seed = utils.gen_int_seed()
 
     samples = self._compute_mc_samples(locs, scale, total_mc_samples, seed)
 
-    return tf.reduce_mean(samples, axis=1)
+    return tf.reduce_mean(samples, axis=1), samples
 
   def _compute_predictive_variance(self, mean, locs, scale, seed, num_samples):
     """Utility function to compute the per class predictive variance.
@@ -258,7 +262,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       else:
         total_mc_samples = self._test_mc_samples
 
-      probs_mean = self._compute_predictive_mean(
+      probs_mean, samples = self._compute_predictive_mean(
           locs, scale, total_mc_samples, seed)
 
       pred_variance = None
@@ -276,7 +280,22 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       else:
         logits = log_probs
 
-      if self._logits_only:
+      if self._return_unaveraged_logits:
+        samples = tf.clip_by_value(samples, self._eps, 1.0)
+        samples_log_probs = tf.math.log(samples)
+
+        if self._num_classes == 2:
+          # inverse sigmoid
+          samples = tf.clip_by_value(samples, self._eps, 1.0 - self._eps)
+          samples_logits = samples_log_probs - tf.math.log(1.0 - samples)
+        else:
+          samples_logits = samples_log_probs
+
+        if self._logits_only:
+          return logits, samples_logits
+
+        return logits, samples_logits, log_probs, probs_mean, pred_variance
+      elif self._logits_only:
         return logits
 
       return logits, log_probs, probs_mean, pred_variance
@@ -306,7 +325,7 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
                compute_pred_variance=False, share_samples_across_batch=False,
                logits_only=False, eps=1e-7, dtype=None,
                kernel_regularizer=None, bias_regularizer=None,
-               name='MCSoftmaxDense'):
+               return_unaveraged_logits=False, name='MCSoftmaxDense'):
     """Creates an instance of MCSoftmaxDense.
 
     This is a MC softmax heteroscedastic drop in replacement for a
@@ -347,6 +366,8 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       kernel_regularizer: Regularizer function applied to the `kernel` weights
         matrix.
       bias_regularizer: Regularizer function applied to the bias vector.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -363,7 +384,8 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
         train_mc_samples=train_mc_samples, test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps, name=name)
+        logits_only=logits_only, eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits, name=name)
 
     self._loc_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes, activation=None,
@@ -415,7 +437,7 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
                test_mc_samples=1000, compute_pred_variance=False,
                share_samples_across_batch=False, logits_only=False, eps=1e-7,
                dtype=None, kernel_regularizer=None, bias_regularizer=None,
-               name='MCSoftmaxDenseFA'):
+               return_unaveraged_logits=False, name='MCSoftmaxDenseFA'):
     """Creates an instance of MCSoftmaxDenseFA.
 
     if we assume:
@@ -477,6 +499,8 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       kernel_regularizer: Regularizer function applied to the `kernel` weights
         matrix.
       bias_regularizer: Regularizer function applied to the bias vector.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -492,7 +516,8 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps, name=name)
+        logits_only=logits_only, eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
@@ -1255,7 +1280,7 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
                test_mc_samples=1000, compute_pred_variance=False,
                share_samples_across_batch=False, logits_only=False, eps=1e-7,
                dtype=None, kernel_regularizer=None, bias_regularizer=None,
-               name='MCSigmoidDenseFA'):
+               return_unaveraged_logits=False, name='MCSigmoidDenseFA'):
     """Creates an instance of MCSigmoidDenseFA.
 
     if we assume:
@@ -1319,6 +1344,8 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       kernel_regularizer: Regularizer function applied to the `kernel` weights
         matrix.
       bias_regularizer: Regularizer function applied to the bias vector.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -1332,7 +1359,8 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps, name=name)
+        logits_only=logits_only, eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
