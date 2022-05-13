@@ -332,11 +332,10 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
 
     self.w = self.layer.kernel
     self.w_shape = self.w.shape.as_list()
-    self.uv_initializer = tf.initializers.random_normal()
 
     self.v = self.add_weight(
         shape=(1, np.prod(self.w_shape[:-1])),
-        initializer=self.uv_initializer,
+        initializer=tf.initializers.random_normal(),
         trainable=False,
         name='v',
         dtype=self.dtype,
@@ -344,7 +343,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
 
     self.u = self.add_weight(
         shape=(1, self.w_shape[-1]),
-        initializer=self.uv_initializer,
+        initializer=tf.initializers.random_normal(),
         trainable=False,
         name='u',
         dtype=self.dtype,
@@ -466,11 +465,10 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
 
     self.in_shape = (uv_dim, in_height, in_width, in_channel)
     self.out_shape = (uv_dim, out_height, out_width, out_channel)
-    self.uv_initializer = tf.initializers.random_normal()
 
     self.v = self.add_weight(
         shape=self.in_shape,
-        initializer=self.uv_initializer,
+        initializer=tf.initializers.random_normal(),
         trainable=False,
         name='v',
         dtype=self.dtype,
@@ -478,7 +476,7 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
 
     self.u = self.add_weight(
         shape=self.out_shape,
-        initializer=self.uv_initializer,
+        initializer=tf.initializers.random_normal(),
         trainable=False,
         name='u',
         dtype=self.dtype,
