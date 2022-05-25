@@ -717,6 +717,7 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
                test_mc_samples=1000, compute_pred_variance=False,
                share_samples_across_batch=False, logits_only=False, eps=1e-7,
                dtype=None, kernel_regularizer=None, bias_regularizer=None,
+               return_unaveraged_logits=False,
                name='MultiHeadMCSoftmaxDenseFA'):
     """Creates an instance of MultiHeadMCSoftmaxDenseFA.
 
@@ -784,6 +785,8 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       kernel_regularizer: Regularizer function applied to the `kernel` weights
         matrix.
       bias_regularizer: Regularizer function applied to the bias vector.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -799,7 +802,8 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps, name=name)
+        logits_only=logits_only, eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
