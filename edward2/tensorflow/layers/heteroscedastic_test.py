@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Tests for heteroscedastic.py."""
+from typing import Optional
 
 from absl.testing import parameterized
 import edward2 as ed
@@ -30,6 +31,16 @@ def test_cases():
           'num_classes': 10,
           'model_type': 'MCSoftmaxDense'
       }, {
+          'testcase_name': '_MCSoftmaxDense_logit_noise_normal_10_tune_temp',
+          'logit_noise': tfp.distributions.Normal,
+          'num_classes': 10,
+          'model_type': 'MCSoftmaxDense',
+          'kwargs': {
+              'tune_temperature': True,
+              'temperature_lower_bound': 1.1,
+              'temperature_upper_bound': 1.2
+          }
+      }, {
           'testcase_name': '_MCSoftmaxDense_logit_noise_logistic_10',
           'logit_noise': tfp.distributions.Logistic,
           'num_classes': 10,
@@ -45,6 +56,17 @@ def test_cases():
           'logit_noise': tfp.distributions.Normal,
           'num_classes': 10,
           'model_type': 'MCSoftmaxDenseFA'
+      },
+      {
+          'testcase_name': '_MCSoftmaxDenseFA_logit_noise_normal_10_tune_temp',
+          'logit_noise': tfp.distributions.Normal,
+          'num_classes': 10,
+          'model_type': 'MCSoftmaxDenseFA',
+          'kwargs': {
+              'tune_temperature': True,
+              'temperature_lower_bound': 1.1,
+              'temperature_upper_bound': 1.2
+          }
       },
       {
           'testcase_name': '_MCSigmoidDenseFA_logit_noise_normal_10',
@@ -69,6 +91,16 @@ def test_cases():
           'logit_noise': tfp.distributions.Normal,
           'num_classes': 2,
           'model_type': 'MCSigmoidDenseFA'
+      }, {
+          'testcase_name': '_MCSigmoidDenseFA_logit_noise_normal_2_tune_temp',
+          'logit_noise': tfp.distributions.Normal,
+          'num_classes': 2,
+          'model_type': 'MCSigmoidDenseFA',
+          'kwargs': {
+              'tune_temperature': True,
+              'temperature_lower_bound': 1.1,
+              'temperature_upper_bound': 1.2
+          }
       }, {
           'testcase_name': '_MCSigmoidDenseFA_logit_noise_logistic_2',
           'logit_noise': tfp.distributions.Logistic,
@@ -164,9 +196,16 @@ class Classifier(tf.keras.Model):
 class DenseClassifier(tf.keras.Model):
   """Feedforward neural network with MCSoftmaxDense output layer."""
 
-  def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
-               temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False):
+  def __init__(self,
+               num_classes,
+               logit_noise=tfp.distributions.Normal,
+               temperature=1.0,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               tune_temperature: float = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None):
     """Creates an instance of DenseClassifier.
 
     A feedforward network which computes the predictive and log predictive
@@ -185,6 +224,12 @@ class DenseClassifier(tf.keras.Model):
         predictive distribution during testing/inference.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, a pre-defined lower bound is used.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, a pre-defined upper bound is used.
 
     Returns:
       DenseClassifier instance.
@@ -196,7 +241,10 @@ class DenseClassifier(tf.keras.Model):
         num_classes=num_classes, logit_noise=logit_noise,
         temperature=temperature, train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,
-        compute_pred_variance=compute_pred_variance)
+        compute_pred_variance=compute_pred_variance,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound)
 
   def call(self, inputs, training=True, seed=None):
     """Computes the forward pass through the feedforward neural network.
@@ -216,10 +264,17 @@ class DenseClassifier(tf.keras.Model):
 class DenseFAClassifier(tf.keras.Model):
   """Feedforward neural network with MCSoftmaxDenseFA output layer."""
 
-  def __init__(self, num_classes, num_factors,
-               temperature=1.0, parameter_efficient=False,
-               train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False):
+  def __init__(self,
+               num_classes,
+               num_factors,
+               temperature=1.0,
+               parameter_efficient=False,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               tune_temperature: float = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None):
     """Creates an instance of DenseFAClassifier.
 
     A feedforward network which computes the predictive and log predictive
@@ -238,6 +293,12 @@ class DenseFAClassifier(tf.keras.Model):
         predictive distribution during testing/inference.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, a pre-defined lower bound is used.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, a pre-defined upper bound is used.
 
     Returns:
       DenseFAClassifier instance.
@@ -250,7 +311,10 @@ class DenseFAClassifier(tf.keras.Model):
         temperature=temperature, parameter_efficient=parameter_efficient,
         train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,
-        compute_pred_variance=compute_pred_variance)
+        compute_pred_variance=compute_pred_variance,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound)
 
   def call(self, inputs, training=True, seed=None):
     """Computes the forward pass through the feedforward neural network.
@@ -270,10 +334,17 @@ class DenseFAClassifier(tf.keras.Model):
 class SigmoidDenseFAClassifier(tf.keras.Model):
   """Feedforward neural network with MCSigmoidDenseFA output layer."""
 
-  def __init__(self, num_classes, num_factors,
-               temperature=1.0, parameter_efficient=False,
-               train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False):
+  def __init__(self,
+               num_classes,
+               num_factors,
+               temperature=1.0,
+               parameter_efficient=False,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               tune_temperature: float = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None):
     """Creates an instance of SigmoidDenseFAClassifier.
 
     A feedforward network which computes the predictive and log predictive
@@ -292,6 +363,12 @@ class SigmoidDenseFAClassifier(tf.keras.Model):
         predictive distribution during testing/inference.
       compute_pred_variance: Boolean. Whether to estimate the predictive
         variance.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, a pre-defined lower bound is used.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, a pre-defined upper bound is used.
 
     Returns:
       SigmoidDenseFAClassifier instance.
@@ -304,7 +381,10 @@ class SigmoidDenseFAClassifier(tf.keras.Model):
         temperature=temperature, parameter_efficient=parameter_efficient,
         train_mc_samples=train_mc_samples,
         test_mc_samples=test_mc_samples,
-        compute_pred_variance=compute_pred_variance)
+        compute_pred_variance=compute_pred_variance,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound)
 
   def call(self, inputs, training=True, seed=None):
     """Computes the forward pass through the feedforward neural network.
@@ -427,16 +507,26 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
     return tf.convert_to_tensor(x), tf.convert_to_tensor(y)
 
   @test_cases()
-  def test_layer_construction(self, logit_noise, num_classes, model_type):
+  def test_layer_construction(self,
+                              logit_noise,
+                              num_classes,
+                              model_type,
+                              kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
     if model_type == 'MCSoftmaxDense':
       output_layer = ed.layers.MCSoftmaxDense(num_classes=num_classes,
-                                              logit_noise=logit_noise)
+                                              logit_noise=logit_noise, **kwargs)
       self.assertIsNotNone(output_layer)
 
   @test_cases()
-  def test_model_construction(self, logit_noise, num_classes, model_type):
+  def test_model_construction(self,
+                              logit_noise,
+                              num_classes,
+                              model_type,
+                              kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
     if model_type == 'MCSoftmaxDense':
-      classifier = DenseClassifier(num_classes, logit_noise)
+      classifier = DenseClassifier(num_classes, logit_noise, **kwargs)
     elif model_type == 'EnsembleEnsembleCE':
       classifier = EnsembleClassifier(num_classes, 'ensemble_cross_ent')
     elif model_type == 'EnsembleGibbsCE':
@@ -464,10 +554,15 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
           2, 'ensemble_cross_ent', ensemble_weighting=(1.5, -0.5))
 
   @test_cases()
-  def test_model_outputs(self, logit_noise, num_classes, model_type):
+  def test_model_outputs(self,
+                         logit_noise,
+                         num_classes,
+                         model_type,
+                         kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
     x, _ = self.create_dataset(num_classes)
 
-    classifier = Classifier(model_type, num_classes, logit_noise)
+    classifier = Classifier(model_type, num_classes, logit_noise, **kwargs)
 
     res = classifier(x)
     probs = res[2]
@@ -501,10 +596,11 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
         self.assertAlmostEqual(prob, 1.0, 2)
 
   @test_cases()
-  def test_train_step(self, logit_noise, num_classes, model_type):
+  def test_train_step(self, logit_noise, num_classes, model_type, kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
     x, y = self.create_dataset(num_classes)
 
-    classifier = Classifier(model_type, num_classes, logit_noise)
+    classifier = Classifier(model_type, num_classes, logit_noise, **kwargs)
 
     if num_classes == 2:
       loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -535,14 +631,39 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
 
     self.assertGreater(loss_value, 0)
 
+    if kwargs.get('tune_temperature'):
+      contains_temperature = False
+      pre_sigmoid_temperature = np.NaN
+      for w in classifier.trainable_weights:
+        if 'pre_sigmoid_temperature' in w.name:
+          contains_temperature = True
+          pre_sigmoid_temperature = w.numpy()
+          break
+      self.assertTrue(contains_temperature)
+
+      lower = kwargs['temperature_lower_bound']
+      upper = kwargs['temperature_upper_bound']
+
+      initial_temperature = (upper + lower) * 0.5
+
+      temperature = ed.tensorflow.layers.heteroscedastic.compute_temperature(
+          pre_sigmoid_temperature, lower, upper)
+      # We have made a gradient step, the temperatures must differ.
+      self.assertNotEqual(temperature, initial_temperature)
+
   @test_cases()
-  def test_predictive_variance(self, logit_noise, num_classes, model_type):
+  def test_predictive_variance(self,
+                               logit_noise,
+                               num_classes,
+                               model_type,
+                               kwargs=None):
+    kwargs = {} if kwargs is None else kwargs
     if model_type == 'Exact' or model_type.startswith('Ensemble'):
       return
     x, _ = self.create_dataset(num_classes)
 
     classifier = Classifier(model_type, num_classes, logit_noise,
-                            compute_pred_variance=True)
+                            compute_pred_variance=True, **kwargs)
 
     pred_variance = classifier(x)[3]
 

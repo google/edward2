@@ -22,6 +22,17 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 MIN_SCALE_MONTE_CARLO = 1e-3
+TEMPERATURE_LOWER_BOUND = 0.3
+TEMPERATURE_UPPER_BOUND = 3.0
+
+
+def compute_temperature(pre_sigmoid_temperature, lower: Optional[float],
+                        upper: Optional[float]):
+  """Compute the temperature based on the sigmoid parametrization."""
+  lower = lower if lower is not None else TEMPERATURE_LOWER_BOUND
+  upper = upper if upper is not None else TEMPERATURE_UPPER_BOUND
+  temperature = tf.math.sigmoid(pre_sigmoid_temperature)
+  return (upper - lower) * temperature + lower
 
 
 class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
@@ -34,10 +45,20 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
   https://arxiv.org/abs/2105.10305
   """
 
-  def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
-               temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, return_unaveraged_logits=False,
+  def __init__(self,
+               num_classes,
+               logit_noise=tfp.distributions.Normal,
+               temperature=1.0,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               share_samples_across_batch=False,
+               logits_only=False,
+               eps=1e-7,
+               return_unaveraged_logits=False,
+               tune_temperature: bool = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None,
                name='MCSoftmaxOutputLayerBase'):
     """Creates an instance of MCSoftmaxOutputLayerBase.
 
@@ -66,6 +87,12 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
         sigmoid.
       return_unaveraged_logits: Boolean. Whether to also return the logits
         before taking the MC average over samples.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_LOWER_BOUND.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_UPPER_BOUND.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -93,6 +120,19 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     self._eps = eps
     self._return_unaveraged_logits = return_unaveraged_logits
     self._name = name
+    self._tune_temperature = tune_temperature
+    self._temperature_lower_bound = temperature_lower_bound
+    self._temperature_upper_bound = temperature_upper_bound
+    if tune_temperature:
+      # A zero-initialization means the midpoint of the temperature interval
+      # after applying the sigmoid transformation.
+      self._pre_sigmoid_temperature = self.add_weight(
+          name='pre_sigmoid_temperature',
+          trainable=True,
+          dtype=tf.float32,
+          initializer=tf.zeros_initializer)
+    else:
+      self._pre_sigmoid_temperature = None
 
   def _compute_noise_samples(self, scale, num_samples, seed):
     """Utility function to compute the samples of the logit noise.
@@ -126,6 +166,15 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     # [batch_size, total_mc_samples, d]
     return tf.transpose(noise_samples, [1, 0, 2]) * tf.expand_dims(scale, 1)
 
+  def _get_temperature(self):
+    if self._tune_temperature:
+      return compute_temperature(
+          self._pre_sigmoid_temperature,
+          lower=self._temperature_lower_bound,
+          upper=self._temperature_upper_bound)
+    else:
+      return self._temperature
+
   def _compute_mc_samples(self, locs, scale, num_samples, seed):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
@@ -146,10 +195,11 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     locs = tf.expand_dims(locs, axis=1)
     noise_samples = self._compute_noise_samples(scale, num_samples, seed)
     latents = locs + noise_samples
+    temperature = tf.cast(self._get_temperature(), latents.dtype)
     if self._num_classes == 2:
-      return tf.math.sigmoid(latents / self._temperature)
+      return tf.math.sigmoid(latents / temperature)
     else:
-      return tf.nn.softmax(latents / self._temperature)
+      return tf.nn.softmax(latents / temperature)
 
   def _compute_predictive_mean(self, locs, scale, total_mc_samples, seed):
     """Utility function to compute the estimated predictive distribution.
@@ -224,7 +274,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
     """
     return
 
-  def __call__(self, inputs, training=True, seed=None):
+  def call(self, inputs, training=True, seed=None):
     """Computes predictive and log predictive distribution.
 
     Uses Monte Carlo estimate of softmax approximation to heteroscedastic model
@@ -310,6 +360,9 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
         'compute_pred_variance': self._compute_pred_variance,
         'share_samples_across_batch': self._share_samples_across_batch,
         'logits_only': self._logits_only,
+        'tune_temperature': self._tune_temperature,
+        'temperature_lower_bound': self._temperature_lower_bound,
+        'temperature_upper_bound': self._temperature_upper_bound,
         'name': self._name,
     }
     new_config = super().get_config()
@@ -320,12 +373,24 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
 class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
   """Monte Carlo estimation of softmax approx to heteroscedastic predictions."""
 
-  def __init__(self, num_classes, logit_noise=tfp.distributions.Normal,
-               temperature=1.0, train_mc_samples=1000, test_mc_samples=1000,
-               compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, dtype=None,
-               kernel_regularizer=None, bias_regularizer=None,
-               return_unaveraged_logits=False, name='MCSoftmaxDense'):
+  def __init__(self,
+               num_classes,
+               logit_noise=tfp.distributions.Normal,
+               temperature=1.0,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               share_samples_across_batch=False,
+               logits_only=False,
+               eps=1e-7,
+               dtype=None,
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               return_unaveraged_logits=False,
+               tune_temperature: bool = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None,
+               name='MCSoftmaxDense'):
     """Creates an instance of MCSoftmaxDense.
 
     This is a MC softmax heteroscedastic drop in replacement for a
@@ -368,6 +433,12 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
       bias_regularizer: Regularizer function applied to the bias vector.
       return_unaveraged_logits: Boolean. Whether to also return the logits
         before taking the MC average over samples.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_LOWER_BOUND.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_UPPER_BOUND.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -384,8 +455,13 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
         train_mc_samples=train_mc_samples, test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps,
-        return_unaveraged_logits=return_unaveraged_logits, name=name)
+        logits_only=logits_only,
+        eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound,
+        name=name)
 
     self._loc_layer = tf.keras.layers.Dense(
         1 if num_classes == 2 else num_classes, activation=None,
@@ -432,12 +508,25 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
 class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
   """Softmax and factor analysis approx to heteroscedastic predictions."""
 
-  def __init__(self, num_classes, num_factors, temperature=1.0,
-               parameter_efficient=False, train_mc_samples=1000,
-               test_mc_samples=1000, compute_pred_variance=False,
-               share_samples_across_batch=False, logits_only=False, eps=1e-7,
-               dtype=None, kernel_regularizer=None, bias_regularizer=None,
-               return_unaveraged_logits=False, name='MCSoftmaxDenseFA'):
+  def __init__(self,
+               num_classes,
+               num_factors,
+               temperature=1.0,
+               parameter_efficient=False,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               share_samples_across_batch=False,
+               logits_only=False,
+               eps=1e-7,
+               dtype=None,
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               return_unaveraged_logits=False,
+               tune_temperature: bool = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None,
+               name='MCSoftmaxDenseFA'):
     """Creates an instance of MCSoftmaxDenseFA.
 
     if we assume:
@@ -501,6 +590,12 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       bias_regularizer: Regularizer function applied to the bias vector.
       return_unaveraged_logits: Boolean. Whether to also return the logits
         before taking the MC average over samples.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_LOWER_BOUND.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_UPPER_BOUND.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -516,8 +611,13 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps,
-        return_unaveraged_logits=return_unaveraged_logits, name=name)
+        logits_only=logits_only,
+        eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound,
+        name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
@@ -1279,12 +1379,25 @@ class MCSoftmaxDenseFACustomLayers(MCSoftmaxOutputLayerBase):
 class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
   """Sigmoid and factor analysis approx to heteroscedastic predictions."""
 
-  def __init__(self, num_outputs, num_factors=0, temperature=1.0,
-               parameter_efficient=False, train_mc_samples=1000,
-               test_mc_samples=1000, compute_pred_variance=False,
-               share_samples_across_batch=False, logits_only=False, eps=1e-7,
-               dtype=None, kernel_regularizer=None, bias_regularizer=None,
-               return_unaveraged_logits=False, name='MCSigmoidDenseFA'):
+  def __init__(self,
+               num_outputs,
+               num_factors=0,
+               temperature=1.0,
+               parameter_efficient=False,
+               train_mc_samples=1000,
+               test_mc_samples=1000,
+               compute_pred_variance=False,
+               share_samples_across_batch=False,
+               logits_only=False,
+               eps=1e-7,
+               dtype=None,
+               kernel_regularizer=None,
+               bias_regularizer=None,
+               return_unaveraged_logits=False,
+               tune_temperature: bool = False,
+               temperature_lower_bound: Optional[float] = None,
+               temperature_upper_bound: Optional[float] = None,
+               name='MCSigmoidDenseFA'):
     """Creates an instance of MCSigmoidDenseFA.
 
     if we assume:
@@ -1350,6 +1463,12 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
       bias_regularizer: Regularizer function applied to the bias vector.
       return_unaveraged_logits: Boolean. Whether to also return the logits
         before taking the MC average over samples.
+      tune_temperature: Boolean. If True, the temperature is optimized during
+        the training as any other parameters.
+      temperature_lower_bound: Float. The lowest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_LOWER_BOUND.
+      temperature_upper_bound: Float. The highest value the temperature can take
+        when it is optimized. By default, TEMPERATURE_UPPER_BOUND.
       name: String. The name of the layer used for name scoping.
 
     Returns:
@@ -1363,8 +1482,13 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps,
-        return_unaveraged_logits=return_unaveraged_logits, name=name)
+        logits_only=logits_only,
+        eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits,
+        tune_temperature=tune_temperature,
+        temperature_lower_bound=temperature_lower_bound,
+        temperature_upper_bound=temperature_upper_bound,
+        name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient

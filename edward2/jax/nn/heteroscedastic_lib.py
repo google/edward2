@@ -15,7 +15,7 @@
 
 """Library of methods to compute heteroscedastic classification predictions."""
 
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Optional
 
 from edward2.jax.nn import dense
 import flax.linen as nn
@@ -26,6 +26,18 @@ DType = type(jnp.float32)
 InitializeFn = Callable[[jnp.ndarray, Iterable[int], DType], jnp.ndarray]
 
 MIN_SCALE_MONTE_CARLO = 1e-3
+TEMPERATURE_LOWER_BOUND = 0.3
+TEMPERATURE_UPPER_BOUND = 3.0
+
+
+def compute_temperature(pre_sigmoid_temperature: jnp.ndarray,
+                        lower: Optional[float],
+                        upper: Optional[float]) -> jnp.ndarray:
+  """Compute the temperature based on the sigmoid parametrization."""
+  lower = lower if lower is not None else TEMPERATURE_LOWER_BOUND
+  upper = upper if upper is not None else TEMPERATURE_UPPER_BOUND
+  temperature = jax.nn.sigmoid(pre_sigmoid_temperature)
+  return (upper - lower) * temperature + lower
 
 
 class MCSoftmaxDenseFA(nn.Module):
@@ -54,6 +66,9 @@ class MCSoftmaxDenseFA(nn.Module):
   logits_only: bool = False
   return_locs: bool = False
   eps: float = 1e-7
+  tune_temperature: bool = False
+  temperature_lower_bound: Optional[float] = None
+  temperature_upper_bound: Optional[float] = None
 
   def setup(self):
     if self.parameter_efficient:
@@ -67,6 +82,14 @@ class MCSoftmaxDenseFA(nn.Module):
 
     self._loc_layer = nn.Dense(self.num_classes, name='loc_layer')
     self._diag_layer = nn.Dense(self.num_classes, name='diag_layer')
+
+    if self.tune_temperature:
+      # A zero-initialization means the midpoint of the temperature interval
+      # after applying the sigmoid transformation.
+      self._pre_sigmoid_temperature = self.param('pre_sigmoid_temperature',
+                                                 nn.initializers.zeros, (1,))
+    else:
+      self._pre_sigmoid_temperature = None
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -185,6 +208,15 @@ class MCSoftmaxDenseFA(nn.Module):
       return res + diag_noise_samples
     return diag_noise_samples
 
+  def get_temperature(self):
+    if self.tune_temperature:
+      return compute_temperature(
+          self._pre_sigmoid_temperature,
+          lower=self.temperature_lower_bound,
+          upper=self.temperature_upper_bound)
+    else:
+      return self.temperature
+
   def _compute_mc_samples(self, locs, scale, num_samples):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
@@ -206,7 +238,7 @@ class MCSoftmaxDenseFA(nn.Module):
     noise_samples = self._compute_noise_samples(scale, num_samples)
 
     latents = locs + noise_samples
-    samples = jax.nn.softmax(latents / self.temperature)
+    samples = jax.nn.softmax(latents / self.get_temperature())
 
     return jnp.mean(samples, axis=1)
 
@@ -275,6 +307,9 @@ class MCSigmoidDenseFA(nn.Module):
   logits_only: bool = False
   return_locs: bool = False
   eps: float = 1e-7
+  tune_temperature: bool = False
+  temperature_lower_bound: Optional[float] = None
+  temperature_upper_bound: Optional[float] = None
 
   def setup(self):
     if self.parameter_efficient:
@@ -288,6 +323,14 @@ class MCSigmoidDenseFA(nn.Module):
 
     self._loc_layer = nn.Dense(self.num_outputs, name='loc_layer')
     self._diag_layer = nn.Dense(self.num_outputs, name='diag_layer')
+
+    if self.tune_temperature:
+      # A zero-initialization means the midpoint of the temperature interval
+      # after applying the sigmoid transformation.
+      self._pre_sigmoid_temperature = self.param('pre_sigmoid_temperature',
+                                                 nn.initializers.zeros, (1,))
+    else:
+      self._pre_sigmoid_temperature = None
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
@@ -406,6 +449,15 @@ class MCSigmoidDenseFA(nn.Module):
       return res + diag_noise_samples
     return diag_noise_samples
 
+  def get_temperature(self):
+    if self.tune_temperature:
+      return compute_temperature(
+          self._pre_sigmoid_temperature,
+          lower=self.temperature_lower_bound,
+          upper=self.temperature_upper_bound)
+    else:
+      return self.temperature
+
   def _compute_mc_samples(self, locs, scale, num_samples):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
@@ -427,7 +479,7 @@ class MCSigmoidDenseFA(nn.Module):
     noise_samples = self._compute_noise_samples(scale, num_samples)
 
     latents = locs + noise_samples
-    samples = jax.nn.sigmoid(latents / self.temperature)
+    samples = jax.nn.sigmoid(latents / self.get_temperature())
 
     return jnp.mean(samples, axis=1)
 
