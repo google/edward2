@@ -1138,8 +1138,8 @@ class MCSoftmaxDenseFACustomLayers(MCSoftmaxOutputLayerBase):
                diag_layer, temperature=1.0, parameter_efficient=False,
                train_mc_samples=1000, test_mc_samples=1000,
                compute_pred_variance=False, share_samples_across_batch=False,
-               logits_only=False, eps=1e-7, dtype=None,
-               name='MCSoftmaxDenseFACustomLayers'):
+               logits_only=False, eps=1e-7, return_unaveraged_logits=False,
+               dtype=None, name='MCSoftmaxDenseFACustomLayers'):
     """Creates an instance of MCSoftmaxDenseFACustomLayers.
 
     if we assume:
@@ -1191,6 +1191,8 @@ class MCSoftmaxDenseFACustomLayers(MCSoftmaxOutputLayerBase):
       logits_only: Boolean. If True, only return the logits from the __call__
         method. Set True to serialize tf.keras.Sequential models.
       eps: Float. Clip probabilities into [eps, 1.0] before applying log.
+      return_unaveraged_logits: Boolean. Whether to also return the logits
+        before taking the MC average over samples.
       dtype: Tensorflow dtype. The dtype of output Tensor and weights associated
         with the layer.
       name: String. The name of the layer used for name scoping.
@@ -1208,7 +1210,8 @@ class MCSoftmaxDenseFACustomLayers(MCSoftmaxOutputLayerBase):
         test_mc_samples=test_mc_samples,
         compute_pred_variance=compute_pred_variance,
         share_samples_across_batch=share_samples_across_batch,
-        logits_only=logits_only, eps=eps, name=name)
+        logits_only=logits_only, eps=eps,
+        return_unaveraged_logits=return_unaveraged_logits, name=name)
 
     self._num_factors = num_factors
     self._parameter_efficient = parameter_efficient
