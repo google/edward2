@@ -50,7 +50,7 @@ class NormalizationTest(parameterized.TestCase):
     self.norm_multiplier = 0.95
 
   @parameterized.named_parameters(
-      ("Dense", (None, 10), DenseLayer, ed.nn.SpectralNormalization),
+      ("Dense", (None, 3), DenseLayer, ed.nn.SpectralNormalization),
       ("Conv2D",
        (None, 32, 32, 3), Conv2DLayer, ed.nn.SpectralNormalizationConv2D))
   def test_spec_norm_magnitude(self, input_shape, layer, norm_wrapper):

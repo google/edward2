@@ -140,7 +140,7 @@ class SpectralNormalization(nn.Module):
 
     if self.kernel_apply_kwargs is None:
       # By default, we use the implementation in SN-GAN.
-      kernel_apply = lambda x: w.reshape(-1, w.shape[-1]) @ x
+      kernel_apply = lambda x: x @ w.reshape(-1, w.shape[-1])
       in_shape = (np.prod(w.shape[:-1]),)
     else:
       # Otherwise, we extract the actual kernel transformation in the input
