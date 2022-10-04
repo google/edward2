@@ -127,7 +127,7 @@ def kernel(target_log_prob_fn,
       # Grow the No-U-Turn Sampler trajectory by choosing a random direction and
       # simulating Hamiltonian dynamics in that direction. This extends either
       # the forward or reverse state.
-      direction = tfp.math.random_rademacher([1], seed=seed_stream())
+      direction = tfp.random.rademacher([1], seed=seed_stream())
       if direction < 0:
         [
             reverse_state,
