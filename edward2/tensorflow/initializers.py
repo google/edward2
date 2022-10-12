@@ -138,8 +138,7 @@ class ScaledNormalStdDev(tf.keras.initializers.VarianceScaling):
       distribution: Random distribution to use. One of "truncated_normal", or
         "untruncated_normal".
       seed: A Python integer. Used to create random seeds. See
-        `tf.set_random_seed`
-        for behavior.
+        `tf.set_random_seed` for behavior.
 
     Raises:
       ValueError: In case of an invalid value for the "scale", mode" or
@@ -529,7 +528,9 @@ class TrainableNormal(tf.keras.layers.Layer):
 
 
 class TrainableHeNormal(TrainableNormal):
-  """Trainable normal initialized per He et al. 2015, given a ReLU nonlinearity.
+  """Trainable normal initialized per He et al.
+
+  2015, given a ReLU nonlinearity.
 
   The distribution is initialized to a Normal scaled by `sqrt(2 / fan_in)`,
   where `fan_in` is the number of input units. A ReLU nonlinearity is assumed
@@ -857,7 +858,6 @@ def serialize(initializer):
 def deserialize(config, custom_objects=None):
   return tf.keras.utils.deserialize_keras_object(
       config,
-      module_objects=globals(),
       custom_objects=custom_objects,
       printable_module_name='initializers')
 
