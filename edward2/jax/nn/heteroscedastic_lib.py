@@ -69,19 +69,25 @@ class MCSoftmaxDenseFA(nn.Module):
   tune_temperature: bool = False
   temperature_lower_bound: Optional[float] = None
   temperature_upper_bound: Optional[float] = None
+  latent_dim: Optional[int] = None
 
   def setup(self):
+    if self.latent_dim is None:
+      self.actual_latent_dim = self.num_classes
+    else:
+      self.actual_latent_dim = self.latent_dim
+
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = nn.Dense(
-          self.num_classes, name='scale_layer_homoscedastic')
+          self.actual_latent_dim, name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = nn.Dense(
-          self.num_classes, name='scale_layer_heteroscedastic')
+          self.actual_latent_dim, name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = nn.Dense(
-          self.num_classes * self.num_factors, name='scale_layer')
+          self.actual_latent_dim * self.num_factors, name='scale_layer')
 
     self._loc_layer = nn.Dense(self.num_classes, name='loc_layer')
-    self._diag_layer = nn.Dense(self.num_classes, name='diag_layer')
+    self._diag_layer = nn.Dense(self.actual_latent_dim, name='diag_layer')
 
     if self.tune_temperature:
       # A zero-initialization means the midpoint of the temperature interval
@@ -110,8 +116,8 @@ class MCSoftmaxDenseFA(nn.Module):
 
     Returns:
       Tuple of tensors of shape
-      ([batch_size, num_classes * max(num_factors, 1)],
-      [batch_size, num_classes]).
+      ([batch_size, noise_dim * max(num_factors, 1)],
+      [batch_size, noise_dim]).
     """
     if self.parameter_efficient or self.num_factors <= 0:
       return (inputs,
@@ -124,13 +130,13 @@ class MCSoftmaxDenseFA(nn.Module):
     """Compute samples of the diagonal elements logit noise.
 
     Args:
-      diag_scale: `Tensor` of shape [batch_size, num_classes]. Diagonal
+      diag_scale: `Tensor` of shape [batch_size, noise_dim]. Diagonal
         elements of scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
       `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes].
+        noise_dim].
     """
     if self.share_samples_across_batch:
       samples_per_batch = 1
@@ -141,13 +147,11 @@ class MCSoftmaxDenseFA(nn.Module):
     return jnp.expand_dims(diag_scale, 1) * jax.random.normal(
         key, shape=(samples_per_batch, num_samples, 1))
 
-  def _compute_standard_normal_samples(self, factor_loadings, num_samples):
+  def _compute_standard_normal_samples(self, batch_size, num_samples):
     """Utility function to compute samples from a standard normal distribution.
 
     Args:
-      factor_loadings: `Tensor` of shape
-        [batch_size, num_classes * num_factors]. Factor loadings for scale
-        parameters of the distribution to be sampled.
+      batch_size: Input batch size.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
@@ -156,7 +160,7 @@ class MCSoftmaxDenseFA(nn.Module):
     if self.share_samples_across_batch:
       samples_per_batch = 1
     else:
-      samples_per_batch = factor_loadings.shape[0]
+      samples_per_batch = batch_size
 
     key = self.make_rng('standard_norm_noise_samples')
     standard_normal_samples = jax.random.normal(
@@ -164,7 +168,7 @@ class MCSoftmaxDenseFA(nn.Module):
 
     if self.share_samples_across_batch:
       standard_normal_samples = jnp.tile(standard_normal_samples,
-                                         [factor_loadings.shape[0], 1, 1])
+                                         [batch_size, 1, 1])
 
     return standard_normal_samples
 
@@ -173,14 +177,14 @@ class MCSoftmaxDenseFA(nn.Module):
 
     Args:
       scale: Tuple of tensors of shape (
-        [batch_size, num_classes * num_factors],
-        [batch_size, num_classes]). Factor loadings and diagonal elements
+        [batch_size, noise_dim * num_factors],
+        [batch_size, noise_dim]). Factor loadings and diagonal elements
         for scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
       `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes].
+        noise_dim].
     """
     factor_loadings, diag_scale = scale
 
@@ -191,7 +195,7 @@ class MCSoftmaxDenseFA(nn.Module):
     if self.num_factors > 0:
       # Now compute the factors
       standard_normal_samples = self._compute_standard_normal_samples(
-          factor_loadings, num_samples)
+          factor_loadings.shape[0], num_samples)
 
       if self.parameter_efficient:
         res = self._scale_layer_homoscedastic(standard_normal_samples)
@@ -199,8 +203,8 @@ class MCSoftmaxDenseFA(nn.Module):
             self._scale_layer_heteroscedastic(factor_loadings), 1)
       else:
         # reshape scale vector into factor loadings matrix
-        factor_loadings = jnp.reshape(factor_loadings,
-                                      [-1, self.num_classes, self.num_factors])
+        factor_loadings = jnp.reshape(
+            factor_loadings, [-1, self.actual_latent_dim, self.num_factors])
 
         # transform standard normal into ~ full rank covariance Gaussian samples
         res = jnp.einsum('ijk,iak->iaj',
@@ -217,27 +221,36 @@ class MCSoftmaxDenseFA(nn.Module):
     else:
       return self.temperature
 
-  def _compute_mc_samples(self, locs, scale, num_samples):
+  def _compute_mc_samples(self, inputs, scale, num_samples):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
     Args:
-      locs: Tensor of shape [batch_size, total_mc_samples,
-        1 if num_classes == 2 else num_classes]. Location parameters of the
-        distributions to be sampled.
-      scale: Tensor of shape [batch_size, total_mc_samples,
-        1 if num_classes == 2 else num_classes]. Scale parameters of the
-        distributions to be sampled.
+      inputs: Tensor. The input to the heteroscedastic output layer.
+      scale: Tensor of shape [batch_size, total_mc_samples, noise_dim]. Scale
+        parameters of the distributions to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
-      Tensor of shape [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes]. All of the MC samples.
+      Tensor of shape [batch_size, num_samples, noise_dim]. All of the MC
+        samples.
     """
-    locs = jnp.expand_dims(locs, axis=1)
-
     noise_samples = self._compute_noise_samples(scale, num_samples)
 
-    latents = locs + noise_samples
+    if self.latent_dim is None:
+      # [B, dim] -> [B, K]
+      locs = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
+      # [B, K] -> [B, 1, K]
+      locs = jnp.expand_dims(locs, axis=1)
+      # [B, 1, K] -> [B, S, K]
+      latents = locs + noise_samples
+    else:
+      # [B, dim] -> [B, 1, dim]
+      inputs = jnp.expand_dims(inputs, axis=1)
+      # [B, 1, dim] -> [B, S, dim]
+      latents = inputs + noise_samples
+      # [B, S, dim] -> [B, S, K]
+      latents = self._compute_loc_param(latents)  # pylint: disable=assignment-from-none
+
     samples = jax.nn.softmax(latents / self.get_temperature())
 
     return jnp.mean(samples, axis=1)
@@ -247,7 +260,7 @@ class MCSoftmaxDenseFA(nn.Module):
     """Computes predictive and log predictive distributions.
 
     Uses Monte Carlo estimate of softmax approximation to heteroscedastic model
-    to compute predictive distribution. O(mc_samples * num_classes).
+    to compute predictive distribution.
 
     Args:
       inputs: Tensor. The input to the heteroscedastic output layer.
@@ -258,7 +271,6 @@ class MCSoftmaxDenseFA(nn.Module):
       tuple of (logits, log_probs, probs, predictive_variance). logits can be
       used with the standard softmax cross-entropy loss function.
     """
-    locs = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
     scale = self._compute_scale_param(inputs)  # pylint: disable=assignment-from-none
 
     if training:
@@ -266,14 +278,14 @@ class MCSoftmaxDenseFA(nn.Module):
     else:
       total_mc_samples = self.test_mc_samples
 
-    probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)
+    probs_mean = self._compute_mc_samples(inputs, scale, total_mc_samples)
 
     probs_mean = jnp.clip(probs_mean, a_min=self.eps)
     log_probs = jnp.log(probs_mean)
     logits = log_probs
 
     if self.return_locs:
-      logits = locs
+      logits = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
 
     if self.logits_only:
       return logits
@@ -310,19 +322,25 @@ class MCSigmoidDenseFA(nn.Module):
   tune_temperature: bool = False
   temperature_lower_bound: Optional[float] = None
   temperature_upper_bound: Optional[float] = None
+  latent_dim: Optional[int] = None
 
   def setup(self):
+    if self.latent_dim is None:
+      self.actual_latent_dim = self.num_outputs
+    else:
+      self.actual_latent_dim = self.latent_dim
+
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = nn.Dense(
-          self.num_outputs, name='scale_layer_homoscedastic')
+          self.actual_latent_dim, name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = nn.Dense(
-          self.num_outputs, name='scale_layer_heteroscedastic')
+          self.actual_latent_dim, name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = nn.Dense(
-          self.num_outputs * self.num_factors, name='scale_layer')
+          self.actual_latent_dim * self.num_factors, name='scale_layer')
 
     self._loc_layer = nn.Dense(self.num_outputs, name='loc_layer')
-    self._diag_layer = nn.Dense(self.num_outputs, name='diag_layer')
+    self._diag_layer = nn.Dense(self.actual_latent_dim, name='diag_layer')
 
     if self.tune_temperature:
       # A zero-initialization means the midpoint of the temperature interval
@@ -351,8 +369,8 @@ class MCSigmoidDenseFA(nn.Module):
 
     Returns:
       Tuple of tensors of shape
-      ([batch_size, num_classes * max(num_factors, 1)],
-      [batch_size, num_classes]).
+      ([batch_size, noise_dim * max(num_factors, 1)],
+      [batch_size, noise_dim]).
     """
     if self.parameter_efficient or self.num_factors <= 0:
       return (inputs,
@@ -365,13 +383,13 @@ class MCSigmoidDenseFA(nn.Module):
     """Compute samples of the diagonal elements logit noise.
 
     Args:
-      diag_scale: `Tensor` of shape [batch_size, num_classes]. Diagonal
+      diag_scale: `Tensor` of shape [batch_size, noise_dim]. Diagonal
         elements of scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
       `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes].
+        noise_dim].
     """
     if self.share_samples_across_batch:
       samples_per_batch = 1
@@ -382,13 +400,11 @@ class MCSigmoidDenseFA(nn.Module):
     return jnp.expand_dims(diag_scale, 1) * jax.random.normal(
         key, shape=(samples_per_batch, num_samples, 1))
 
-  def _compute_standard_normal_samples(self, factor_loadings, num_samples):
+  def _compute_standard_normal_samples(self, batch_size, num_samples):
     """Utility function to compute samples from a standard normal distribution.
 
     Args:
-      factor_loadings: `Tensor` of shape
-        [batch_size, num_classes * num_factors]. Factor loadings for scale
-        parameters of the distribution to be sampled.
+      batch_size: Input batch size.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
@@ -397,7 +413,7 @@ class MCSigmoidDenseFA(nn.Module):
     if self.share_samples_across_batch:
       samples_per_batch = 1
     else:
-      samples_per_batch = factor_loadings.shape[0]
+      samples_per_batch = batch_size
 
     key = self.make_rng('standard_norm_noise_samples')
     standard_normal_samples = jax.random.normal(
@@ -405,7 +421,7 @@ class MCSigmoidDenseFA(nn.Module):
 
     if self.share_samples_across_batch:
       standard_normal_samples = jnp.tile(standard_normal_samples,
-                                         [factor_loadings.shape[0], 1, 1])
+                                         [batch_size, 1, 1])
 
     return standard_normal_samples
 
@@ -414,14 +430,14 @@ class MCSigmoidDenseFA(nn.Module):
 
     Args:
       scale: Tuple of tensors of shape (
-        [batch_size, num_classes * num_factors],
-        [batch_size, num_classes]). Factor loadings and diagonal elements
+        [batch_size, noise_dim * num_factors],
+        [batch_size, noise_dim]). Factor loadings and diagonal elements
         for scale parameters of the distribution to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
       `Tensor`. Logit noise samples of shape: [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes].
+        noise_dim].
     """
     factor_loadings, diag_scale = scale
 
@@ -432,7 +448,7 @@ class MCSigmoidDenseFA(nn.Module):
     if self.num_factors > 0:
       # Now compute the factors
       standard_normal_samples = self._compute_standard_normal_samples(
-          factor_loadings, num_samples)
+          factor_loadings.shape[0], num_samples)
 
       if self.parameter_efficient:
         res = self._scale_layer_homoscedastic(standard_normal_samples)
@@ -440,8 +456,8 @@ class MCSigmoidDenseFA(nn.Module):
             self._scale_layer_heteroscedastic(factor_loadings), 1)
       else:
         # reshape scale vector into factor loadings matrix
-        factor_loadings = jnp.reshape(factor_loadings,
-                                      [-1, self.num_outputs, self.num_factors])
+        factor_loadings = jnp.reshape(
+            factor_loadings, [-1, self.actual_latent_dim, self.num_factors])
 
         # transform standard normal into ~ full rank covariance Gaussian samples
         res = jnp.einsum('ijk,iak->iaj',
@@ -458,27 +474,36 @@ class MCSigmoidDenseFA(nn.Module):
     else:
       return self.temperature
 
-  def _compute_mc_samples(self, locs, scale, num_samples):
+  def _compute_mc_samples(self, inputs, scale, num_samples):
     """Utility function to compute Monte-Carlo samples (using softmax).
 
     Args:
-      locs: Tensor of shape [batch_size, total_mc_samples,
-        1 if num_classes == 2 else num_classes]. Location parameters of the
-        distributions to be sampled.
-      scale: Tensor of shape [batch_size, total_mc_samples,
-        1 if num_classes == 2 else num_classes]. Scale parameters of the
-        distributions to be sampled.
+      inputs: Tensor. The input to the heteroscedastic output layer.
+      scale: Tensor of shape [batch_size, total_mc_samples, noise_dim]. Scale
+        parameters of the distributions to be sampled.
       num_samples: Integer. Number of Monte-Carlo samples to take.
 
     Returns:
-      Tensor of shape [batch_size, num_samples,
-        1 if num_classes == 2 else num_classes]. All of the MC samples.
+      Tensor of shape [batch_size, num_samples, noise_dim]. All of the MC
+        samples.
     """
-    locs = jnp.expand_dims(locs, axis=1)
-
     noise_samples = self._compute_noise_samples(scale, num_samples)
 
-    latents = locs + noise_samples
+    if self.latent_dim is None:
+      # [B, dim] -> [B, K]
+      locs = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
+      # [B, K] -> [B, 1, K]
+      locs = jnp.expand_dims(locs, axis=1)
+      # [B, 1, K] -> [B, S, K]
+      latents = locs + noise_samples
+    else:
+      # [B, dim] -> [B, 1, dim]
+      inputs = jnp.expand_dims(inputs, axis=1)
+      # [B, 1, dim] -> [B, S, dim]
+      latents = inputs + noise_samples
+      # [B, S, dim] -> [B, S, K]
+      latents = self._compute_loc_param(latents)  # pylint: disable=assignment-from-none
+
     samples = jax.nn.sigmoid(latents / self.get_temperature())
 
     return jnp.mean(samples, axis=1)
@@ -501,7 +526,6 @@ class MCSigmoidDenseFA(nn.Module):
       (logits = inverse_sigmoid(probs)), so logits can be used with the
       sigmoid cross-entropy loss function.
     """
-    locs = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
     scale = self._compute_scale_param(inputs)  # pylint: disable=assignment-from-none
 
     if training:
@@ -509,7 +533,7 @@ class MCSigmoidDenseFA(nn.Module):
     else:
       total_mc_samples = self.test_mc_samples
 
-    probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)
+    probs_mean = self._compute_mc_samples(inputs, scale, total_mc_samples)
 
     probs_mean = jnp.clip(probs_mean, a_min=self.eps)
     log_probs = jnp.log(probs_mean)
@@ -519,7 +543,7 @@ class MCSigmoidDenseFA(nn.Module):
     logits = log_probs - jnp.log(1.0 - probs_mean)
 
     if self.return_locs:
-      logits = locs
+      logits = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
 
     if self.logits_only:
       return logits

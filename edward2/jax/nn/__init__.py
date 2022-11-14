@@ -18,6 +18,7 @@
 from edward2.jax.nn import utils
 from edward2.jax.nn.attention import MultiHeadDotProductAttentionBE
 from edward2.jax.nn.dense import DenseBatchEnsemble
+from edward2.jax.nn.heteroscedastic_lib import compute_temperature
 from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFA
 from edward2.jax.nn.heteroscedastic_lib import MCSigmoidDenseFABE
 from edward2.jax.nn.heteroscedastic_lib import MCSoftmaxDenseFA
@@ -33,6 +34,7 @@ from edward2.jax.nn.random_feature import RandomFourierFeatures
 
 __all__ = [
     "DenseBatchEnsemble",
+    "compute_temperature",
     "MCSoftmaxDenseFA",
     "MCSoftmaxDenseFABE",
     "MCSigmoidDenseFA",
