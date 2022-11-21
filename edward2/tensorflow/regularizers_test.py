@@ -126,31 +126,36 @@ class RegularizersTest(parameterized.TestCase, tf.test.TestCase):
                            'Normal-IG KL and KL=%.6f on EB-fitted KL, '
                            'too much difference.' % (kl, eb_kl))
 
-  def testNormalEmpiricalBayesKLDivergenceTFFunction(self):
-    """Checks that KL evaluates properly multiple times when compiled."""
-    shape = (3,)
-    regularizer = ed.regularizers.get('normal_empirical_bayes_kl_divergence')
-    regularizer_compiled = tf.function(regularizer)
-    weights_one = ed.Independent(
-        ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
-        reinterpreted_batch_ndims=len(shape))
-    kl_one = regularizer(weights_one).numpy()
-    kl_one_c = regularizer_compiled(weights_one).numpy()
+  # TODO(trandustin): Fix. tf.function is no longer supported as it assumes
+  # TraceType for tracing protocol. However, we pass in RandomVariableTraceType.
+#   def testNormalEmpiricalBayesKLDivergenceTFFunction(self):
+#     """Checks that KL evaluates properly multiple times when compiled."""
+#     shape = (3,)
+#     regularizer = ed.regularizers.get('normal_empirical_bayes_kl_divergence')
+#     regularizer_compiled = tf.function(regularizer)
+#     weights_one = ed.Independent(
+#         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
+#         reinterpreted_batch_ndims=len(shape))
+#     kl_one = regularizer(weights_one).numpy()
+#     kl_one_c = regularizer_compiled(weights_one).numpy()
 
-    weights_two = ed.Independent(
-        ed.Normal(loc=5. + tf.zeros(shape), scale=1.).distribution,
-        reinterpreted_batch_ndims=len(shape))
-    kl_two = regularizer(weights_two).numpy()
-    kl_two_c = regularizer_compiled(weights_two).numpy()
+#     weights_two = ed.Independent(
+#         ed.Normal(loc=5. + tf.zeros(shape), scale=1.).distribution,
+#         reinterpreted_batch_ndims=len(shape))
+#     kl_two = regularizer(weights_two).numpy()
+#     kl_two_c = regularizer_compiled(weights_two).numpy()
 
-    self.assertAllClose(kl_one, kl_one_c)
-    self.assertAllClose(kl_two, kl_two_c)
-    self.assertNotAlmostEqual(kl_one_c, kl_two_c)
+#     self.assertAllClose(kl_one, kl_one_c)
+#     self.assertAllClose(kl_two, kl_two_c)
+#     self.assertNotAlmostEqual(kl_one_c, kl_two_c)
 
   def testTrainableNormalKLDivergenceStddev(self):
     tf.random.set_seed(83271)
     shape = (3,)
-    regularizer = ed.regularizers.get('trainable_normal_kl_divergence_stddev')
+    regularizer = ed.regularizers.TrainableNormalKLDivergenceStdDev(
+        stddev_initializer=tf.keras.initializers.TruncatedNormal(
+            mean=0.5413248, stddev=1e-5),  # mean = softplus_inverse(1)
+    )
     variational_posterior = ed.Independent(
         ed.Normal(loc=tf.zeros(shape), scale=1.).distribution,
         reinterpreted_batch_ndims=1)
