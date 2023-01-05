@@ -23,7 +23,7 @@
 """
 import math
 from edward2.tensorflow import initializers
-
+from absl import logging
 import tensorflow.compat.v2 as tf
 
 
@@ -57,28 +57,30 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       computed from the incoming minibatches.
   """
 
-  def __init__(self,
-               units,
-               num_inducing=1024,
-               gp_kernel_type='gaussian',
-               gp_kernel_scale=1.,
-               gp_output_bias=0.,
-               normalize_input=True,
-               gp_kernel_scale_trainable=False,
-               gp_output_bias_trainable=False,
-               gp_cov_momentum=0.999,
-               gp_cov_ridge_penalty=1e-6,
-               scale_random_features=True,
-               use_custom_random_features=True,
-               custom_random_features_initializer=None,
-               custom_random_features_activation=None,
-               l2_regularization=0.,
-               gp_cov_likelihood='gaussian',
-               return_gp_cov=True,
-               return_random_features=False,
-               dtype=None,
-               name='random_feature_gaussian_process',
-               **gp_output_kwargs):
+  def __init__(
+      self,
+      units,
+      num_inducing=1024,
+      gp_kernel_type='gaussian',
+      gp_kernel_scale=1.0,
+      gp_output_bias=0.0,
+      normalize_input=True,
+      gp_kernel_scale_trainable=False,
+      gp_output_bias_trainable=False,
+      gp_cov_momentum=0.999,
+      gp_cov_ridge_penalty=1e-6,
+      scale_random_features=True,
+      use_custom_random_features=True,
+      custom_random_features_initializer=None,
+      custom_random_features_activation=None,
+      l2_regularization=0.0,
+      gp_cov_likelihood='gaussian',
+      return_gp_cov=True,
+      return_random_features=False,
+      dtype=None,
+      name='random_feature_gaussian_process',
+      **gp_output_kwargs,
+  ):
     """Initializes a random-feature Gaussian process layer instance.
 
     Args:
@@ -89,8 +91,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         process. Currently default to 'gaussian' which is the Gaussian RBF
         kernel.
       gp_kernel_scale: (float) The length-scale parameter of the a
-        shift-invariant kernel function, i.e., for RBF kernel:
-        exp(-|x1 - x2|**2 / gp_kernel_scale).
+        shift-invariant kernel function, i.e., for RBF kernel: exp(-|x1 - x2|**2
+        / gp_kernel_scale).
       gp_output_bias: (float) Scalar initial value for the bias vector.
       normalize_input: (bool) Whether to normalize the input to Gaussian
         process.
@@ -101,22 +103,22 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         average for posterior covariance matrix.
       gp_cov_ridge_penalty: (float) Initial Ridge penalty to posterior
         covariance matrix.
-      scale_random_features: (bool) Whether to scale the random feature
-        by sqrt(2. / num_inducing).
-      use_custom_random_features: (bool) Whether to use custom random
-        features implemented using tf.keras.layers.Dense.
-      custom_random_features_initializer: (str or callable) Initializer for
-        the random features. Default to random normal which approximates a RBF
+      scale_random_features: (bool) Whether to scale the random feature by
+        sqrt(2. / num_inducing).
+      use_custom_random_features: (bool) Whether to use custom random features
+        implemented using tf.keras.layers.Dense.
+      custom_random_features_initializer: (str or callable) Initializer for the
+        random features. Default to random normal which approximates a RBF
         kernel function if activation function is cos.
       custom_random_features_activation: (callable) Activation function for the
-        random feature layer. Default to cosine which approximates a RBF
-        kernel function.
+        random feature layer. Default to cosine which approximates a RBF kernel
+        function.
       l2_regularization: (float) The strength of l2 regularization on the output
         weights.
       gp_cov_likelihood: (string) Likelihood to use for computing Laplace
         approximation for covariance matrix. Default to `gaussian`.
-      return_gp_cov: (bool) Whether to also return GP covariance matrix.
-        If False then no covariance learning is performed.
+      return_gp_cov: (bool) Whether to also return GP covariance matrix. If
+        False then no covariance learning is performed.
       return_random_features: (bool) Whether to also return random features.
       dtype: (tf.DType) Input data type.
       name: (string) Layer name.
@@ -128,8 +130,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
 
     self.normalize_input = normalize_input
     self.gp_input_scale = (
-        1. / tf.sqrt(gp_kernel_scale) if gp_kernel_scale is not None else None)
-    self.gp_feature_scale = tf.sqrt(2. / float(num_inducing))
+        1.0 / tf.sqrt(gp_kernel_scale) if gp_kernel_scale is not None else None
+    )
+    self.gp_feature_scale = tf.sqrt(2.0 / float(num_inducing))
 
     self.scale_random_features = scale_random_features
     self.return_random_features = return_random_features
@@ -155,23 +158,32 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     if self.use_custom_random_features:
       # Default to Gaussian RBF kernel with orthogonal random features.
       self.random_features_bias_initializer = tf.random_uniform_initializer(
-          minval=0., maxval=2. * math.pi, seed=0)
+          minval=0.0, maxval=2.0 * math.pi, seed=0
+      )
       if self.custom_random_features_initializer is None:
         self.custom_random_features_initializer = (
-            initializers.OrthogonalRandomFeatures(stddev=1.0, seed=0))
+            initializers.OrthogonalRandomFeatures(stddev=1.0, seed=0)
+        )
       if self.custom_random_features_activation is None:
         self.custom_random_features_activation = tf.math.cos
+    logging.info(
+        f'Haoting Base Class args \n -------- \n, units:{units},'
+        f' num_inducing:{num_inducing}, gp_output_bias:{gp_output_bias},'
+        f' gp_output_kwargs: {gp_output_kwargs} \n -------- \n'
+    )
 
   def build(self, input_shape):
     self._build_sublayer_classes()
     if self.normalize_input:
       self._input_norm_layer = self.input_normalization_layer(
-          name='gp_input_normalization')
+          name='gp_input_normalization'
+      )
       self._input_norm_layer.build(input_shape)
       input_shape = self._input_norm_layer.compute_output_shape(input_shape)
 
     self._random_feature = self._make_random_feature_layer(
-        name='gp_random_feature')
+        name='gp_random_feature'
+    )
     self._random_feature.build(input_shape)
     input_shape = self._random_feature.compute_output_shape(input_shape)
 
@@ -181,7 +193,8 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           ridge_penalty=self.gp_cov_ridge_penalty,
           likelihood=self.gp_cov_likelihood,
           dtype=self.dtype,
-          name='gp_covariance')
+          name='gp_covariance',
+      )
       self._gp_cov_layer.build(input_shape)
 
     self._gp_output_layer = self.dense_layer(
@@ -190,14 +203,16 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
         kernel_regularizer=tf.keras.regularizers.l2(self.l2_regularization),
         dtype=self.dtype,
         name='gp_output_weights',
-        **self.gp_output_kwargs)
+        **self.gp_output_kwargs,
+    )
     self._gp_output_layer.build(input_shape)
 
     self._gp_output_bias = self.bias_layer(
         initial_value=[self.gp_output_bias] * self.units,
         dtype=self.dtype,
         trainable=self.gp_output_bias_trainable,
-        name='gp_output_bias')
+        name='gp_output_bias',
+    )
 
     self.built = True
 
@@ -218,11 +233,13 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           scale=self.gp_kernel_scale,
           trainable=self.gp_kernel_scale_trainable,
           dtype=self.dtype,
-          name=name)
+          name=name,
+      )
 
     if self.gp_kernel_type.lower() == 'linear':
       custom_random_feature_layer = tf.keras.layers.Lambda(
-          lambda x: x, name=name)
+          lambda x: x, name=name
+      )
     else:
       # Use user-supplied configurations.
       custom_random_feature_layer = self.dense_layer(
@@ -232,14 +249,15 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
           kernel_initializer=self.custom_random_features_initializer,
           bias_initializer=self.random_features_bias_initializer,
           trainable=False,
-          name=name)
+          name=name,
+      )
 
     return custom_random_feature_layer
 
   def reset_covariance_matrix(self):
     """Resets covariance matrix of the GP layer.
 
-    This function is useful for reseting the model's covariance matrix at the
+    This function is useful for resetting the model's covariance matrix at the
     begining of a new epoch.
     """
     self._gp_cov_layer.reset_precision_matrix()
@@ -272,7 +290,9 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
       gp_covmat = self._gp_cov_layer(gp_feature, gp_output, training)
 
     # Assembles model output.
-    model_output = [gp_output,]
+    model_output = [
+        gp_output,
+    ]
     if self.return_gp_cov:
       model_output.append(gp_covmat)
     if self.return_random_features:
@@ -303,15 +323,18 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       'gaussian').
   """
 
-  def __init__(self,
-               momentum=0.999,
-               ridge_penalty=1e-6,
-               likelihood='gaussian',
-               dtype=None,
-               name='laplace_covariance'):
+  def __init__(
+      self,
+      momentum=0.999,
+      ridge_penalty=1e-6,
+      likelihood='gaussian',
+      dtype=None,
+      name='laplace_covariance',
+  ):
     if likelihood not in _SUPPORTED_LIKELIHOOD:
       raise ValueError(
-          f'"likelihood" must be one of {_SUPPORTED_LIKELIHOOD}, got {likelihood}.'
+          f'"likelihood" must be one of {_SUPPORTED_LIKELIHOOD}, got'
+          f' {likelihood}.'
       )
     self.ridge_penalty = ridge_penalty
     self.momentum = momentum
@@ -330,35 +353,36 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       gp_feature_dim = gp_feature_dim.value
 
     # Posterior precision matrix for the GP's random feature coefficients.
-    self.initial_precision_matrix = (
-        self.ridge_penalty * tf.eye(gp_feature_dim, dtype=self.dtype))
+    self.initial_precision_matrix = self.ridge_penalty * tf.eye(
+        gp_feature_dim, dtype=self.dtype
+    )
 
-    self.precision_matrix = (
-        self.add_weight(
-            name='gp_precision_matrix',
-            shape=(gp_feature_dim, gp_feature_dim),
-            dtype=self.dtype,
-            initializer=tf.keras.initializers.Identity(self.ridge_penalty),
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.precision_matrix = self.add_weight(
+        name='gp_precision_matrix',
+        shape=(gp_feature_dim, gp_feature_dim),
+        dtype=self.dtype,
+        initializer=tf.keras.initializers.Identity(self.ridge_penalty),
+        trainable=False,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
-    self.covariance_matrix = (
-        self.add_weight(
-            name='gp_covariance_matrix',
-            shape=(gp_feature_dim, gp_feature_dim),
-            dtype=self.dtype,
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.covariance_matrix = self.add_weight(
+        name='gp_covariance_matrix',
+        shape=(gp_feature_dim, gp_feature_dim),
+        dtype=self.dtype,
+        trainable=False,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
     # Boolean flag to indicate whether to update the covariance matrix (i.e.,
     # by inverting the newly updated precision matrix) during inference.
-    self.if_update_covariance = (
-        self.add_weight(
-            name='update_gp_covariance',
-            dtype=tf.bool,
-            shape=(),
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.if_update_covariance = self.add_weight(
+        name='update_gp_covariance',
+        dtype=tf.bool,
+        shape=(),
+        trainable=False,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
     self.built = True
 
@@ -367,12 +391,14 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     if self.likelihood != 'gaussian':
       if logits is None:
         raise ValueError(
-            f'"logits" cannot be None when likelihood={self.likelihood}')
+            f'"logits" cannot be None when likelihood={self.likelihood}'
+        )
 
       if logits.shape[-1] != 1:
         raise ValueError(
             f'likelihood={self.likelihood} only support univariate logits.'
-            f'Got logits dimension: {logits.shape[-1]}')
+            f'Got logits dimension: {logits.shape[-1]}'
+        )
 
     batch_size = tf.shape(gp_feature)[0]
     batch_size = tf.cast(batch_size, dtype=gp_feature.dtype)
@@ -380,15 +406,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     # Computes batch-specific normalized precision matrix.
     if self.likelihood == 'binary_logistic':
       prob = tf.sigmoid(logits)
-      prob_multiplier = prob * (1. - prob)
+      prob_multiplier = prob * (1.0 - prob)
     elif self.likelihood == 'poisson':
       prob_multiplier = tf.exp(logits)
     else:
-      prob_multiplier = 1.
+      prob_multiplier = 1.0
 
     gp_feature_adjusted = tf.sqrt(prob_multiplier) * gp_feature
     precision_matrix_minibatch = tf.matmul(
-        gp_feature_adjusted, gp_feature_adjusted, transpose_a=True)
+        gp_feature_adjusted, gp_feature_adjusted, transpose_a=True
+    )
 
     # Updates the population-wise precision matrix.
     if self.momentum > 0:
@@ -396,8 +423,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       # matrices.
       precision_matrix_minibatch = precision_matrix_minibatch / batch_size
       precision_matrix_new = (
-          self.momentum * self.precision_matrix +
-          (1. - self.momentum) * precision_matrix_minibatch)
+          self.momentum * self.precision_matrix
+          + (1.0 - self.momentum) * precision_matrix_minibatch
+      )
     else:
       # Compute exact population-wise covariance without momentum.
       # If use this option, make sure to pass through data only once.
@@ -412,7 +440,8 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     begining of a new epoch.
     """
     precision_matrix_reset_op = self.precision_matrix.assign(
-        self.initial_precision_matrix)
+        self.initial_precision_matrix
+    )
     self.add_update(precision_matrix_reset_op)
 
   def update_feature_covariance_matrix(self):
@@ -432,7 +461,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     # Compute covariance matrix update only when `if_update_covariance=True`.
     covariance_matrix_updated = tf.cond(
         self.if_update_covariance,
-        lambda: tf.linalg.inv(precision_matrix), lambda: covariance_matrix)
+        lambda: tf.linalg.inv(precision_matrix),
+        lambda: covariance_matrix,
+    )
     return tf.cast(covariance_matrix_updated, self.dtype)
 
   def compute_predictive_covariance(self, gp_feature):
@@ -456,8 +487,10 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       (tf.Tensor) Predictive covariance matrix, shape (batch_size, batch_size).
     """
     # Computes the covariance matrix of the gp prediction.
-    cov_feature_product = tf.matmul(self.covariance_matrix, gp_feature,
-                                    transpose_b=True) * self.ridge_penalty
+    cov_feature_product = (
+        tf.matmul(self.covariance_matrix, gp_feature, transpose_b=True)
+        * self.ridge_penalty
+    )
     gp_cov_matrix = tf.matmul(gp_feature, cov_feature_product)
     return gp_cov_matrix
 
@@ -476,8 +509,8 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     Args:
       inputs: (tf.Tensor) GP random features, shape (batch_size,
         gp_hidden_size).
-      logits: (tf.Tensor) Pre-activation output from the model. Needed
-        for Laplace approximation under a non-Gaussian likelihood.
+      logits: (tf.Tensor) Pre-activation output from the model. Needed for
+        Laplace approximation under a non-Gaussian likelihood.
       training: (tf.bool) whether or not the layer is in training mode. If in
         training mode, the gp_weight covariance is updated using gp_feature.
 
@@ -491,15 +524,18 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     if training:
       # Computes the updated feature precision matrix.
       precision_matrix_updated = self.update_feature_precision_matrix(
-          gp_feature=inputs, logits=logits)
+          gp_feature=inputs, logits=logits
+      )
 
       # Updates precision matrix.
       precision_matrix_update_op = self.precision_matrix.assign(
-          precision_matrix_updated)
+          precision_matrix_updated
+      )
 
       # Enables covariance update in the next inference call.
       enable_covariance_update_op = self.if_update_covariance.assign(
-          tf.constant(True, dtype=tf.bool))
+          tf.constant(True, dtype=tf.bool)
+      )
 
       self.add_update(precision_matrix_update_op)
       self.add_update(enable_covariance_update_op)
@@ -512,15 +548,19 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
 
       # Store updated covariance matrix.
       covariance_matrix_update_op = self.covariance_matrix.assign(
-          covariance_matrix_updated)
+          covariance_matrix_updated
+      )
 
       # Disable covariance update in future inference calls (to avoid the
       # expensive tf.linalg.inv op) unless there are new updates to precision
       # matrix.
       disable_covariance_update_op = self.if_update_covariance.assign(
-          tf.constant(False, dtype=tf.bool))
+          tf.constant(False, dtype=tf.bool)
+      )
 
       self.add_update(covariance_matrix_update_op)
       self.add_update(disable_covariance_update_op)
 
       return self.compute_predictive_covariance(gp_feature=inputs)
+
+
