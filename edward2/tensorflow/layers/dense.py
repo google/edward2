@@ -549,6 +549,9 @@ class DenseBatchEnsemble(tf.keras.layers.Dense):
     self.built = True
 
   def call(self, inputs):
+    if inputs.dtype != self.compute_dtype:
+      inputs = tf.cast(inputs, dtype=self.compute_dtype)
+
     batch_size = tf.shape(inputs)[0]
     input_dim = self.alpha.shape[-1]
     examples_per_model = batch_size // self.ensemble_size
