@@ -561,16 +561,21 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
   kernel_init: InitializeFn = nn.initializers.lecun_normal()
 
   def setup(self):
+    if self.latent_dim is None:
+      self.actual_latent_dim = self.num_classes
+    else:
+      self.actual_latent_dim = self.latent_dim
+
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
-          self.num_classes,
+          self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
           kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
-          self.num_classes,
+          self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
@@ -578,7 +583,7 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = dense.DenseBatchEnsemble(
-          self.num_classes * self.num_factors,
+          self.actual_latent_dim * self.num_factors,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
@@ -588,9 +593,17 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
     self._loc_layer = dense.DenseBatchEnsemble(self.num_classes,
                                                ens_size=self.ens_size,
                                                name='loc_layer')
-    self._diag_layer = dense.DenseBatchEnsemble(self.num_classes,
+    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,
                                                 ens_size=self.ens_size,
                                                 name='diag_layer')
+
+    if self.tune_temperature:
+      # A zero-initialization means the midpoint of the temperature interval
+      # after applying the sigmoid transformation.
+      self._pre_sigmoid_temperature = self.param('pre_sigmoid_temperature',
+                                                 nn.initializers.zeros, (1,))
+    else:
+      self._pre_sigmoid_temperature = None
 
 
 class MCSigmoidDenseFABE(MCSigmoidDenseFA):
@@ -603,16 +616,21 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
   kernel_init: InitializeFn = nn.initializers.lecun_normal()
 
   def setup(self):
+    if self.latent_dim is None:
+      self.actual_latent_dim = self.num_outputs
+    else:
+      self.actual_latent_dim = self.latent_dim
+
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
-          self.num_outputs,
+          self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
           kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
       self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
-          self.num_outputs,
+          self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
@@ -620,7 +638,7 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
       self._scale_layer = dense.DenseBatchEnsemble(
-          self.num_outputs * self.num_factors,
+          self.actual_latent_dim * self.num_factors,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
@@ -633,9 +651,17 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
                                                gamma_init=self.gamma_init,
                                                kernel_init=self.kernel_init,
                                                name='loc_layer')
-    self._diag_layer = dense.DenseBatchEnsemble(self.num_outputs,
+    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,
                                                 ens_size=self.ens_size,
                                                 alpha_init=self.alpha_init,
                                                 gamma_init=self.gamma_init,
                                                 kernel_init=self.kernel_init,
                                                 name='diag_layer')
+
+    if self.tune_temperature:
+      # A zero-initialization means the midpoint of the temperature interval
+      # after applying the sigmoid transformation.
+      self._pre_sigmoid_temperature = self.param('pre_sigmoid_temperature',
+                                                 nn.initializers.zeros, (1,))
+    else:
+      self._pre_sigmoid_temperature = None
