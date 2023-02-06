@@ -205,6 +205,11 @@ class GaussianProcessTest(tf.test.TestCase, parameterized.TestCase):
     self.assertNotAllClose(
         prec_mat_resumed_train, prec_mat_before_call, atol=1e-4)
     # Tests if covaraince matrix stays the same during repeated calls.
+    gp_dim = prec_mat_before_call.shape[0]
+    prec_mat_before_call = (
+        prec_mat_before_call
+        + rfgp_model.gp_cov_ridge_penalty * tf.eye(gp_dim, gp_dim)
+    )
     self.assertAllClose(cov_mat_first_call, tf.linalg.inv(prec_mat_before_call))
     self.assertAllClose(cov_mat_second_call,
                         tf.linalg.inv(prec_mat_before_call))

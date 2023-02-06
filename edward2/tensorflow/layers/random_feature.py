@@ -330,25 +330,26 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       gp_feature_dim = gp_feature_dim.value
 
     # Posterior precision matrix for the GP's random feature coefficients.
-    self.initial_precision_matrix = (
-        self.ridge_penalty * tf.eye(gp_feature_dim, dtype=self.dtype))
+    self.initial_precision_matrix = tf.zeros(
+        (gp_feature_dim, gp_feature_dim), dtype=self.dtype
+    )
 
-    self.precision_matrix = (
-        self.add_weight(
-            name='gp_precision_matrix',
-            shape=(gp_feature_dim, gp_feature_dim),
-            dtype=self.dtype,
-            initializer=tf.keras.initializers.Identity(self.ridge_penalty),
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.precision_matrix = self.add_weight(
+        name='gp_precision_matrix',
+        shape=(gp_feature_dim, gp_feature_dim),
+        dtype=self.dtype,
+        initializer=tf.keras.initializers.Zeros(),
+        trainable=False,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
-    self.covariance_matrix = (
-        self.add_weight(
-            name='gp_covariance_matrix',
-            shape=(gp_feature_dim, gp_feature_dim),
-            dtype=self.dtype,
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.covariance_matrix = self.add_weight(
+        name='gp_covariance_matrix',
+        shape=(gp_feature_dim, gp_feature_dim),
+        dtype=self.dtype,
+        trainable=False,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
     # Boolean flag to indicate whether to update the covariance matrix (i.e.,
     # by inverting the newly updated precision matrix) during inference.
@@ -429,10 +430,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     # Cast precision_matrix to a linalg.inv compatible format.
     precision_matrix = tf.cast(self.precision_matrix, tf.float32)
     covariance_matrix = tf.cast(self.covariance_matrix, tf.float32)
+    gp_feature_dim = tf.shape(precision_matrix)[0]
     # Compute covariance matrix update only when `if_update_covariance=True`.
     covariance_matrix_updated = tf.cond(
         self.if_update_covariance,
-        lambda: tf.linalg.inv(precision_matrix), lambda: covariance_matrix)
+        lambda: tf.linalg.inv(  # pylint: disable=g-long-lambda
+            self.ridge_penalty * tf.eye(gp_feature_dim, dtype=self.dtype)
+            + precision_matrix
+        ),
+        lambda: covariance_matrix,
+    )
     return tf.cast(covariance_matrix_updated, self.dtype)
 
   def compute_predictive_covariance(self, gp_feature):
