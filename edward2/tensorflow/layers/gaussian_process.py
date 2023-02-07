@@ -104,7 +104,7 @@ class LinearKernel(object):
     return {
         'variance': self.variance,
         'bias': self.bias,
-        'encoder': tf.keras.utils.serialize_keras_object(self.encoder),
+        'encoder': tf.keras.utils.legacy.serialize_keras_object(self.encoder),
     }
 
 
@@ -250,9 +250,10 @@ class GaussianProcess(tf.keras.layers.Layer):
   def get_config(self):
     config = {
         'units': self.units,
-        'mean_fn': tf.keras.utils.serialize_keras_object(self.mean_fn),
-        'covariance_fn': tf.keras.utils.serialize_keras_object(
-            self.covariance_fn),
+        'mean_fn': tf.keras.utils.legacy.serialize_keras_object(self.mean_fn),
+        'covariance_fn': tf.keras.utils.legacy.serialize_keras_object(
+            self.covariance_fn
+        ),
         'conditional_inputs': None,  # don't serialize as it can be large
         'conditional_outputs': None,  # don't serialize as it can be large
     }
