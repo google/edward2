@@ -851,15 +851,16 @@ orthogonal_random_features = OrthogonalRandomFeatures
 
 
 def serialize(initializer):
-  return tf.keras.utils.serialize_keras_object(initializer)
+  return tf.keras.utils.legacy.serialize_keras_object(initializer)
 
 
 def deserialize(config, custom_objects=None):
-  return tf.keras.utils.deserialize_keras_object(
+  return tf.keras.utils.legacy.deserialize_keras_object(
       config,
       module_objects=globals(),
       custom_objects=custom_objects,
-      printable_module_name='initializers')
+      printable_module_name='initializers',
+  )
 
 
 def get(identifier, value=None):
