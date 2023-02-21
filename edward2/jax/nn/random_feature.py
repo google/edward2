@@ -136,8 +136,8 @@ class RandomFeatureGaussianProcess(nn.Module):
 
     # Returns predictive logits, covmat and (optionally) random features.
     if return_random_features:
-      return gp_logits, gp_covmat, gp_features
-    return gp_logits, gp_covmat
+      return gp_logits, gp_covmat, gp_features  # pytype: disable=bad-return-type  # jax-ndarray
+    return gp_logits, gp_covmat  # pytype: disable=bad-return-type  # jax-ndarray
 
 
 class RandomFourierFeatures(nn.Module):
@@ -641,7 +641,7 @@ class MCSigmoidDenseFASNGP(nn.Module):
     """
     locs = jnp.expand_dims(locs, axis=1)
 
-    noise_samples = self._compute_noise_samples(scale, num_samples)
+    noise_samples = self._compute_noise_samples(scale, num_samples)  # pytype: disable=wrong-arg-types  # jax-ndarray
 
     latents = locs + noise_samples
     samples = jax.nn.sigmoid(latents / self.temperature)
@@ -677,7 +677,7 @@ class MCSigmoidDenseFASNGP(nn.Module):
     else:
       total_mc_samples = self.test_mc_samples
 
-    probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)
+    probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)  # pytype: disable=wrong-arg-types  # jax-ndarray
 
     probs_mean = jnp.clip(probs_mean, a_min=self.eps)
     log_probs = jnp.log(probs_mean)
