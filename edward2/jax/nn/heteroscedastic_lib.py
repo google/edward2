@@ -70,6 +70,10 @@ class MCSoftmaxDenseFA(nn.Module):
   temperature_lower_bound: Optional[float] = None
   temperature_upper_bound: Optional[float] = None
   latent_dim: Optional[int] = None
+  # Scaling factor applied to the kernel initializers related to the covariance
+  # matrix, namely `scale_layer*` and `diag_layer`.
+  # When None (or set to 1), we fall back to the default lecun_normal().
+  cov_layer_kernel_init_scale: Optional[float] = None
 
   def setup(self):
     if self.latent_dim is None:
@@ -77,17 +81,47 @@ class MCSoftmaxDenseFA(nn.Module):
     else:
       self.actual_latent_dim = self.latent_dim
 
+    if self.cov_layer_kernel_init_scale is None:
+      cov_layer_kernel_init = nn.linear.default_kernel_init
+    else:
+      if self.cov_layer_kernel_init_scale <= 0:
+        raise ValueError(
+            'scale_layer_kernel_init_factor must be positive;'
+            f' received instead {self.cov_layer_kernel_init_scale}.'
+        )
+      # Equivalent to the default kernel init `lecun_normal()` when we set the
+      # scaling factor `scale_layer_kernel_init_factor` to 1.
+      # https://github.com/google/jax/blob/main/jax/_src/nn/initializers.py#L440
+      cov_layer_kernel_init = nn.initializers.variance_scaling(
+          self.cov_layer_kernel_init_scale,
+          'fan_in',
+          'truncated_normal',
+          in_axis=-2,
+          out_axis=-1,
+          batch_axis=(),
+          dtype=jnp.float_,
+      )
+
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = nn.Dense(
-          self.actual_latent_dim, name='scale_layer_homoscedastic')
+          self.actual_latent_dim, name='scale_layer_homoscedastic'
+      )
+      # We only apply the scaled initializer to one of the layers since, in the
+      # parameter-efficient case, those two layers are _multiplied_ with each
+      # other to obtain the low-rank factors.
       self._scale_layer_heteroscedastic = nn.Dense(
-          self.actual_latent_dim, name='scale_layer_heteroscedastic')
+          self.actual_latent_dim, name='scale_layer_heteroscedastic',
+          kernel_init=cov_layer_kernel_init
+      )
     elif self.num_factors > 0:
       self._scale_layer = nn.Dense(
-          self.actual_latent_dim * self.num_factors, name='scale_layer')
+          self.actual_latent_dim * self.num_factors, name='scale_layer',
+          kernel_init=cov_layer_kernel_init
+      )
 
     self._loc_layer = nn.Dense(self.num_classes, name='loc_layer')
-    self._diag_layer = nn.Dense(self.actual_latent_dim, name='diag_layer')
+    self._diag_layer = nn.Dense(self.actual_latent_dim, name='diag_layer',
+                                kernel_init=cov_layer_kernel_init)
 
     if self.tune_temperature:
       # A zero-initialization means the midpoint of the temperature interval
