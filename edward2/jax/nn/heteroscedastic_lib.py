@@ -15,7 +15,7 @@
 
 """Library of methods to compute heteroscedastic classification predictions."""
 
-from typing import Iterable, Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from edward2.jax.nn import dense
 import flax.linen as nn
@@ -23,7 +23,7 @@ import jax
 import jax.numpy as jnp
 
 DType = type(jnp.float32)
-InitializeFn = Callable[[jnp.ndarray, Iterable[int], DType], jnp.ndarray]
+InitializeFn = Callable[[jnp.ndarray, Sequence[int], DType], jnp.ndarray]
 
 MIN_SCALE_MONTE_CARLO = 1e-3
 TEMPERATURE_LOWER_BOUND = 0.3

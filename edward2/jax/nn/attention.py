@@ -15,7 +15,7 @@
 
 """Uncertainty-based attention layers in JAX."""
 
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from edward2.jax.nn import dense
 import flax.linen as nn
@@ -24,7 +24,7 @@ from jax import lax
 import jax.numpy as jnp
 
 PRNGKey = Any
-Shape = Iterable[int]
+Shape = Sequence[int]
 Dtype = Any
 Array = Any
 InitializeFn = Callable[[PRNGKey, Shape, Dtype], Array]

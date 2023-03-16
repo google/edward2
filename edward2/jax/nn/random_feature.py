@@ -33,7 +33,7 @@
 """
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union
 
 from edward2.jax.nn import dense
 import flax.linen as nn
@@ -47,7 +47,7 @@ linalg = lax.linalg
 
 # Jax-related data types.
 PRNGKey = Any
-Shape = Iterable[int]
+Shape = Sequence[int]
 Dtype = type(jnp.float32)
 Array = jnp.ndarray
 Initializer = Callable[[PRNGKey, Shape, Dtype], Array]
