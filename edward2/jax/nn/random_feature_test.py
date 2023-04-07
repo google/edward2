@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The Edward2 Authors.
+# Copyright 2023 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from absl.testing import parameterized
 
 import edward2.jax as ed
 
+import flax
 import flax.linen as nn
 
 import jax
@@ -117,7 +118,7 @@ class RandomFeatureGaussianProcessTest(parameterized.TestCase):
     # Computes posterior covariance on test data.
     init_key = jax.random.PRNGKey(self.seed)
     init_variables = rfgp.init(init_key, inputs=train_data)
-    state, params = init_variables.pop('params')
+    state, params = flax.core.pop(init_variables, 'params')
     del init_variables
 
     # Perform one-step update on training data.
@@ -211,7 +212,7 @@ class RandomFeatureGaussianProcessTest(parameterized.TestCase):
     # Computes posterior covariance on test data.
     init_key = jax.random.PRNGKey(self.seed)
     init_variables = rfgp.init(init_key, inputs=self.x_train)
-    state, params = init_variables.pop('params')
+    state, params = flax.core.pop(init_variables, 'params')
     del init_variables
 
     # Note: the norm_layer should not show up in `param`
