@@ -42,7 +42,7 @@ class BayesianLinearModel(tf.keras.Model):
     self.coeffs_precision_tril_op = None
     self.coeffs_mean = None
 
-  def call(self, inputs):
+  def call(self, inputs):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     if self.coeffs_mean is None and self.coeffs_precision_tril_op is None:
       # p(mean(ynew) | xnew) = Normal(ynew | mean = 0, variance = xnew xnew^T)
       predictive_mean = 0.
@@ -61,7 +61,7 @@ class BayesianLinearModel(tf.keras.Model):
     return generated_random_variables.Normal(loc=predictive_mean,
                                              scale=tf.sqrt(predictive_variance))
 
-  def fit(self, x=None, y=None):
+  def fit(self, x=None, y=None):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     # p(coeffs | x, y) = Normal(coeffs |
     #   mean = (1/noise_variance) (1/noise_variance x^T x + I)^{-1} x^T y,
     #   covariance = (1/noise_variance x^T x + I)^{-1})

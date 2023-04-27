@@ -1262,7 +1262,7 @@ class CondDense(tf.keras.layers.Dense):
 
     self.built = True
 
-  def call(self, inputs, routing_weights):
+  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     # Compute example dependent kernels
     inputs = tf.expand_dims(inputs, 1)  # shape = [batch_size, 1, input_dim]
     # routing_weights is of shape [batch_size, num_experts]

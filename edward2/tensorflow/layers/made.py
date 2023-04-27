@@ -125,7 +125,7 @@ class MADE(tf.keras.Model):
     self.network.add(tf.keras.layers.Reshape([length, self.units]))
     self.built = True
 
-  def call(self, inputs):
+  def call(self, inputs):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     return self.network(inputs)
 
 

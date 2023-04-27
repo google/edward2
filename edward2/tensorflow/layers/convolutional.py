@@ -1448,7 +1448,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
 
     self.built = True
 
-  def call(self, inputs, routing_weights):
+  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     # Compute example dependent kernels
     kernels = tf.matmul(routing_weights, self.condconv_kernel)
     batch_size = self.batch_size
@@ -1665,7 +1665,7 @@ class DepthwiseCondConv2D(tf.keras.layers.DepthwiseConv2D):
         ndim=4, axes={channel_axis: input_dim})
     self.built = True
 
-  def call(self, inputs, routing_weights):
+  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     # Compute example dependent depthwise kernels
     depthwise_kernels = tf.matmul(routing_weights,
                                   self.depthwise_condconv_kernel)

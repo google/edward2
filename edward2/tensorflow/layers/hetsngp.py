@@ -165,11 +165,11 @@ class HeteroscedasticSNGPLayer(MCSoftmaxDenseFA):
     self.sngp_var_weight = sngp_var_weight
     self.het_var_weight = het_var_weight
 
-  def _compute_loc_param(self, inputs, training):
+  def _compute_loc_param(self, inputs, training):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     """Computes the mean logits as the mean-field logits of the SNGP."""
     return self.sngp_layer(inputs)
 
-  def _compute_scale_param(self, inputs, covmat_sngp, training):
+  def _compute_scale_param(self, inputs, covmat_sngp, training):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     """Computes the variances for the logits."""
     low_rank, diag = super()._compute_scale_param(inputs)
     sngp_marginal_vars = tf.expand_dims(tf.linalg.diag_part(covmat_sngp), -1)
