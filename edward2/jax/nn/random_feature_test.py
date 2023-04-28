@@ -219,7 +219,7 @@ class RandomFeatureGaussianProcessTest(parameterized.TestCase):
     # since by default it does not have trainable parameters.
     self.assertEqual(list(params.keys()), ['output_layer'])
     self.assertEqual(
-        list(state.keys()), ['random_features', 'laplace_covariance'])
+        set(state.keys()), {'random_features', 'laplace_covariance'})
 
 
 class RandomFeatureTest(parameterized.TestCase):
