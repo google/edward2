@@ -303,12 +303,15 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
       'gaussian').
   """
 
-  def __init__(self,
-               momentum=0.999,
-               ridge_penalty=1e-6,
-               likelihood='gaussian',
-               dtype=None,
-               name='laplace_covariance'):
+  def __init__(
+      self,
+      momentum=0.999,
+      ridge_penalty=1e-6,
+      likelihood='gaussian',
+      dtype=None,
+      name='laplace_covariance',
+      use_on_read_synchronization_for_single_replica_vars=False,
+  ):
     if likelihood not in _SUPPORTED_LIKELIHOOD:
       raise ValueError(
           f'"likelihood" must be one of {_SUPPORTED_LIKELIHOOD}, got {likelihood}.'
@@ -316,6 +319,9 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
     self.ridge_penalty = ridge_penalty
     self.momentum = momentum
     self.likelihood = likelihood
+    self.use_on_read_synchronization_for_single_replica_vars = (
+        use_on_read_synchronization_for_single_replica_vars
+    )
     super(LaplaceRandomFeatureCovariance, self).__init__(dtype=dtype, name=name)
 
   def compute_output_shape(self, input_shape):
@@ -334,12 +340,16 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
         (gp_feature_dim, gp_feature_dim), dtype=self.dtype
     )
 
+    var_synchronization = tf.VariableSynchronization.AUTO
+    if self.use_on_read_synchronization_for_single_replica_vars:
+      var_synchronization = tf.VariableSynchronization.ON_READ
     self.precision_matrix = self.add_weight(
         name='gp_precision_matrix',
         shape=(gp_feature_dim, gp_feature_dim),
         dtype=self.dtype,
         initializer=tf.keras.initializers.Zeros(),
         trainable=False,
+        synchronization=var_synchronization,
         aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
     )
 
@@ -348,18 +358,20 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
         shape=(gp_feature_dim, gp_feature_dim),
         dtype=self.dtype,
         trainable=False,
+        synchronization=var_synchronization,
         aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
     )
 
     # Boolean flag to indicate whether to update the covariance matrix (i.e.,
     # by inverting the newly updated precision matrix) during inference.
-    self.if_update_covariance = (
-        self.add_weight(
-            name='update_gp_covariance',
-            dtype=tf.bool,
-            shape=(),
-            trainable=False,
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA))
+    self.if_update_covariance = self.add_weight(
+        name='update_gp_covariance',
+        dtype=tf.bool,
+        shape=(),
+        trainable=False,
+        synchronization=var_synchronization,
+        aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+    )
 
     self.built = True
 
