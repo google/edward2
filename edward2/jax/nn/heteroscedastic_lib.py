@@ -75,12 +75,8 @@ class MCSoftmaxDenseFA(nn.Module):
   # When None (or set to 1), we fall back to the default lecun_normal().
   cov_layer_kernel_init_scale: Optional[float] = None
 
-  def setup(self):
-    if self.latent_dim is None:
-      self.actual_latent_dim = self.num_classes
-    else:
-      self.actual_latent_dim = self.latent_dim
-
+  def _get_cov_layer_kernel_init(self):
+    """Creates a weight initializer with a custom scaling factor."""
     if self.cov_layer_kernel_init_scale is None:
       cov_layer_kernel_init = nn.linear.default_kernel_init
     else:
@@ -101,6 +97,15 @@ class MCSoftmaxDenseFA(nn.Module):
           batch_axis=(),
           dtype=jnp.float_,
       )
+    return cov_layer_kernel_init
+
+  def _setup(self):
+    if self.latent_dim is None:
+      self.actual_latent_dim = self.num_classes
+    else:
+      self.actual_latent_dim = self.latent_dim
+
+    cov_layer_kernel_init = self._get_cov_layer_kernel_init()
 
     if self.parameter_efficient:
       self._scale_layer_homoscedastic = nn.Dense(
@@ -119,7 +124,6 @@ class MCSoftmaxDenseFA(nn.Module):
           kernel_init=cov_layer_kernel_init
       )
 
-    self._loc_layer = nn.Dense(self.num_classes, name='loc_layer')
     self._diag_layer = nn.Dense(self.actual_latent_dim, name='diag_layer',
                                 kernel_init=cov_layer_kernel_init)
 
@@ -130,6 +134,10 @@ class MCSoftmaxDenseFA(nn.Module):
                                                  nn.initializers.zeros, (1,))
     else:
       self._pre_sigmoid_temperature = None
+
+  def setup(self):
+    self._setup()
+    self._loc_layer = nn.Dense(self.num_classes, name='loc_layer')
 
   def _compute_loc_param(self, inputs):
     """Computes location parameter of the "logits distribution".
