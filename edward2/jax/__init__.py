@@ -16,6 +16,7 @@
 """Edward2 probabilistic programming language with JAX backend."""
 
 from edward2.jax import nn
+from edward2.maps import robust_map
 from edward2.trace import get_next_tracer
 from edward2.trace import trace
 from edward2.trace import traceable
@@ -28,6 +29,7 @@ __all__ = [
     "condition",
     "get_next_tracer",
     "nn",
+    "robust_map",
     "tape",
     "trace",
     "traceable",

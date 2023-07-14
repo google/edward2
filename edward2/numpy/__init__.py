@@ -15,6 +15,7 @@
 
 """Edward2 probabilistic programming language with NumPy backend."""
 
+from edward2.maps import robust_map
 from edward2.numpy import generated_random_variables
 from edward2.numpy.generated_random_variables import *  # pylint: disable=wildcard-import
 from edward2.numpy.program_transformations import make_log_joint_fn
@@ -32,6 +33,7 @@ __all__ = [
     "condition",
     "get_next_tracer",
     "make_log_joint_fn",
+    "robust_map",
     "tape",
     "trace",
     "traceable",

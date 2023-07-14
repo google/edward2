@@ -15,6 +15,7 @@
 
 """Edward2 probabilistic programming language with TensorFlow backend."""
 
+from edward2.maps import robust_map
 from edward2.tensorflow import constraints
 from edward2.tensorflow import generated_random_variables
 from edward2.tensorflow import initializers
@@ -49,6 +50,7 @@ __all__ = [
     "make_log_joint_fn",
     "make_random_variable",
     "regularizers",
+    "robust_map",
     "tape",
     "trace",
     "traceable",
