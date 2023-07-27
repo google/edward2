@@ -353,23 +353,27 @@ class LaplaceRandomFeatureCovariance(tf.keras.layers.Layer):
         aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
     )
 
+    # This variable is used during eval in all replicas so needs to sync this
+    # variable and we can't use ON_READ synchronization that doesn't propagate
+    # updates immediately. Therefore, use AUTO synchronization.
     self.covariance_matrix = self.add_weight(
         name='gp_covariance_matrix',
         shape=(gp_feature_dim, gp_feature_dim),
         dtype=self.dtype,
         trainable=False,
-        synchronization=var_synchronization,
+        synchronization=tf.VariableSynchronization.AUTO,
         aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
     )
 
     # Boolean flag to indicate whether to update the covariance matrix (i.e.,
     # by inverting the newly updated precision matrix) during inference.
+    # Use AUTO synchronization like the above variable.
     self.if_update_covariance = self.add_weight(
         name='update_gp_covariance',
         dtype=tf.bool,
         shape=(),
         trainable=False,
-        synchronization=var_synchronization,
+        synchronization=tf.VariableSynchronization.AUTO,
         aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
     )
 
