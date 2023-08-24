@@ -17,7 +17,7 @@
 
 import math
 
-from keras.layers.preprocessing import image_preprocessing as image_ops
+from tensorflow.keras.layers.preprocessing import image_preprocessing as image_ops
 import tensorflow as tf
 
 
