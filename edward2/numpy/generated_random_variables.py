@@ -31,8 +31,9 @@ for candidate_name in sorted(dir(scipy.stats)):
                             scipy.stats.rv_continuous,
                             scipy.stats.rv_discrete,
                             scipy.stats.rv_histogram)):
-    candidate.rvs = traceable(candidate.rvs)
-    _globals[candidate_name] = candidate
-    __all__.append(candidate_name)
+    if hasattr(candidate, 'rvs'):
+      candidate.rvs = traceable(candidate.rvs)
+      _globals[candidate_name] = candidate
+      __all__.append(candidate_name)
 
 _HAS_DYNAMIC_ATTRIBUTES = True
