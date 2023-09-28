@@ -149,9 +149,9 @@ def _get_function_inputs(f, *args, **kwargs):
     New original args, args of f, kwargs of f.
   """
   if hasattr(f, "_func"):  # functions returned by tf.make_template
-    argspec = inspect.getargspec(f._func)  # pylint: disable=protected-access
+    argspec = inspect.getfullargspec(f._func)  # pylint: disable=protected-access
   else:
-    argspec = inspect.getargspec(f)
+    argspec = inspect.getfullargspec(f)
 
   fkwargs = {}
   for k, v in kwargs.items():
