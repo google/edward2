@@ -30,7 +30,9 @@ __all__ = []
 try:
   from edward2 import jax
   __all__ += ["jax"]
-except ImportError:
+except (ImportError, AttributeError):
+  # We also catch AttributeError. JAX can raise AttributeError during
+  # imports in colab unless JAX is directly installed first.
   warnings.warn("JAX backend for Edward2 is not available.")
 
 try:
