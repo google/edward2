@@ -117,10 +117,7 @@ def _get_function_inputs(f, src_kwargs):
   if hasattr(f, "_func"):  # functions returned by tf.make_template
     f = f._func  # pylint: disable=protected-access
 
-  try:  # getargspec was deprecated in Python 3.6
-    argspec = inspect.getfullargspec(f)  # pytype: disable=module-attr
-  except AttributeError:
-    argspec = inspect.getargspec(f)
+  argspec = inspect.getfullargspec(f)
 
   fkwargs = {k: v for k, v in src_kwargs.items() if k in argspec.args}
   return fkwargs
