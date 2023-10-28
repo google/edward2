@@ -17,6 +17,7 @@
 
 import edward2 as ed
 from edward2 import maps
+import grpc
 import numpy as np
 import tenacity
 import tensorflow as tf
@@ -41,7 +42,7 @@ class MapsTest(tf.test.TestCase):
   def test_robust_map_error_output(self):
     def fn(x):
       if x == 1:
-        raise ValueError('Input value 1 is not supported.')
+        raise grpc.RpcError('Input value 1 takes too long to process.')
       else:
         return x + 1
 
@@ -69,7 +70,7 @@ class MapsTest(tf.test.TestCase):
   def test_robust_map_max_retries(self):
     def fn(x):
       if x == 1:
-        raise ValueError('Input value 1 is not supported.')
+        raise grpc.RpcError('Input value 1 takes too long to process.')
       else:
         return x + 1
 
@@ -84,7 +85,7 @@ class MapsTest(tf.test.TestCase):
   def test_robust_map_raise_error(self):
     def fn(x):
       if x == 1:
-        raise ValueError('Input value 1 is not supported.')
+        raise grpc.RpcError('Input value 1 is not supported.')
       else:
         return x + 1
 
@@ -96,6 +97,17 @@ class MapsTest(tf.test.TestCase):
           max_retries=1,
           raise_error=True,
       )
+
+  def test_robust_map_non_rpc_error(self):
+    def fn(x):
+      if x == 1:
+        raise ValueError('Input value 1 is not supported.')
+      else:
+        return x + 1
+
+    x = [0, 1, 2]
+    with self.assertRaises(ValueError):
+      maps.robust_map(fn, x)
 
 
 if __name__ == '__main__':
