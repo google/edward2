@@ -16,6 +16,7 @@
 """A better map."""
 
 import concurrent.futures
+import datetime
 from typing import Callable, Literal, Sequence, TypeVar, overload
 
 from absl import logging
@@ -104,15 +105,18 @@ def robust_map(
         wait=tenacity.wait_random_exponential(min=1, max=30),
         stop=tenacity.stop_after_attempt(max_retries),
     )(fn)
+  num_existing = len(index_to_output)
   num_inputs = len(inputs)
-  log_steps = max(1, num_inputs * log_percent // 100)
+  logging.info('Found %s/%s existing examples.', num_existing, num_inputs)
   indices = [i for i in range(num_inputs) if i not in index_to_output.keys()]
+  log_steps = max(1, num_inputs * log_percent // 100)
   with concurrent.futures.ThreadPoolExecutor(
       max_workers=max_workers
   ) as executor:
     future_to_index = {
         executor.submit(fn_with_backoff, inputs[i]): i for i in indices
     }
+    start = datetime.datetime.now()
     for future in concurrent.futures.as_completed(future_to_index):
       index = future_to_index[future]
       try:
@@ -131,13 +135,22 @@ def robust_map(
               e,
           )
           index_to_output[index] = error_output
-      processed_len = len(index_to_output)
-      if processed_len % log_steps == 0 or processed_len == num_inputs:
+      num_so_far = len(index_to_output)
+      if num_so_far % log_steps == 0 or num_so_far == num_inputs:
+        end = datetime.datetime.now()
+        elapsed = end - start
+        num_completed = num_so_far - num_existing
+        avg_per_example = elapsed / num_completed
+        num_remaining = num_inputs - num_so_far
+        eta = avg_per_example * num_remaining
         logging.info(
-            'Completed %s/%s inputs, with %s left to retry.',
-            processed_len,
+            'Completed %d/%d inputs. Elapsed time (started with %d inputs): %s.'
+            ' ETA: %s.',
+            num_so_far,
             num_inputs,
-            len(indices),
+            num_existing,
+            elapsed,
+            eta,
         )
   outputs = [index_to_output[i] for i in range(num_inputs)]
   return outputs
