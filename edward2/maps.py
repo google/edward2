@@ -66,10 +66,11 @@ def robust_map(
     max_retries: int | None = None,
     max_workers: int | None = None,
     raise_error: bool = False,
+    retry_exception_types: list[Exception] | None = None,
 ) -> Sequence[U | V]:
   """Maps a function to inputs using a threadpool.
 
-  The map supports RPC exception handling, retries with exponential backoff, and
+  The map supports exception handling, retries with exponential backoff, and
   in-place updates in order to store intermediate progress.
 
   Args:
@@ -81,30 +82,42 @@ def robust_map(
       results in-place.
     log_percent: At every `log_percent` percent of items, log the progress.
     max_retries: The maximum number of times to retry each input. If None, then
-      there is no limit. If limit, the output is set to `error_output`.
+      there is no limit. If limit, the output is set to `error_output` or an
+      error is raised if `raise_error` is set to True.
     max_workers: An optional maximum number of threadpool workers. If None, a
       default number will be used, which as of Python 3.8 is `min(32,
       os.cpu_count() + 4)`.
     raise_error: Whether to raise an error if an input exceeds `max_retries`.
       Will override any setting of `error_output`.
+    retry_exception_types: Exception types to retry on. Defaults to retrying
+      only on grpc's RPC exceptions.
 
   Returns:
     A list of items each of type U. They are the outputs of `fn` applied to
     the elements of `inputs`.
   """
-  if index_to_output is None:
-    index_to_output = {}
+  if retry_exception_types is None:
+    retry_exception_types = []
+  retry_exception_types = retry_exception_types + [
+      grpc.RpcError,
+  ]
+  retry_exception_types = list(set(retry_exception_types))
+  retry = tenacity.retry_if_exception_type(retry_exception_types[0])
+  for retry_exception_type in retry_exception_types[1:]:
+    retry = retry | tenacity.retry_if_exception_type(retry_exception_type)
   if max_retries is None:
     fn_with_backoff = tenacity.retry(
-        retry=tenacity.retry_if_exception_type(grpc.RpcError),
+        retry=retry,
         wait=tenacity.wait_random_exponential(min=1, max=30),
     )(fn)
   else:
     fn_with_backoff = tenacity.retry(
-        retry=tenacity.retry_if_exception_type(grpc.RpcError),
+        retry=retry,
         wait=tenacity.wait_random_exponential(min=1, max=30),
-        stop=tenacity.stop_after_attempt(max_retries),
+        stop=tenacity.stop_after_attempt(max_retries + 1),
     )(fn)
+  if index_to_output is None:
+    index_to_output = {}
   num_existing = len(index_to_output)
   num_inputs = len(inputs)
   logging.info('Found %s/%s existing examples.', num_existing, num_inputs)

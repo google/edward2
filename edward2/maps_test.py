@@ -109,6 +109,25 @@ class MapsTest(tf.test.TestCase):
     with self.assertRaises(ValueError):
       maps.robust_map(fn, x)
 
+  def test_robust_map_retry_exception_types(self):
+
+    def make_fn():
+      busy = True
+      def fn(x):
+        nonlocal busy
+        if busy:
+          busy = False
+          raise RuntimeError("Sorry, can't process request right now.")
+        else:
+          busy = True
+          return x + 1
+      return fn
+
+    fn = make_fn()
+    x = [0, 1, 2]
+    y = maps.robust_map(fn, x, retry_exception_types=[RuntimeError])
+    self.assertEqual(y, [1, 2, 3])
+
 
 if __name__ == '__main__':
   tf.test.main()
