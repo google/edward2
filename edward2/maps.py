@@ -38,6 +38,7 @@ def robust_map(
     max_retries: int | None = ...,
     max_workers: int | None = ...,
     raise_error: Literal[False] = ...,
+    retry_exception_types: list[type[Exception]] | None = ...,
 ) -> Sequence[U | V]:
   ...
 
@@ -52,6 +53,7 @@ def robust_map(
     max_retries: int | None = ...,
     max_workers: int | None = ...,
     raise_error: Literal[True] = ...,
+    retry_exception_types: list[type[Exception]] | None = ...,
 ) -> Sequence[U]:
   ...
 
@@ -66,7 +68,7 @@ def robust_map(
     max_retries: int | None = None,
     max_workers: int | None = None,
     raise_error: bool = False,
-    retry_exception_types: list[Exception] | None = None,
+    retry_exception_types: list[type[Exception]] | None = None,
 ) -> Sequence[U | V]:
   """Maps a function to inputs using a threadpool.
 
