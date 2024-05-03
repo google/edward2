@@ -29,7 +29,9 @@ setup(
     url='http://github.com/google/edward2',
     license='Apache 2.0',
     packages=find_packages(),
-    install_requires=[],
+    install_requires=[
+        'tqdm',
+    ],
     extras_require={
         'jax': ['jax>=0.2.13',
                 'flax>=0.3.4'],
