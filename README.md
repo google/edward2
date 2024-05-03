@@ -23,16 +23,18 @@ if you'd like to build on research-ready code.
 
 ## Installation
 
-To install the latest stable version, run
+We recommend the latest development version. To install, run
+
+```sh
+pip install "edward2 @ git+https://github.com/google/edward2.git"
+```
+
+You can also install the latest stable version using the following. As a caveat,
+however, we very rarely update the stable version (this is a passion project
+maintained by part-timers and scheduling releases every so often sucks up time).
 
 ```sh
 pip install edward2
-```
-
-To install the latest development version, run
-
-```sh
-pip install "git+https://github.com/google/edward2.git#egg=edward2"
 ```
 
 Edward2 supports three backends: TensorFlow (the default), JAX, and NumPy ([see
