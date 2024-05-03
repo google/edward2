@@ -21,7 +21,6 @@ For user guides, see:
    https://github.com/google/edward2/blob/main/README.md)
 + [Upgrading from Edward to Edward2](
    https://github.com/google/edward2/blob/main/Upgrading_From_Edward_To_Edward2.md)
-
 """
 
 import warnings
@@ -29,6 +28,7 @@ import warnings
 __all__ = []
 try:
   from edward2 import jax
+
   __all__ += ["jax"]
 except (ImportError, AttributeError):
   # We also catch AttributeError. JAX can raise AttributeError during
@@ -37,6 +37,7 @@ except (ImportError, AttributeError):
 
 try:
   from edward2 import numpy
+
   __all__ += ["numpy"]
 except ImportError:
   warnings.warn("NumPy backend for Edward2 is not available.")
@@ -51,6 +52,8 @@ except ImportError:
 
 
 if all(x not in __all__ for x in ("jax", "numpy", "tensorflow")):
-  raise ImportError("No backend is available for Edward2. Please install "
-                    "dependencies for JAX, NumPy, or TensorFlow.")
+  warnings.warn(
+      "No backend is available for Edward2. Please install dependencies for"
+      " JAX, NumPy, or TensorFlow."
+  )
 # pylint: enable=g-import-not-at-top
