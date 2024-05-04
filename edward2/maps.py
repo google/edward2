@@ -38,7 +38,7 @@ def robust_map(
     max_workers: int | None = ...,
     raise_error: Literal[False] = ...,
     retry_exception_types: list[type[Exception]] | None = ...,
-) -> Sequence[U | V]:
+) -> list[U | V]:
   ...
 
 
@@ -52,7 +52,21 @@ def robust_map(
     max_workers: int | None = ...,
     raise_error: Literal[True] = ...,
     retry_exception_types: list[type[Exception]] | None = ...,
-) -> Sequence[U]:
+) -> list[U]:
+  ...
+
+
+@overload
+def robust_map(
+    fn: Callable[[T], U],
+    inputs: Sequence[T],
+    error_output: V = ...,
+    index_to_output: dict[int, U | V] | None = ...,
+    max_retries: int | None = ...,
+    max_workers: int | None = ...,
+    raise_error: bool = ...,
+    retry_exception_types: list[type[Exception]] | None = ...,
+) -> list[U | V]:
   ...
 
 
@@ -66,7 +80,7 @@ def robust_map(
     max_workers: int | None = None,
     raise_error: bool = False,
     retry_exception_types: list[type[Exception]] | None = None,
-) -> Sequence[U | V]:
+) -> list[U | V]:
   """Maps a function to inputs using a threadpool.
 
   The map supports exception handling, retries with exponential backoff, and
