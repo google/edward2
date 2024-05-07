@@ -121,12 +121,18 @@ def robust_map(
     fn_with_backoff = tenacity.retry(
         retry=retry,
         wait=tenacity.wait_random_exponential(min=1, max=30),
+        before_sleep=tenacity.before_sleep_log(
+            logging.get_absl_logger(), logging.WARNING
+        ),
     )(fn)
   else:
     fn_with_backoff = tenacity.retry(
         retry=retry,
         wait=tenacity.wait_random_exponential(min=1, max=30),
         stop=tenacity.stop_after_attempt(max_retries + 1),
+        before_sleep=tenacity.before_sleep_log(
+            logging.get_absl_logger(), logging.WARNING
+        ),
     )(fn)
   if index_to_output is None:
     index_to_output = {}
