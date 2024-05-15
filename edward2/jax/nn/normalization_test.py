@@ -127,7 +127,7 @@ class NormalizationTest(parameterized.TestCase):
 
     y2 = []
     for i, xi in enumerate(jnp.split(x, ens_size, axis=0)):
-      paramsi = jax.tree_map(lambda param: param[i], params)  # pylint: disable=cell-var-from-loop
+      paramsi = jax.tree.map(lambda param: param[i], params)  # pylint: disable=cell-var-from-loop
       y2.append(model2[i].apply(paramsi, xi))
 
     y2 = jnp.concatenate(y2, 0)

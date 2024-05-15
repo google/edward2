@@ -46,7 +46,7 @@ class DenseTest(parameterized.TestCase):
 
     tiled_outputs, params = layer.init_with_output(jax.random.PRNGKey(0),
                                                    tiled_inputs)
-    params_shape = jax.tree_map(lambda x: x.shape, params)
+    params_shape = jax.tree.map(lambda x: x.shape, params)
     expected_kernel_shape = (inputs_shape[-1], output_dim)
     expected_alpha_shape = (ens_size, inputs_shape[-1])
     expected_gamma_shape = (ens_size, output_dim)
@@ -98,7 +98,7 @@ class DenseTest(parameterized.TestCase):
 
     tiled_outputs, params = layer.init_with_output(jax.random.PRNGKey(0),
                                                    tiled_inputs)
-    params_shape = jax.tree_map(lambda x: x.shape, params)
+    params_shape = jax.tree.map(lambda x: x.shape, params)
     expected_kernel_shape = (inputs_shape[-1],) + features
     expected_alpha_shape = (ens_size, inputs_shape[-1])
     expected_gamma_shape = (ens_size,) + features

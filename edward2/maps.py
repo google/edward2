@@ -70,7 +70,7 @@ def robust_map(
   ...
 
 
-# TODO(trandustin): Support nested structure inputs like jax.tree_map.
+# TODO(trandustin): Support nested structure inputs like jax.tree.map.
 def robust_map(
     fn: Callable[[T], U],
     inputs: Sequence[T],
