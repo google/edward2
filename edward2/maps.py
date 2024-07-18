@@ -70,6 +70,20 @@ def robust_map(
   ...
 
 
+@overload
+def robust_map(
+    fn: Callable[[T], U],
+    inputs: Sequence[T],
+    error_output: V = ...,
+    index_to_output: dict[int, U | V] | None = ...,
+    max_retries: int | None = ...,
+    max_workers: int | None = ...,
+    raise_error: bool = ...,
+    progress_desc: str = ...,
+) -> list[U | V]:
+  ...
+
+
 # TODO(trandustin): Support nested structure inputs like jax.tree.map.
 def robust_map(
     fn: Callable[[T], U],
@@ -80,6 +94,7 @@ def robust_map(
     max_workers: int | None = None,
     raise_error: bool = False,
     retry_exception_types: list[type[Exception]] | None = None,
+    progress_desc: str = 'robust_map',
 ) -> list[U | V]:
   """Maps a function to inputs using a threadpool.
 
@@ -103,6 +118,7 @@ def robust_map(
       Will override any setting of `error_output`.
     retry_exception_types: Exception types to retry on. Defaults to retrying
       only on grpc's RPC exceptions.
+    progress_desc: A string to display in the progress bar.
 
   Returns:
     A list of items each of type U. They are the outputs of `fn` applied to
@@ -139,7 +155,7 @@ def robust_map(
   num_existing = len(index_to_output)
   num_inputs = len(inputs)
   logging.info('Found %s/%s existing examples.', num_existing, num_inputs)
-  progress_bar = tqdm.tqdm(total=num_inputs - num_existing, desc='robust_map')
+  progress_bar = tqdm.tqdm(total=num_inputs - num_existing, desc=progress_desc)
   indices = [i for i in range(num_inputs) if i not in index_to_output.keys()]
   with concurrent.futures.ThreadPoolExecutor(
       max_workers=max_workers
