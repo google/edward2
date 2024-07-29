@@ -633,7 +633,7 @@ class HeteroscedasticLibTest(tf.test.TestCase, parameterized.TestCase):
 
     if kwargs.get('tune_temperature'):
       contains_temperature = False
-      pre_sigmoid_temperature = np.NaN
+      pre_sigmoid_temperature = np.nan
       for w in classifier.trainable_weights:
         if 'pre_sigmoid_temperature' in w.name:
           contains_temperature = True
