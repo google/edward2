@@ -35,6 +35,7 @@ def robust_map(
     error_output: V = ...,
     index_to_output: dict[int, U | V] | None = ...,
     max_retries: int | None = ...,
+    max_backoff_seconds: int = 30,
     max_workers: int | None = ...,
     raise_error: Literal[False] = ...,
     retry_exception_types: list[type[Exception]] | None = ...,
@@ -49,6 +50,7 @@ def robust_map(
     error_output: V = ...,
     index_to_output: dict[int, U | V] | None = ...,
     max_retries: int | None = ...,
+    max_backoff_seconds: int = 30,
     max_workers: int | None = ...,
     raise_error: Literal[True] = ...,
     retry_exception_types: list[type[Exception]] | None = ...,
@@ -63,6 +65,7 @@ def robust_map(
     error_output: V = ...,
     index_to_output: dict[int, U | V] | None = ...,
     max_retries: int | None = ...,
+    max_backoff_seconds: int = 30,
     max_workers: int | None = ...,
     raise_error: bool = ...,
     retry_exception_types: list[type[Exception]] | None = ...,
@@ -77,6 +80,7 @@ def robust_map(
     error_output: V = ...,
     index_to_output: dict[int, U | V] | None = ...,
     max_retries: int | None = ...,
+    max_backoff_seconds: int = 30,
     max_workers: int | None = ...,
     raise_error: bool = ...,
     progress_desc: str = ...,
@@ -91,6 +95,7 @@ def robust_map(
     error_output: V = None,
     index_to_output: dict[int, U | V] | None = None,
     max_retries: int | None = None,
+    max_backoff_seconds: int = 30,
     max_workers: int | None = None,
     raise_error: bool = False,
     retry_exception_types: list[type[Exception]] | None = None,
@@ -111,6 +116,8 @@ def robust_map(
     max_retries: The maximum number of times to retry each input. If None, then
       there is no limit. If limit, the output is set to `error_output` or an
       error is raised if `raise_error` is set to True.
+    max_backoff_seconds: The maximum number of seconds to wait between retries
+      when applying exponential backoff.
     max_workers: An optional maximum number of threadpool workers. If None, a
       default number will be used, which as of Python 3.8 is `min(32,
       os.cpu_count() + 4)`.
@@ -136,7 +143,7 @@ def robust_map(
   if max_retries is None:
     fn_with_backoff = tenacity.retry(
         retry=retry,
-        wait=tenacity.wait_random_exponential(min=1, max=30),
+        wait=tenacity.wait_random_exponential(min=1, max=max_backoff_seconds),
         before_sleep=tenacity.before_sleep_log(
             logging.get_absl_logger(), logging.WARNING
         ),
@@ -144,7 +151,7 @@ def robust_map(
   else:
     fn_with_backoff = tenacity.retry(
         retry=retry,
-        wait=tenacity.wait_random_exponential(min=1, max=30),
+        wait=tenacity.wait_random_exponential(min=1, max=max_backoff_seconds),
         stop=tenacity.stop_after_attempt(max_retries + 1),
         before_sleep=tenacity.before_sleep_log(
             logging.get_absl_logger(), logging.WARNING
