@@ -107,8 +107,12 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
 
   def testRepr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
-    string = ("<ed.RandomVariable '{name}' shape=() "
-              "dtype=float32 numpy=1.234>".format(name=x.distribution.name))
+    string = (
+        "<ed.RandomVariable '{name}' shape=() "
+        "dtype=float32 numpy=np.float32(1.234)>".format(
+            name=x.distribution.name
+        )
+    )
     self.assertEqual(repr(x), string)
 
   def testNumpy(self):
