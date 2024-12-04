@@ -87,7 +87,7 @@ class MCSoftmaxDenseFA(nn.Module):
         )
       # Equivalent to the default kernel init `lecun_normal()` when we set the
       # scaling factor `scale_layer_kernel_init_factor` to 1.
-      # https://github.com/google/jax/blob/main/jax/_src/nn/initializers.py#L440
+      # https://github.com/jax-ml/jax/blob/main/jax/_src/nn/initializers.py#L440
       cov_layer_kernel_init = nn.initializers.variance_scaling(
           self.cov_layer_kernel_init_scale,
           'fan_in',
