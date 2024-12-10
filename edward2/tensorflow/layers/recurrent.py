@@ -151,6 +151,8 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
       self.recurrent_kernel = self.recurrent_initializer(
           self.recurrent_kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
+      if self.bias is None:
+        raise ValueError('self.bias is None.')
       self.bias = self.bias_initializer(self.bias.shape, self.dtype)
     self.called_weights = True
 
