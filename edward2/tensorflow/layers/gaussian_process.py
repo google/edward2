@@ -406,9 +406,11 @@ class SparseGaussianProcess(GaussianProcess):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.inducing_inputs_initializer, tf.keras.layers.Layer):
+      assert self.conditional_inputs is not None
       self.conditional_inputs = self.inducing_inputs_initializer(
           self.conditional_inputs.shape, self.dtype)
     if isinstance(self.inducing_outputs_initializer, tf.keras.layers.Layer):
+      assert self.conditional_outputs is not None
       self.conditional_outputs = self.inducing_outputs_initializer(
           self.conditional_outputs.shape, self.dtype)
 
