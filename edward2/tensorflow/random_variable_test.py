@@ -103,7 +103,7 @@ class RandomVariableTest(parameterized.TestCase, tf.test.TestCase):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
     pattern = "RandomVariable(\"1.234\", shape=(), dtype=float32"
     regexp = re.escape(pattern)
-    self.assertRegexpMatches(str(x), regexp)
+    self.assertRegex(str(x), regexp)
 
   def testRepr(self):
     x = ed.RandomVariable(tfp.distributions.Normal(0.0, 1.0), value=1.234)
