@@ -322,7 +322,7 @@ class MCSoftmaxDenseFA(nn.Module):
 
     probs_mean = self._compute_mc_samples(inputs, scale, total_mc_samples)
 
-    probs_mean = jnp.clip(probs_mean, a_min=self.eps)
+    probs_mean = jnp.clip(probs_mean, min=self.eps)
     log_probs = jnp.log(probs_mean)
     logits = log_probs
 
@@ -577,11 +577,11 @@ class MCSigmoidDenseFA(nn.Module):
 
     probs_mean = self._compute_mc_samples(inputs, scale, total_mc_samples)
 
-    probs_mean = jnp.clip(probs_mean, a_min=self.eps)
+    probs_mean = jnp.clip(probs_mean, min=self.eps)
     log_probs = jnp.log(probs_mean)
 
     # inverse sigmoid
-    probs_mean = jnp.clip(probs_mean, a_min=self.eps, a_max=1.0 - self.eps)
+    probs_mean = jnp.clip(probs_mean, min=self.eps, max=1.0 - self.eps)
     logits = log_probs - jnp.log(1.0 - probs_mean)
 
     if self.return_locs:

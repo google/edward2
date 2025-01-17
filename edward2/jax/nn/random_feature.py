@@ -679,11 +679,11 @@ class MCSigmoidDenseFASNGP(nn.Module):
 
     probs_mean = self._compute_mc_samples(locs, scale, total_mc_samples)  # pytype: disable=wrong-arg-types  # jax-ndarray
 
-    probs_mean = jnp.clip(probs_mean, a_min=self.eps)
+    probs_mean = jnp.clip(probs_mean, min=self.eps)
     log_probs = jnp.log(probs_mean)
 
     # inverse sigmoid
-    probs_mean = jnp.clip(probs_mean, a_min=self.eps, a_max=1.0 - self.eps)
+    probs_mean = jnp.clip(probs_mean, min=self.eps, max=1.0 - self.eps)
     logits = log_probs - jnp.log(1.0 - probs_mean)
 
     if self.return_locs:
