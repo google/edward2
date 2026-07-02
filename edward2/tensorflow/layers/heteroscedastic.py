@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -303,7 +303,7 @@ class MCSoftmaxOutputLayerBase(tf.keras.layers.Layer):
       if seed is not None:
         raise ValueError('Seed should not be provided when running in graph '
                          'mode, but %s was provided.' % seed)
-    with tf.name_scope(self._name):
+    with tf.name_scope(self._name):  # pyrefly: ignore[bad-instantiation]
       locs = self._compute_loc_param(inputs)  # pylint: disable=assignment-from-none
       scale = self._compute_scale_param(inputs)  # pylint: disable=assignment-from-none
 
@@ -482,7 +482,7 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
     Returns:
       Tensor of shape [batch_size, num_classes].
     """
-    return self._loc_layer(inputs)
+    return self._loc_layer(inputs)  # pyrefly: ignore[not-callable]
 
   def _compute_scale_param(self, inputs):
     """Computes scale parameter of the "logits distribution".
@@ -493,7 +493,7 @@ class MCSoftmaxDense(MCSoftmaxOutputLayerBase):
     Returns:
       Tensor of shape [batch_size, num_classes].
     """
-    return self._scale_layer(inputs) + MIN_SCALE_MONTE_CARLO
+    return self._scale_layer(inputs) + MIN_SCALE_MONTE_CARLO  # pyrefly: ignore[not-callable]
 
   def get_config(self):
     config = {
@@ -655,7 +655,7 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     Returns:
       Tensor of shape [batch_size, num_classes].
     """
-    return self._loc_layer(inputs)
+    return self._loc_layer(inputs)  # pyrefly: ignore[not-callable]
 
   def _compute_scale_param(self, inputs):
     """Computes scale parameter of the "logits distribution".
@@ -668,10 +668,10 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       [batch_size, num_classes]).
     """
     if self._parameter_efficient:
-      return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+      return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
     else:
-      return (self._scale_layer(inputs),
-              self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+      return (self._scale_layer(inputs),  # pyrefly: ignore[not-callable]
+              self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
 
   def _compute_diagonal_noise_samples(self, diag_scale, num_samples, seed):
     """Compute samples of the diagonal elements logit noise.
@@ -772,9 +772,9 @@ class MCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         factor_loadings, num_samples, seed)
 
     if self._parameter_efficient:
-      res = self._scale_layer_homoscedastic(standard_normal_samples)
+      res = self._scale_layer_homoscedastic(standard_normal_samples)  # pyrefly: ignore[not-callable]
       res *= tf.expand_dims(
-          self._scale_layer_heteroscedastic(factor_loadings), 1)
+          self._scale_layer_heteroscedastic(factor_loadings), 1)  # pyrefly: ignore[not-callable]
     else:
       # reshape scale vector into factor loadings matrix
       factor_loadings = tf.reshape(factor_loadings,
@@ -957,7 +957,7 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     locs = tf.expand_dims(locs, axis=1)
     noise_samples = self._compute_noise_samples(scale, num_samples, seed)
     latents = locs + noise_samples
-    latents = tf.keras.layers.Reshape(
+    latents = tf.keras.layers.Reshape(  # pyrefly: ignore[not-callable]
         [num_samples, self._ensemble_size, self._num_classes])(latents)
     if self._num_classes == 2:
       return tf.math.sigmoid(latents / self._temperature)
@@ -973,7 +973,7 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
     Returns:
       Tensor of shape [batch_size, num_classes].
     """
-    return self._loc_layer(inputs)
+    return self._loc_layer(inputs)  # pyrefly: ignore[not-callable]
 
   def _compute_scale_param(self, inputs):
     """Computes scale parameter of the "logits distribution".
@@ -986,10 +986,10 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
       [batch_size, num_classes]).
     """
     if self._parameter_efficient:
-      return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+      return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
     else:
-      return (self._scale_layer(inputs),
-              self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+      return (self._scale_layer(inputs),  # pyrefly: ignore[not-callable]
+              self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
 
   def _compute_diagonal_noise_samples(self, diag_scale, num_samples, seed):
     """Compute samples of the diagonal elements logit noise.
@@ -1092,9 +1092,9 @@ class MultiHeadMCSoftmaxDenseFA(MCSoftmaxOutputLayerBase):
         factor_loadings, num_samples, seed)
 
     if self._parameter_efficient:
-      res = self._scale_layer_homoscedastic(standard_normal_samples)
+      res = self._scale_layer_homoscedastic(standard_normal_samples)  # pyrefly: ignore[not-callable]
       res *= tf.expand_dims(
-          self._scale_layer_heteroscedastic(factor_loadings), 1)
+          self._scale_layer_heteroscedastic(factor_loadings), 1)  # pyrefly: ignore[not-callable]
     else:
       # reshape scale vector into factor loadings matrix
       factor_loadings = tf.reshape(
@@ -1532,7 +1532,7 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     Returns:
       Tensor of shape [batch_size, num_outputs].
     """
-    return self._loc_layer(inputs)
+    return self._loc_layer(inputs)  # pyrefly: ignore[not-callable]
 
   def _compute_scale_param(self, inputs):
     """Computes scale parameter of the "logits distribution".
@@ -1546,12 +1546,12 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
     """
     if self._num_factors > 0:
       if self._parameter_efficient:
-        return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+        return (inputs, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
       else:
-        return (self._scale_layer(inputs),
-                self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+        return (self._scale_layer(inputs),  # pyrefly: ignore[not-callable]
+                self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
     else:
-      return (None, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)
+      return (None, self._diag_layer(inputs) + MIN_SCALE_MONTE_CARLO)  # pyrefly: ignore[not-callable]
 
   def _compute_diagonal_noise_samples(self, diag_scale, num_samples, seed):
     """Compute samples of the diagonal elements logit noise.
@@ -1653,9 +1653,9 @@ class MCSigmoidDenseFA(MCSoftmaxOutputLayerBase):
         factor_loadings, num_samples, seed)
 
     if self._parameter_efficient:
-      noise_samples = self._scale_layer_homoscedastic(standard_normal_samples)
+      noise_samples = self._scale_layer_homoscedastic(standard_normal_samples)  # pyrefly: ignore[not-callable]
       noise_samples *= tf.expand_dims(
-          self._scale_layer_heteroscedastic(factor_loadings), 1)
+          self._scale_layer_heteroscedastic(factor_loadings), 1)  # pyrefly: ignore[not-callable]
       return noise_samples + diag_noise_samples
     else:
       # reshape scale vector into factor loadings matrix
@@ -1769,9 +1769,9 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
       Tuple of (logits, log_probs, probs). Logits can be used with the
       tf.nn.sigmoid_cross_entropy_with_logits loss function.
     """
-    with tf.name_scope(self._name):
-      loc = self._loc_layer(inputs)
-      scale = self._diag_layer(inputs) + self._min_scale
+    with tf.name_scope(self._name):  # pyrefly: ignore[bad-instantiation]
+      loc = self._loc_layer(inputs)  # pyrefly: ignore[not-callable]
+      scale = self._diag_layer(inputs) + self._min_scale  # pyrefly: ignore[not-callable]
       loc = tf.cast(loc, tf.float32)
       scale = tf.cast(scale, tf.float32)
 
@@ -1790,9 +1790,9 @@ class ExactSigmoidDense(tf.keras.layers.Layer):
         logits = loc / scale
 
       if self._logits_only:
-        return logits
+        return logits  # pyrefly: ignore[unbound-name]
 
-      return logits, log_probs, probs
+      return logits, log_probs, probs  # pyrefly: ignore[unbound-name]
 
   def get_config(self):
     config = {
@@ -1875,7 +1875,7 @@ class EnsembleHeteroscedasticOutputs(tf.keras.layers.Layer):
       tf.nn.sigmoid_cross_entropy_with_logits or
       tf.nn.softmax_cross_entropy_with_logits loss functions.
     """
-    with tf.name_scope(self._name):
+    with tf.name_scope(self._name):  # pyrefly: ignore[bad-instantiation]
       if self._averaging == 'ensemble_cross_ent':
         log_weights = tf.math.log(self._ensemble_weighting)
 
@@ -2066,7 +2066,7 @@ class MCSoftmaxDenseFASegmentation(MCSoftmaxDenseFA):
     height, width = tf.shape(diag_scale)[1:3]
 
     diag_noise_samples = self._genrate_4d_standard_normal_samples(
-        (num_noise_samples, height, width, self._num_classes), num_samples,
+        (num_noise_samples, height, width, self._num_classes), num_samples,  # pyrefly: ignore[bad-argument-type]
         seed, diag_scale.dtype)
 
     return diag_noise_samples * tf.expand_dims(diag_scale, 1)
@@ -2095,7 +2095,7 @@ class MCSoftmaxDenseFASegmentation(MCSoftmaxDenseFA):
     height, width = tf.shape(factor_loadings)[1:3]
 
     standard_normal_samples = self._genrate_4d_standard_normal_samples(
-        (num_noise_samples, height, width, self._num_factors), num_samples,
+        (num_noise_samples, height, width, self._num_factors), num_samples,  # pyrefly: ignore[bad-argument-type]
         seed, factor_loadings.dtype)
 
     if self._share_samples_across_batch:
@@ -2131,9 +2131,9 @@ class MCSoftmaxDenseFASegmentation(MCSoftmaxDenseFA):
         factor_loadings, num_samples, seed)
 
     if self._parameter_efficient:
-      res = self._scale_layer_homoscedastic(standard_normal_samples)
+      res = self._scale_layer_homoscedastic(standard_normal_samples)  # pyrefly: ignore[not-callable]
       res *= tf.expand_dims(
-          self._scale_layer_heteroscedastic(factor_loadings), 1)
+          self._scale_layer_heteroscedastic(factor_loadings), 1)  # pyrefly: ignore[not-callable]
     else:
       # reshape scale vector into factor loadings matrix
       batch_size, height, width = tf.shape(factor_loadings)[:3]

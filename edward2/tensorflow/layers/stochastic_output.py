@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ class MixtureLogistic(tf.keras.layers.Layer):
     self.built = True
 
   def call(self, inputs):
-    net = self.layer(inputs)
+    net = self.layer(inputs)  # pyrefly: ignore[not-callable]
     logits, loc, scale = tf.split(net, 3, axis=-1)
     if self.logits_constraint:
       logits = self.logits_constraint(logits)
@@ -89,10 +89,10 @@ class MixtureLogistic(tf.keras.layers.Layer):
       loc = self.loc_constraint(loc)
     if self.scale_constraint:
       scale = self.scale_constraint(scale)
-    return generated_random_variables.MixtureSameFamily(
-        mixture_distribution=generated_random_variables.Categorical(
+    return generated_random_variables.MixtureSameFamily(  # pyrefly: ignore[missing-attribute]
+        mixture_distribution=generated_random_variables.Categorical(  # pyrefly: ignore[missing-attribute]
             logits=logits).distribution,
-        components_distribution=generated_random_variables.Logistic(
+        components_distribution=generated_random_variables.Logistic(  # pyrefly: ignore[missing-attribute]
             loc=loc, scale=scale).distribution)
 
   def compute_output_shape(self, input_shape):

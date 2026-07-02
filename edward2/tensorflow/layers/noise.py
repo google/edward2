@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -226,7 +226,7 @@ class NCPNormalOutput(tf.keras.layers.Layer):
   def call(self, inputs):
     if not isinstance(inputs, random_variable.RandomVariable):
       # Default to a unit normal, i.e., derived from mean squared error loss.
-      inputs = generated_random_variables.Normal(loc=inputs, scale=1.)
+      inputs = generated_random_variables.Normal(loc=inputs, scale=1.)  # pyrefly: ignore[missing-attribute]
     batch_size = tf.shape(inputs)[0] // 2
     # TODO(trandustin): Depend on github's ed2 for indexing RVs. This is a hack.
     # _, _ = inputs[:batch_size], inputs[batch_size:]

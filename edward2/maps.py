@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ V = TypeVar('V')
 
 
 @overload
-def robust_map(
+def robust_map(  # pyrefly: ignore[inconsistent-overload]
     fn: Callable[[T], U],
     inputs: Sequence[T],
     error_output: V = ...,
@@ -45,7 +45,7 @@ def robust_map(
 
 
 @overload
-def robust_map(
+def robust_map(  # pyrefly: ignore[inconsistent-overload]
     fn: Callable[[T], U],
     inputs: Sequence[T],
     error_output: V = ...,
@@ -61,7 +61,7 @@ def robust_map(
 
 
 @overload
-def robust_map(
+def robust_map(  # pyrefly: ignore[inconsistent-overload]
     fn: Callable[[T], U],
     inputs: Sequence[T],
     error_output: V = ...,
@@ -77,7 +77,7 @@ def robust_map(
 
 
 @overload
-def robust_map(
+def robust_map(  # pyrefly: ignore[inconsistent-overload]
     fn: Callable[[T], U],
     inputs: Sequence[T],
     error_output: V = ...,

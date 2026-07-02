@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,9 +86,9 @@ class Conv2DReparameterization(tf.keras.layers.Conv2D):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute, not-callable]
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -154,9 +154,9 @@ class Conv1DReparameterization(tf.keras.layers.Conv1D):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute, not-callable]
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -434,10 +434,10 @@ class Conv2DHierarchical(Conv2DFlipout):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
-      self.local_scale = self.local_scale_initializer(self.local_scale.shape,
+      self.local_scale = self.local_scale_initializer(self.local_scale.shape,  # pyrefly: ignore[not-callable]
                                                       self.dtype)
     if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
-      self.global_scale = self.global_scale_initializer(self.global_scale.shape,
+      self.global_scale = self.global_scale_initializer(self.global_scale.shape,  # pyrefly: ignore[not-callable]
                                                         self.dtype)
     super().call_weights()
 
@@ -538,7 +538,7 @@ class Conv2DVariationalDropout(Conv2DReparameterization):
           means = tf.nn.bias_add(means, self.bias, data_format='NCHW')
         else:
           means = tf.nn.bias_add(means, self.bias, data_format='NHWC')
-      outputs = generated_random_variables.Normal(loc=means, scale=stddevs)
+      outputs = generated_random_variables.Normal(loc=means, scale=stddevs)  # pyrefly: ignore[missing-attribute]
       if self.activation is not None:
         outputs = self.activation(outputs)
       return outputs
@@ -618,10 +618,10 @@ class Conv2DBatchEnsemble(tf.keras.layers.Conv2D):
       input_channel = input_shape[-1]
 
     if self.rank > 1:
-      alpha_shape = [self.rank, self.ensemble_size, input_channel]
+      alpha_shape = [self.rank, self.ensemble_size, input_channel]  # pyrefly: ignore[unbound-name]
       gamma_shape = [self.rank, self.ensemble_size, self.filters]
     else:
-      alpha_shape = [self.ensemble_size, input_channel]
+      alpha_shape = [self.ensemble_size, input_channel]  # pyrefly: ignore[unbound-name]
       gamma_shape = [self.ensemble_size, self.filters]
     self.alpha = self.add_weight(
         'alpha',
@@ -789,7 +789,7 @@ class Conv1DBatchEnsemble(tf.keras.layers.Conv1D):
 
     self.alpha = self.add_weight(
         'alpha',
-        shape=[self.ensemble_size, input_channel],
+        shape=[self.ensemble_size, input_channel],  # pyrefly: ignore[unbound-name]
         initializer=self.alpha_initializer,
         trainable=True,
         dtype=self.dtype)
@@ -1060,7 +1060,7 @@ class Conv2DHyperBatchEnsemble(tf.keras.layers.Layer):
     elif self.data_format == 'channels_last':
       input_channel = input_shape[-1]
 
-    alpha_shape = [self.ensemble_size, input_channel]
+    alpha_shape = [self.ensemble_size, input_channel]  # pyrefly: ignore[unbound-name]
     gamma_shape = [self.ensemble_size, self.filters]
 
     self.conv2d.alpha = self._add_weight('alpha', alpha_shape)
@@ -1772,7 +1772,7 @@ class DepthwiseConv2DBatchEnsemble(tf.keras.layers.DepthwiseConv2D):
     elif self.data_format == 'channels_last':
       input_channel = input_shape[-1]
 
-    filters = input_channel * self.depth_multiplier
+    filters = input_channel * self.depth_multiplier  # pyrefly: ignore[unbound-name]
     self.alpha = self.add_weight(
         'alpha',
         shape=[self.ensemble_size, input_channel],
@@ -1934,7 +1934,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
 
     self.alpha = self.add_weight(
         'alpha',
-        shape=[self.ensemble_size, input_channel],
+        shape=[self.ensemble_size, input_channel],  # pyrefly: ignore[unbound-name]
         initializer=self.alpha_initializer,
         regularizer=self.alpha_regularizer,
         constraint=self.alpha_constraint,
@@ -1974,7 +1974,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(
+          self.alpha_initializer(  # pyrefly: ignore[not-callable]
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1984,7 +1984,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
       alpha = tf.tile(self.alpha, [1, examples_per_model])
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(
+          self.gamma_initializer(  # pyrefly: ignore[not-callable]
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2005,7 +2005,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(
+        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])
@@ -2139,7 +2139,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
 
     self.alpha = self.add_weight(
         'alpha',
-        shape=[self.ensemble_size, input_channel],
+        shape=[self.ensemble_size, input_channel],  # pyrefly: ignore[unbound-name]
         initializer=self.alpha_initializer,
         regularizer=self.alpha_regularizer,
         constraint=self.alpha_constraint,
@@ -2179,7 +2179,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(
+          self.alpha_initializer(  # pyrefly: ignore[not-callable]
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2189,7 +2189,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
       alpha = tf.tile(self.alpha, [1, examples_per_model])
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(
+          self.gamma_initializer(  # pyrefly: ignore[not-callable]
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2212,7 +2212,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(
+        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])

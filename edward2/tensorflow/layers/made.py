@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ def create_masks(input_dim,
 def make_masked_initializer(mask):
   initializer = tf.keras.initializers.GlorotUniform()
   def masked_initializer(shape, dtype=None):
-    return mask * initializer(shape, dtype)
+    return mask * initializer(shape, dtype)  # pyrefly: ignore[not-callable]
   return masked_initializer
 
 

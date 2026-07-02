@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class PosteriorNetworkLayer(tf.keras.layers.Layer):
 
   def build(self, input_shape):
     """Builds the layer based on the passed input shape."""
-    with tf.name_scope(self.name):
+    with tf.name_scope(self.name):  # pyrefly: ignore[bad-instantiation]
       # Using the PyTorch default hyperparameters.
       self.batch_norm = tf.keras.layers.BatchNormalization(epsilon=1e-5,
                                                            momentum=0.9)
@@ -133,7 +133,7 @@ class ReversedRadialFlow(tfp.bijectors.Bijector):
         validate_args=validate_args,
         inverse_min_event_ndims=1,
         name=name)
-    with tf.name_scope(name) as name:
+    with tf.name_scope(name) as name:  # pyrefly: ignore[bad-instantiation]
       self._name = name
       if x0 is None:
         x0 = tf.zeros(dim)

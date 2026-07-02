@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -182,12 +182,12 @@ class MultiHeadDotProductAttentionBE(nn.Module):
         query,
         key,
         value,
-        mask=mask,
-        dropout_rng=dropout_rng,
-        dropout_rate=self.dropout_rate,
-        broadcast_dropout=self.broadcast_dropout,
-        deterministic=deterministic,
-        dtype=self.dtype,
+        mask=mask,  # pyrefly: ignore[unexpected-keyword]
+        dropout_rng=dropout_rng,  # pyrefly: ignore[unexpected-keyword]
+        dropout_rate=self.dropout_rate,  # pyrefly: ignore[unexpected-keyword]
+        broadcast_dropout=self.broadcast_dropout,  # pyrefly: ignore[unexpected-keyword]
+        deterministic=deterministic,  # pyrefly: ignore[unexpected-keyword]
+        dtype=self.dtype,  # pyrefly: ignore[unexpected-keyword]
         precision=self.precision)  # pytype: disable=wrong-keyword-args
     # back to the original inputs dimensions
     def dense_fn2(name):

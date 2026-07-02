@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,9 +65,9 @@ def profile(func):
 
 def logistic_regression(features):
   """Bayesian logistic regression, which returns labels given features."""
-  coeffs = ed.MultivariateNormalDiag(
+  coeffs = ed.MultivariateNormalDiag(  # pyrefly: ignore[missing-attribute]
       loc=tf.zeros(features.shape[1]), name="coeffs")
-  labels = ed.Bernoulli(
+  labels = ed.Bernoulli(  # pyrefly: ignore[missing-attribute]
       logits=tf.tensordot(features, coeffs, [[1], [0]]), name="labels")
   return labels
 

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,11 +54,11 @@ class BayesianLinearModel(tf.keras.Model):
       predictive_mean = tf.einsum('nm,m->n', inputs, self.coeffs_mean)
       predictive_covariance = tf.matmul(
           inputs,
-          self.coeffs_precision_tril_op.solve(
-              self.coeffs_precision_tril_op.solve(inputs, adjoint_arg=True),
+          self.coeffs_precision_tril_op.solve(  # pyrefly: ignore[missing-attribute]
+              self.coeffs_precision_tril_op.solve(inputs, adjoint_arg=True),  # pyrefly: ignore[missing-attribute]
               adjoint=True))
       predictive_variance = tf.linalg.tensor_diag_part(predictive_covariance)
-    return generated_random_variables.Normal(loc=predictive_mean,
+    return generated_random_variables.Normal(loc=predictive_mean,  # pyrefly: ignore[missing-attribute]
                                              scale=tf.sqrt(predictive_variance))
 
   def fit(self, x=None, y=None):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks

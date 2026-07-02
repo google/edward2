@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ class RandomVariable(object):
     self._distribution = distribution
     self._sample_shape = sample_shape
     if tf.is_tensor(value):
-      value_shape = value.shape
+      value_shape = value.shape  # pyrefly: ignore[missing-attribute]
       expected_value_shape = self.sample_shape.concatenate(
           self.distribution.batch_shape).concatenate(
               self.distribution.event_shape)
@@ -148,7 +148,7 @@ class RandomVariable(object):
     Returns:
       sample_shape: `Tensor`.
     """
-    with tf.name_scope(name):
+    with tf.name_scope(name):  # pyrefly: ignore[bad-instantiation]
       if tf.is_tensor(self._sample_shape):
         return self._sample_shape
       return tf.convert_to_tensor(self.sample_shape.as_list(), dtype=tf.int32)

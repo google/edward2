@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ class EmbeddingReparameterization(tf.keras.layers.Embedding):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.embeddings_initializer, tf.keras.layers.Layer):
-      self.embeddings = self.embeddings_initializer(self.embeddings.shape,
+      self.embeddings = self.embeddings_initializer(self.embeddings.shape,  # pyrefly: ignore[not-callable]
                                                     self.dtype)
 
   def call(self, *args, **kwargs):

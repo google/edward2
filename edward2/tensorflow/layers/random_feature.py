@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -274,7 +274,7 @@ class RandomFeatureGaussianProcess(tf.keras.layers.Layer):
     # Assembles model output.
     model_output = [gp_output,]
     if self.return_gp_cov:
-      model_output.append(gp_covmat)
+      model_output.append(gp_covmat)  # pyrefly: ignore[unbound-name]
     if self.return_random_features:
       model_output.append(gp_feature)
 

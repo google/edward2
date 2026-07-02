@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ def make_log_joint_fn(model):
       rv_kwargs.pop("size", None)
       rv_kwargs.pop("random_state", None)
       rv_kwargs.pop("name", None)
-      log_prob = np.sum(log_prob_fn(cls(), value, *rv_args, **rv_kwargs))
+      log_prob = np.sum(log_prob_fn(cls(), value, *rv_args, **rv_kwargs))  # pyrefly: ignore[not-callable]
       log_probs.append(log_prob)
       return value
 

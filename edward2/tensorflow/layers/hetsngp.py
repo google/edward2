@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -209,7 +209,7 @@ class HeteroscedasticSNGPLayer(MCSoftmaxDenseFA):
       if seed is not None:
         raise ValueError('Seed should not be provided when running in graph '
                          'mode, but %s was provided.' % seed)
-    with tf.name_scope(self._name):
+    with tf.name_scope(self._name):  # pyrefly: ignore[bad-instantiation]
       locs, covmat_sngp = self._compute_loc_param(inputs, training)  # pylint: disable=assignment-from-none
       scale = self._compute_scale_param(inputs, covmat_sngp, training)  # pylint: disable=assignment-from-none
 

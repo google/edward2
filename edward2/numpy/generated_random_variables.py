@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ for candidate_name in sorted(dir(scipy.stats)):
                             scipy.stats.rv_discrete,
                             scipy.stats.rv_histogram)):
     if hasattr(candidate, 'rvs'):
-      candidate.rvs = traceable(candidate.rvs)
+      candidate.rvs = traceable(candidate.rvs)  # pyrefly: ignore[missing-attribute]
       _globals[candidate_name] = candidate
       __all__.append(candidate_name)
 

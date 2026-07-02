@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -189,7 +189,7 @@ class TrainableDeterministic(tf.keras.layers.Layer):
     self.loc_constraint = constraints.get(loc_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -209,8 +209,8 @@ class TrainableDeterministic(tf.keras.layers.Layer):
     loc = self.loc
     if self.loc_constraint:
       loc = self.loc_constraint(loc)
-    return generated_random_variables.Independent(
-        generated_random_variables.Deterministic(loc=loc).distribution,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Deterministic(loc=loc).distribution,  # pyrefly: ignore[missing-attribute]
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -249,7 +249,7 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
     self.scale_constraint = constraints.get(scale_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -280,8 +280,8 @@ class TrainableHalfCauchy(tf.keras.layers.Layer):
     scale = self.scale
     if self.scale_constraint:
       scale = self.scale_constraint(scale)
-    return generated_random_variables.Independent(
-        generated_random_variables.HalfCauchy(loc=loc,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.HalfCauchy(loc=loc,  # pyrefly: ignore[missing-attribute]
                                               scale=scale).distribution,
         reinterpreted_batch_ndims=len(shape))
 
@@ -327,7 +327,7 @@ class TrainableCauchy(tf.keras.layers.Layer):
     self.scale_constraint = constraints.get(scale_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -358,8 +358,8 @@ class TrainableCauchy(tf.keras.layers.Layer):
     scale = self.scale
     if self.scale_constraint:
       scale = self.scale_constraint(scale)
-    return generated_random_variables.Independent(
-        generated_random_variables.Cauchy(loc=loc, scale=scale).distribution,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Cauchy(loc=loc, scale=scale).distribution,  # pyrefly: ignore[missing-attribute]
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -398,7 +398,7 @@ class TrainableLogNormal(tf.keras.layers.Layer):
     self.scale_constraint = constraints.get(scale_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -429,8 +429,8 @@ class TrainableLogNormal(tf.keras.layers.Layer):
     scale = self.scale
     if self.scale_constraint:
       scale = self.scale_constraint(scale)
-    return generated_random_variables.Independent(
-        generated_random_variables.LogNormal(loc=loc, scale=scale).distribution,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.LogNormal(loc=loc, scale=scale).distribution,  # pyrefly: ignore[missing-attribute]
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -475,7 +475,7 @@ class TrainableNormal(tf.keras.layers.Layer):
     self.stddev_constraint = constraints.get(stddev_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -506,8 +506,8 @@ class TrainableNormal(tf.keras.layers.Layer):
     stddev = self.stddev
     if self.stddev_constraint:
       stddev = self.stddev_constraint(stddev)
-    return generated_random_variables.Independent(
-        generated_random_variables.Normal(loc=mean, scale=stddev).distribution,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Normal(loc=mean, scale=stddev).distribution,  # pyrefly: ignore[missing-attribute]
         reinterpreted_batch_ndims=len(shape))
 
   def get_config(self):
@@ -630,7 +630,7 @@ class TrainableNormalFixedStddev(tf.keras.layers.Layer):
     self.mean_constraint = constraints.get(mean_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
     self.mean = self.add_weight(
@@ -649,8 +649,8 @@ class TrainableNormalFixedStddev(tf.keras.layers.Layer):
     mean = self.mean
     if self.mean_constraint:
       mean = self.mean_constraint(mean)
-    return generated_random_variables.Independent(
-        generated_random_variables.Normal(loc=mean,
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Normal(loc=mean,  # pyrefly: ignore[missing-attribute]
                                           scale=self.stddev).distribution,
         reinterpreted_batch_ndims=len(shape))
 
@@ -712,7 +712,7 @@ class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
     self.loc_constraint = constraints.get(loc_constraint)
     self.seed = seed
 
-  def build(self, shape, dtype=None):
+  def build(self, shape, dtype=None):  # pyrefly: ignore[bad-override]
     if dtype is None:
       dtype = self.dtype
 
@@ -732,13 +732,13 @@ class TrainableMixtureOfDeltas(tf.keras.layers.Layer):
     loc = self.loc
     if self.loc_constraint:
       loc = self.loc_constraint(loc)
-    return generated_random_variables.Independent(
-        generated_random_variables.MixtureSameFamily(
-            mixture_distribution=generated_random_variables.Categorical(
+    return generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.MixtureSameFamily(  # pyrefly: ignore[missing-attribute]
+            mixture_distribution=generated_random_variables.Categorical(  # pyrefly: ignore[missing-attribute]
                 probs=tf.broadcast_to(
                     [[1/self.num_components]*self.num_components],
                     list(shape) + [self.num_components])).distribution,
-            components_distribution=generated_random_variables.Deterministic(
+            components_distribution=generated_random_variables.Deterministic(  # pyrefly: ignore[missing-attribute]
                 loc=loc).distribution
         ).distribution,
         reinterpreted_batch_ndims=len(shape))

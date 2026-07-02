@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
         def bias_initializer(_, *args, **kwargs):
           return tf.keras.backend.concatenate([
               self.bias_initializer((self.units,), *args, **kwargs),
-              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),
+              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),  # pyrefly: ignore[not-callable]
               self.bias_initializer((self.units * 2,), *args, **kwargs),
           ])
       else:
@@ -146,14 +146,14 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
     if isinstance(self.recurrent_initializer, tf.keras.layers.Layer):
-      self.recurrent_kernel = self.recurrent_initializer(
+      self.recurrent_kernel = self.recurrent_initializer(  # pyrefly: ignore[not-callable]
           self.recurrent_kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
       if self.bias is None:
         raise ValueError('self.bias is None.')
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[not-callable]
     self.called_weights = True
 
   def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
@@ -594,7 +594,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
           return tf.concat([
               self.bias_initializer([self.ensemble_size, self.units], *args,
                                     **kwargs),
-              tf.keras.initializers.Ones()([self.ensemble_size, self.units],
+              tf.keras.initializers.Ones()([self.ensemble_size, self.units],  # pyrefly: ignore[not-callable]
                                            *args, **kwargs),
               self.bias_initializer([self.ensemble_size, self.units * 2],
                                     *args, **kwargs),
@@ -642,12 +642,12 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
     """Samples any rank-1 weight tensor if the initializer is itself a layer."""
     if inputs is not None:
       batch_size = tf.shape(inputs)[0]
-    examples_per_model = batch_size // self.ensemble_size
+    examples_per_model = batch_size // self.ensemble_size  # pyrefly: ignore[unsupported-operation]
 
     # Sample parameters for each input example.
     def sample(weight_variable, weight_initializer, shape):
       if isinstance(weight_initializer, tf.keras.layers.Layer):
-        weights = weight_initializer(
+        weights = weight_initializer(  # pyrefly: ignore[not-callable]
             shape, self.dtype).distribution.sample(examples_per_model)
         weights = tf.transpose(weights, [1, 0, 2])
       else:
@@ -717,7 +717,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
         x_c = tf.linalg.matmul(inputs_c * alpha, k_c) * gamma_c
         x_o = tf.linalg.matmul(inputs_o * alpha, k_o) * gamma_o
       if self.use_bias:
-        b_i, b_f, b_c, b_o = tf.split(bias, num_or_size_splits=4, axis=1)
+        b_i, b_f, b_c, b_o = tf.split(bias, num_or_size_splits=4, axis=1)  # pyrefly: ignore[unbound-name]
         x_i += b_i
         x_f += b_f
         x_c += b_c
@@ -748,7 +748,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
         z += tf.linalg.matmul(
             h_tm1 * recurrent_alpha, self.recurrent_kernel) * recurrent_gamma
       if self.use_bias:
-        z += bias
+        z += bias  # pyrefly: ignore[unbound-name]
 
       z = tf.split(z, num_or_size_splits=4, axis=1)
       c, o = self._compute_carry_and_output_fused(z, c_tm1)

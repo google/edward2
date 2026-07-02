@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -257,7 +257,7 @@ class MCSoftmaxDenseFA(nn.Module):
   def get_temperature(self):
     if self.tune_temperature:
       return compute_temperature(
-          self._pre_sigmoid_temperature,
+          self._pre_sigmoid_temperature,  # pyrefly: ignore[bad-argument-type]
           lower=self.temperature_lower_bound,
           upper=self.temperature_upper_bound)
     else:
@@ -510,7 +510,7 @@ class MCSigmoidDenseFA(nn.Module):
   def get_temperature(self):
     if self.tune_temperature:
       return compute_temperature(
-          self._pre_sigmoid_temperature,
+          self._pre_sigmoid_temperature,  # pyrefly: ignore[bad-argument-type]
           lower=self.temperature_lower_bound,
           upper=self.temperature_upper_bound)
     else:
@@ -609,14 +609,14 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
       self.actual_latent_dim = self.latent_dim
 
     if self.parameter_efficient:
-      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
           kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
-      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
@@ -624,7 +624,7 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
           kernel_init=self.kernel_init,
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
-      self._scale_layer = dense.DenseBatchEnsemble(
+      self._scale_layer = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim * self.num_factors,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
@@ -632,10 +632,10 @@ class MCSoftmaxDenseFABE(MCSoftmaxDenseFA):
           kernel_init=self.kernel_init,
           name='scale_layer')
 
-    self._loc_layer = dense.DenseBatchEnsemble(self.num_classes,
+    self._loc_layer = dense.DenseBatchEnsemble(self.num_classes,  # pyrefly: ignore[bad-assignment]
                                                ens_size=self.ens_size,
                                                name='loc_layer')
-    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,
+    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,  # pyrefly: ignore[bad-assignment]
                                                 ens_size=self.ens_size,
                                                 name='diag_layer')
 
@@ -664,14 +664,14 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
       self.actual_latent_dim = self.latent_dim
 
     if self.parameter_efficient:
-      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
           gamma_init=self.gamma_init,
           kernel_init=self.kernel_init,
           name='scale_layer_homoscedastic')
-      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
@@ -679,7 +679,7 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
           kernel_init=self.kernel_init,
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
-      self._scale_layer = dense.DenseBatchEnsemble(
+      self._scale_layer = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.actual_latent_dim * self.num_factors,
           ens_size=self.ens_size,
           alpha_init=self.alpha_init,
@@ -687,13 +687,13 @@ class MCSigmoidDenseFABE(MCSigmoidDenseFA):
           kernel_init=self.kernel_init,
           name='scale_layer')
 
-    self._loc_layer = dense.DenseBatchEnsemble(self.num_outputs,
+    self._loc_layer = dense.DenseBatchEnsemble(self.num_outputs,  # pyrefly: ignore[bad-assignment]
                                                ens_size=self.ens_size,
                                                alpha_init=self.alpha_init,
                                                gamma_init=self.gamma_init,
                                                kernel_init=self.kernel_init,
                                                name='loc_layer')
-    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,
+    self._diag_layer = dense.DenseBatchEnsemble(self.actual_latent_dim,  # pyrefly: ignore[bad-assignment]
                                                 ens_size=self.ens_size,
                                                 alpha_init=self.alpha_init,
                                                 gamma_init=self.gamma_init,

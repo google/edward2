@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,9 +73,9 @@ class DenseReparameterization(tf.keras.layers.Dense):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[not-callable]
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -144,7 +144,7 @@ class DenseDVI(DenseReparameterization):
     # E[outputs] = E[inputs] * E[kernel] + E[bias]
     mean = tf.tensordot(inputs_mean, kernel_mean, [[-1], [0]])
     if self.use_bias:
-      mean = tf.nn.bias_add(mean, bias_mean)
+      mean = tf.nn.bias_add(mean, bias_mean)  # pyrefly: ignore[unbound-name]
 
     # Cov = E[inputs**2] Cov(kernel) + E[W]^T Cov(inputs) E[W] + Cov(bias)
     # For first term, assume Cov(kernel) = 0 on off-diagonals so we only
@@ -158,7 +158,7 @@ class DenseDVI(DenseReparameterization):
     w_cov_w = tf.tensordot(cov_w, kernel_mean, [[-2], [0]])
     covariance = w_cov_w
     if self.use_bias:
-      covariance += bias_covariance
+      covariance += bias_covariance  # pyrefly: ignore[unbound-name]
     covariance = tf.linalg.set_diag(
         covariance, tf.linalg.diag_part(covariance) + covariance_diag)
 
@@ -198,7 +198,7 @@ class DenseDVI(DenseReparameterization):
                                 'inference is only available if activation is '
                                 'ReLU or None.'.format(self.activation))
 
-    return generated_random_variables.MultivariateNormalFullCovariance(
+    return generated_random_variables.MultivariateNormalFullCovariance(  # pyrefly: ignore[missing-attribute]
         mean, covariance)
 
 
@@ -345,7 +345,7 @@ class DenseVariationalDropout(DenseReparameterization):
             tf.keras.backend.epsilon())
       if self.use_bias:
         means = tf.nn.bias_add(means, self.bias)
-      outputs = generated_random_variables.Normal(loc=means, scale=stddevs)
+      outputs = generated_random_variables.Normal(loc=means, scale=stddevs)  # pyrefly: ignore[missing-attribute]
       if self.activation is not None:
         outputs = self.activation(outputs)
       return outputs
@@ -452,10 +452,10 @@ class DenseHierarchical(DenseVariationalDropout):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
-      self.local_scale = self.local_scale_initializer(self.local_scale.shape,
+      self.local_scale = self.local_scale_initializer(self.local_scale.shape,  # pyrefly: ignore[not-callable]
                                                       self.dtype)
     if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
-      self.global_scale = self.global_scale_initializer(self.global_scale.shape,
+      self.global_scale = self.global_scale_initializer(self.global_scale.shape,  # pyrefly: ignore[not-callable]
                                                         self.dtype)
     super().call_weights()
 
@@ -808,8 +808,8 @@ class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
     data, lambdas, e = inputs
     e1, e2 = e[:, :self.units], e[:, self.units:]
 
-    output = self.dense(data)
-    delta_kernel = self.delta_dense(data) * e1
+    output = self.dense(data)  # pyrefly: ignore[not-callable]
+    delta_kernel = self.delta_dense(data) * e1  # pyrefly: ignore[not-callable]
     output += delta_kernel
 
     batch_size = tf.shape(data)[0]
@@ -1104,7 +1104,7 @@ class DenseRank1(tf.keras.layers.Dense):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(
+          self.alpha_initializer(  # pyrefly: ignore[not-callable]
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1114,7 +1114,7 @@ class DenseRank1(tf.keras.layers.Dense):
       alpha = tf.expand_dims(self.alpha, 1)
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(
+          self.gamma_initializer(  # pyrefly: ignore[not-callable]
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1130,7 +1130,7 @@ class DenseRank1(tf.keras.layers.Dense):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(
+        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])

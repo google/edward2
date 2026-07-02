@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -207,8 +207,8 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
       mean_sq = tf.reduce_mean(tf.square(x), axis=[1, 2, 3])
       mean_sq = tf.cast(mean_sq, tf.float32)
       if replica_context is not None:
-        mean = tf1.tpu.cross_replica_sum(mean, group_assignment)
-        mean = mean / num_replicas_per_group
+        mean = tf1.tpu.cross_replica_sum(mean, group_assignment)  # pyrefly: ignore[unbound-name]
+        mean = mean / num_replicas_per_group  # pyrefly: ignore[unbound-name]
         mean_sq = tf1.tpu.cross_replica_sum(mean_sq, group_assignment)
         mean_sq = mean_sq / num_replicas_per_group
       variance = mean_sq - tf.square(mean)
@@ -219,8 +219,8 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
       mean_sq = tf.reduce_mean(tf.square(x), axis=[0, 1, 2])
       mean_sq = tf.cast(mean_sq, tf.float32)
       if replica_context is not None:
-        mean = tf1.tpu.cross_replica_sum(mean, group_assignment)
-        mean = mean / num_replicas_per_group
+        mean = tf1.tpu.cross_replica_sum(mean, group_assignment)  # pyrefly: ignore[unbound-name]
+        mean = mean / num_replicas_per_group  # pyrefly: ignore[unbound-name]
         mean_sq = tf1.tpu.cross_replica_sum(mean_sq, group_assignment)
         mean_sq = mean_sq / num_replicas_per_group
       variance = mean_sq - tf.square(mean)
@@ -267,7 +267,7 @@ class EnsembleSyncBatchNorm(tf.keras.layers.Layer):
         beta = tf.expand_dims(beta, axis=1)
         beta = tf.expand_dims(beta, axis=1)
       x = inputs * tf.cast(inv, inputs.dtype) + tf.cast(
-          beta - mean * inv if self.beta is not None else (
+          beta - mean * inv if self.beta is not None else (  # pyrefly: ignore[unbound-name]
               -mean * inv), inputs.dtype)
     else:
       x = tf.nn.batch_normalization(

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,8 +50,8 @@ class CauchyKLDivergence(tf.keras.regularizers.Regularizer):
 
   def __call__(self, x):
     """Computes regularization using an unbiased Monte Carlo estimate."""
-    prior = generated_random_variables.Independent(
-        generated_random_variables.Cauchy(
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Cauchy(  # pyrefly: ignore[missing-attribute]
             loc=tf.broadcast_to(self.loc, x.distribution.event_shape),
             scale=tf.broadcast_to(self.scale, x.distribution.event_shape)
         ).distribution,
@@ -79,8 +79,8 @@ class HalfCauchyKLDivergence(tf.keras.regularizers.Regularizer):
 
   def __call__(self, x):
     """Computes regularization using an unbiased Monte Carlo estimate."""
-    prior = generated_random_variables.Independent(
-        generated_random_variables.HalfCauchy(
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.HalfCauchy(  # pyrefly: ignore[missing-attribute]
             loc=tf.broadcast_to(self.loc, x.distribution.event_shape),
             scale=tf.broadcast_to(self.scale, x.distribution.event_shape)
         ).distribution,
@@ -146,8 +146,8 @@ class LogNormalKLDivergence(tf.keras.regularizers.Regularizer):
     """Computes regularization given an input ed.RandomVariable."""
     if not isinstance(x, random_variable.RandomVariable):
       raise ValueError('Input must be an ed.RandomVariable.')
-    prior = generated_random_variables.Independent(
-        generated_random_variables.LogNormal(
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.LogNormal(  # pyrefly: ignore[missing-attribute]
             loc=tf.broadcast_to(self.loc, x.distribution.event_shape),
             scale=tf.broadcast_to(self.scale, x.distribution.event_shape)
         ).distribution,
@@ -176,8 +176,8 @@ class NormalKLDivergence(tf.keras.regularizers.Regularizer):
     """Computes regularization given an input ed.RandomVariable."""
     if not isinstance(x, random_variable.RandomVariable):
       raise ValueError('Input must be an ed.RandomVariable.')
-    prior = generated_random_variables.Independent(
-        generated_random_variables.Normal(
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Normal(  # pyrefly: ignore[missing-attribute]
             loc=tf.broadcast_to(self.mean, x.distribution.event_shape),
             scale=tf.broadcast_to(self.stddev, x.distribution.event_shape)
         ).distribution,
@@ -248,7 +248,7 @@ class NormalEmpiricalBayesKLDivergence(NormalKLDivergence):
     variance /= num_weights + 2. * self.variance_concentration + 2.
     self.stddev = tf.sqrt(variance)
 
-    variance_prior = generated_random_variables.InverseGamma(
+    variance_prior = generated_random_variables.InverseGamma(  # pyrefly: ignore[missing-attribute]
         self.variance_concentration, self.variance_scale)
     regularization = super(NormalEmpiricalBayesKLDivergence, self).__call__(x)
     regularization -= (self.scale_factor *
@@ -276,8 +276,8 @@ class NormalKLDivergenceWithTiedMean(tf.keras.regularizers.Regularizer):
     """Computes regularization given an ed.Normal random variable as input."""
     if not isinstance(x, random_variable.RandomVariable):
       raise ValueError('Input must be an ed.RandomVariable.')
-    prior = generated_random_variables.Independent(
-        generated_random_variables.Normal(loc=x.distribution.mean(),
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Normal(loc=x.distribution.mean(),  # pyrefly: ignore[missing-attribute]
                                           scale=self.stddev).distribution,
         reinterpreted_batch_ndims=len(x.distribution.event_shape))
     regularization = x.distribution.kl_divergence(prior.distribution)
@@ -327,8 +327,8 @@ class TrainableNormalKLDivergenceStdDev(tf.keras.layers.Layer):
     stddev = self.stddev
     if self.stddev_constraint:
       stddev = self.stddev_constraint(stddev)
-    prior = generated_random_variables.Independent(
-        generated_random_variables.Normal(
+    prior = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
+        generated_random_variables.Normal(  # pyrefly: ignore[missing-attribute]
             loc=self.mean, scale=stddev).distribution,
         reinterpreted_batch_ndims=len(inputs.distribution.event_shape))
     regularization = inputs.distribution.kl_divergence(prior.distribution)

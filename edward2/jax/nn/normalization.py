@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ class SpectralNormalization(nn.Module):
 
 class SpectralNormalizationConv2D(SpectralNormalization):
   __doc__ = "Implements spectral normalization for Conv layers based on [2].\n" + "\n".join(
-      SpectralNormalization.__doc__.split("\n")[1:])
+      SpectralNormalization.__doc__.split("\n")[1:])  # pyrefly: ignore[missing-attribute]
 
   kernel_apply_kwargs: Mapping[str, Any] = flax.core.FrozenDict(
       feature_group_count=1, padding="SAME", use_bias=False)
@@ -208,8 +208,8 @@ def _compute_stats(x: Array, axes: Axes,
   # promote x to at least float32, this avoids half precision computation
   # but preserves double or complex floating points
   x = jnp.asarray(x, jnp.promote_types(jnp.float32, jnp.result_type(x)))
-  mean = jnp.mean(x, axes)
-  mean2 = jnp.mean(_abs_sq(x), axes)
+  mean = jnp.mean(x, axes)  # pyrefly: ignore[bad-argument-type]
+  mean2 = jnp.mean(_abs_sq(x), axes)  # pyrefly: ignore[bad-argument-type]
   if axis_name is not None:
     concatenated_mean = jnp.concatenate([mean, mean2])
     mean, mean2 = jnp.split(

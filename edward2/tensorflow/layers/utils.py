@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,13 +56,13 @@ def add_weight(cls):
       if not regularizer.built:
         regularizer.build(shape)
     if isinstance(initializer, tf.keras.layers.Layer):
-      with tf.name_scope(name):
-        weight = initializer(shape, dtype)
+      with tf.name_scope(name):  # pyrefly: ignore[bad-instantiation]
+        weight = initializer(shape, dtype)  # pyrefly: ignore[not-callable]
       if regularizer is not None:
         def loss_fn():
           """Creates a regularization loss `Tensor`."""
-          with tf.name_scope(name + '/Regularizer'):
-            return regularizer(initializer(shape, dtype))
+          with tf.name_scope(name + '/Regularizer'):  # pyrefly: ignore[bad-instantiation, unsupported-operation]
+            return regularizer(initializer(shape, dtype))  # pyrefly: ignore[not-callable]
         self.add_loss(loss_fn)
       return weight
     return super(cls, self).add_weight(name=name,
@@ -195,11 +195,11 @@ def py_multiplicative_inverse(a, n):
     remainder = n
     new_remainder = a
     while new_remainder != 0:
-      quotient = remainder // new_remainder
+      quotient = remainder // new_remainder  # pyrefly: ignore[unsupported-operation]
       (inverse, new_inverse) = (new_inverse, inverse - quotient * new_inverse)
       (remainder, new_remainder) = (new_remainder,
                                     remainder - quotient * new_remainder)
-    if remainder > 1:
+    if remainder > 1:  # pyrefly: ignore[unsupported-operation]
       return ValueError(
           'Inverse for {} modulo {} does not exist.'.format(a, n))
     if inverse < 0:

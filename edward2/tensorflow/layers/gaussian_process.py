@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -222,9 +222,9 @@ class GaussianProcess(tf.keras.layers.Layer):
     # event_shape batch_size. Then make it be independent across the units
     # dimension. Then transpose its dimensions so it is [batch_size, units].
     random_variable = (
-        generated_random_variables.MultivariateNormalFullCovariance(
+        generated_random_variables.MultivariateNormalFullCovariance(  # pyrefly: ignore[missing-attribute]
             loc=loc, covariance_matrix=covariance_matrix))
-    random_variable = generated_random_variables.Independent(
+    random_variable = generated_random_variables.Independent(  # pyrefly: ignore[missing-attribute]
         random_variable.distribution, reinterpreted_batch_ndims=1)
     bijector = tfp.bijectors.Inline(
         forward_fn=lambda x: tf.transpose(x, perm=[1, 0]),
@@ -233,7 +233,7 @@ class GaussianProcess(tf.keras.layers.Layer):
         forward_event_shape_tensor_fn=lambda input_shape: input_shape[::-1],
         inverse_log_det_jacobian_fn=lambda y: tf.cast(0, y.dtype),
         forward_min_event_ndims=2)
-    random_variable = generated_random_variables.TransformedDistribution(
+    random_variable = generated_random_variables.TransformedDistribution(  # pyrefly: ignore[missing-attribute]
         random_variable.distribution, bijector=bijector)
     return random_variable
 
@@ -407,11 +407,11 @@ class SparseGaussianProcess(GaussianProcess):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.inducing_inputs_initializer, tf.keras.layers.Layer):
       assert self.conditional_inputs is not None
-      self.conditional_inputs = self.inducing_inputs_initializer(
+      self.conditional_inputs = self.inducing_inputs_initializer(  # pyrefly: ignore[not-callable]
           self.conditional_inputs.shape, self.dtype)
     if isinstance(self.inducing_outputs_initializer, tf.keras.layers.Layer):
       assert self.conditional_outputs is not None
-      self.conditional_outputs = self.inducing_outputs_initializer(
+      self.conditional_outputs = self.inducing_outputs_initializer(  # pyrefly: ignore[not-callable]
           self.conditional_outputs.shape, self.dtype)
 
   def call(self, inputs):

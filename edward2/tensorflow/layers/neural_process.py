@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,9 +36,9 @@ def batch_mlp(inputs, hidden_sizes):
   hidden = tf.reshape(inputs, (-1, filter_size))
 
   for size in hidden_sizes[:-1]:
-    hidden = tf.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)
+    hidden = tf.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)  # pyrefly: ignore[not-callable]
 
-  output = tf.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)
+  output = tf.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)  # pyrefly: ignore[not-callable]
   output = tf.reshape(output, (batch_size, -1, hidden_sizes[-1]))
   return output
 
@@ -264,15 +264,15 @@ class NeuralProcess(tf.keras.Model):
     per_example_embedding = batch_mlp(
         encoder_input, self._latent_encoder_sizes)
     dataset_embedding = tf.reduce_mean(per_example_embedding, axis=1)
-    hidden = tf.keras.layers.Dense(
+    hidden = tf.keras.layers.Dense(  # pyrefly: ignore[not-callable]
         (self._latent_encoder_sizes[-1] + self._num_latents)//2,
         activation=tf.nn.relu)(dataset_embedding)
-    loc = tf.keras.layers.Dense(self._num_latents, activation=None)(hidden)
-    untransformed_scale = tf.keras.layers.Dense(self._num_latents,
+    loc = tf.keras.layers.Dense(self._num_latents, activation=None)(hidden)  # pyrefly: ignore[not-callable]
+    untransformed_scale = tf.keras.layers.Dense(self._num_latents,  # pyrefly: ignore[not-callable]
                                                 activation=None)(hidden)
     # Constraint scale following Garnelo et al. (2018).
     scale_diag = 0.1 + 0.9 * tf.sigmoid(untransformed_scale)
-    return generated_random_variables.MultivariateNormalDiag(
+    return generated_random_variables.MultivariateNormalDiag(  # pyrefly: ignore[missing-attribute]
         loc=loc, scale_diag=scale_diag)
 
   def deterministic_encoder(self, context_x, context_y, target_x):
@@ -292,7 +292,7 @@ class NeuralProcess(tf.keras.Model):
     encoder_input = tf.concat([context_x, context_y], axis=-1)
     per_example_embedding = batch_mlp(encoder_input,
                                       self._deterministic_encoder_sizes)
-    per_target_embedding = self._attention(context_x,
+    per_target_embedding = self._attention(context_x,  # pyrefly: ignore[not-callable]
                                            target_x,
                                            per_example_embedding)
     return per_target_embedding
@@ -361,10 +361,10 @@ class NeuralProcess(tf.keras.Model):
 
     if target_y is not None:
       kl = tf.expand_dims(
-          posterior.distribution.kl_divergence(prior.distribution),
+          posterior.distribution.kl_divergence(prior.distribution),  # pyrefly: ignore[unbound-name]
           -1)
       self.add_loss(lambda: kl)
 
     return predictive_dist
 
-  call = __call__
+  call = __call__  # pyrefly: ignore[bad-override]

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2025 The Edward2 Authors.
+# Copyright 2026 The Edward2 Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ class RandomFourierFeatures(nn.Module):
                               (contracting_dims, batch_dims))
     outputs = outputs + jnp.broadcast_to(bias.value, outputs.shape)
 
-    return self._feature_scale * self.activation(outputs)
+    return self._feature_scale * self.activation(outputs)  # pyrefly: ignore[unsupported-operation]
 
 
 class LaplaceRandomFeatureCovariance(nn.Module):
@@ -340,10 +340,10 @@ class LaplaceRandomFeatureCovariance(nn.Module):
 
     # Computes precision matrix within new batch.
     if self.likelihood == 'binary_logistic':
-      prob = nn.sigmoid(gp_logits)
+      prob = nn.sigmoid(gp_logits)  # pyrefly: ignore[bad-argument-type]
       prob_multiplier = prob * (1. - prob)
     elif self.likelihood == 'poisson':
-      prob_multiplier = jnp.exp(gp_logits)
+      prob_multiplier = jnp.exp(gp_logits)  # pyrefly: ignore[bad-argument-type]
     else:
       prob_multiplier = 1.
 
@@ -703,16 +703,16 @@ class MCSigmoidDenseFASNGPBE(MCSigmoidDenseFASNGP):
 
   def setup(self):
     if self.parameter_efficient:
-      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_homoscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.num_outputs,
           ens_size=self.ens_size,
           name='scale_layer_homoscedastic')
-      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(
+      self._scale_layer_heteroscedastic = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.num_outputs,
           ens_size=self.ens_size,
           name='scale_layer_heteroscedastic')
     elif self.num_factors > 0:
-      self._scale_layer = dense.DenseBatchEnsemble(
+      self._scale_layer = dense.DenseBatchEnsemble(  # pyrefly: ignore[bad-assignment]
           self.num_outputs * self.num_factors,
           ens_size=self.ens_size,
           name='scale_layer')
@@ -726,6 +726,6 @@ class MCSigmoidDenseFASNGPBE(MCSigmoidDenseFASNGP):
         output_kwargs=self.output_kwargs,
         covmat_kwargs=self.covmat_kwargs,
         name='loc_layer')
-    self._diag_layer = dense.DenseBatchEnsemble(self.num_outputs,
+    self._diag_layer = dense.DenseBatchEnsemble(self.num_outputs,  # pyrefly: ignore[bad-assignment]
                                                 ens_size=self.ens_size,
                                                 name='diag_layer')
