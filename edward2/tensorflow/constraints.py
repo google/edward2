@@ -84,7 +84,6 @@ def serialize(initializer):
 def deserialize(config, custom_objects=None):
   return tf.keras.utils.legacy.deserialize_keras_object(
       config,
-      module_objects=globals(),
       custom_objects=custom_objects,
       printable_module_name='constraints',
   )
