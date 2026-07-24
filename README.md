@@ -232,7 +232,7 @@ target_log_prob = None
 grads_target_log_prob = None
 for _ in range(1000):
   [
-      [coeffs, intercepts],
+      [coeffs, intercept],
       target_log_prob,
       grads_target_log_prob,
   ] = no_u_turn_sampler.kernel(
@@ -242,7 +242,7 @@ for _ in range(1000):
           current_target_log_prob=target_log_prob,
           current_grads_target_log_prob=grads_target_log_prob)
   coeffs_samples.append(coeffs)
-  intercept_samples.append(coeffs)
+  intercept_samples.append(intercept)
 ```
 
 The returned `coeffs_samples` and `intercept_samples` contain 1,000 posterior
