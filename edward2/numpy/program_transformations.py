@@ -111,7 +111,7 @@ def make_log_joint_fn(model):
         rv_name = rv_kwargs.get("name")
         if rv_name is None:
           raise KeyError("Random variable call {} has no name in its arguments."
-                         .format(rv_call.im_class.__name__))
+                         .format(rv_call.__self__.__class__.__name__))
         value = kwargs.get(rv_name)
         if value is None:
           raise LookupError("Keyword argument specifying value for {} is "
