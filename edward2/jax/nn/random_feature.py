@@ -162,7 +162,7 @@ class RandomFourierFeatures(nn.Module):
     dtype: the dtype of the computation (default: float32).
   """
   features: int
-  feature_scale: Optional[jnp.float32] = 1.
+  feature_scale: Optional[jnp.float32] = 1.  # pyrefly: ignore[not-a-type]
   activation: Callable[[Array], Array] = default_rbf_activation
   kernel_init: Initializer = default_rbf_kernel_init
   bias_init: Initializer = default_rbf_bias_init
