@@ -36,9 +36,9 @@ def batch_mlp(inputs, hidden_sizes):
   hidden = tf.reshape(inputs, (-1, filter_size))
 
   for size in hidden_sizes[:-1]:
-    hidden = tf.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)  # pyrefly: ignore[not-callable]
+    hidden = tf.keras.layers.Dense(size, activation=tf.nn.relu)(hidden)
 
-  output = tf.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)  # pyrefly: ignore[not-callable]
+  output = tf.keras.layers.Dense(hidden_sizes[-1], activation=None)(hidden)
   output = tf.reshape(output, (batch_size, -1, hidden_sizes[-1]))
   return output
 
@@ -264,11 +264,11 @@ class NeuralProcess(tf.keras.Model):
     per_example_embedding = batch_mlp(
         encoder_input, self._latent_encoder_sizes)
     dataset_embedding = tf.reduce_mean(per_example_embedding, axis=1)
-    hidden = tf.keras.layers.Dense(  # pyrefly: ignore[not-callable]
+    hidden = tf.keras.layers.Dense(
         (self._latent_encoder_sizes[-1] + self._num_latents)//2,
         activation=tf.nn.relu)(dataset_embedding)
-    loc = tf.keras.layers.Dense(self._num_latents, activation=None)(hidden)  # pyrefly: ignore[not-callable]
-    untransformed_scale = tf.keras.layers.Dense(self._num_latents,  # pyrefly: ignore[not-callable]
+    loc = tf.keras.layers.Dense(self._num_latents, activation=None)(hidden)
+    untransformed_scale = tf.keras.layers.Dense(self._num_latents,
                                                 activation=None)(hidden)
     # Constraint scale following Garnelo et al. (2018).
     scale_diag = 0.1 + 0.9 * tf.sigmoid(untransformed_scale)

@@ -73,9 +73,9 @@ class DenseReparameterization(tf.keras.layers.Dense):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -452,10 +452,10 @@ class DenseHierarchical(DenseVariationalDropout):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
-      self.local_scale = self.local_scale_initializer(self.local_scale.shape,  # pyrefly: ignore[not-callable]
+      self.local_scale = self.local_scale_initializer(self.local_scale.shape,
                                                       self.dtype)
     if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
-      self.global_scale = self.global_scale_initializer(self.global_scale.shape,  # pyrefly: ignore[not-callable]
+      self.global_scale = self.global_scale_initializer(self.global_scale.shape,
                                                         self.dtype)
     super().call_weights()
 
@@ -808,8 +808,8 @@ class DenseHyperBatchEnsemble(tf.keras.layers.Layer):
     data, lambdas, e = inputs
     e1, e2 = e[:, :self.units], e[:, self.units:]
 
-    output = self.dense(data)  # pyrefly: ignore[not-callable]
-    delta_kernel = self.delta_dense(data) * e1  # pyrefly: ignore[not-callable]
+    output = self.dense(data)
+    delta_kernel = self.delta_dense(data) * e1
     output += delta_kernel
 
     batch_size = tf.shape(data)[0]
@@ -1104,7 +1104,7 @@ class DenseRank1(tf.keras.layers.Dense):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(  # pyrefly: ignore[not-callable]
+          self.alpha_initializer(
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1114,7 +1114,7 @@ class DenseRank1(tf.keras.layers.Dense):
       alpha = tf.expand_dims(self.alpha, 1)
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(  # pyrefly: ignore[not-callable]
+          self.gamma_initializer(
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1130,7 +1130,7 @@ class DenseRank1(tf.keras.layers.Dense):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
+        bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])
@@ -1262,7 +1262,7 @@ class CondDense(tf.keras.layers.Dense):
 
     self.built = True
 
-  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def call(self, inputs, routing_weights):  # pyrefly: ignore[bad-override]
     # Compute example dependent kernels
     inputs = tf.expand_dims(inputs, 1)  # shape = [batch_size, 1, input_dim]
     # routing_weights is of shape [batch_size, num_experts]

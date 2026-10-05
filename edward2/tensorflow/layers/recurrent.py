@@ -117,7 +117,7 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
         def bias_initializer(_, *args, **kwargs):
           return tf.keras.backend.concatenate([
               self.bias_initializer((self.units,), *args, **kwargs),
-              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),  # pyrefly: ignore[not-callable]
+              tf.keras.initializers.Ones()((self.units,), *args, **kwargs),
               self.bias_initializer((self.units * 2,), *args, **kwargs),
           ])
       else:
@@ -146,14 +146,14 @@ class LSTMCellReparameterization(tf.keras.layers.LSTMCell):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
     if isinstance(self.recurrent_initializer, tf.keras.layers.Layer):
-      self.recurrent_kernel = self.recurrent_initializer(  # pyrefly: ignore[not-callable]
+      self.recurrent_kernel = self.recurrent_initializer(
           self.recurrent_kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
       if self.bias is None:
         raise ValueError('self.bias is None.')
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)
     self.called_weights = True
 
   def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
@@ -594,7 +594,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
           return tf.concat([
               self.bias_initializer([self.ensemble_size, self.units], *args,
                                     **kwargs),
-              tf.keras.initializers.Ones()([self.ensemble_size, self.units],  # pyrefly: ignore[not-callable]
+              tf.keras.initializers.Ones()([self.ensemble_size, self.units],
                                            *args, **kwargs),
               self.bias_initializer([self.ensemble_size, self.units * 2],
                                     *args, **kwargs),
@@ -647,7 +647,7 @@ class LSTMCellRank1(tf.keras.layers.LSTMCell):
     # Sample parameters for each input example.
     def sample(weight_variable, weight_initializer, shape):
       if isinstance(weight_initializer, tf.keras.layers.Layer):
-        weights = weight_initializer(  # pyrefly: ignore[not-callable]
+        weights = weight_initializer(
             shape, self.dtype).distribution.sample(examples_per_model)
         weights = tf.transpose(weights, [1, 0, 2])
       else:

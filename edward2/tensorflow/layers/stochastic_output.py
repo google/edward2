@@ -81,7 +81,7 @@ class MixtureLogistic(tf.keras.layers.Layer):
     self.built = True
 
   def call(self, inputs):
-    net = self.layer(inputs)  # pyrefly: ignore[not-callable]
+    net = self.layer(inputs)
     logits, loc, scale = tf.split(net, 3, axis=-1)
     if self.logits_constraint:
       logits = self.logits_constraint(logits)

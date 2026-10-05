@@ -56,13 +56,13 @@ def add_weight(cls):
       if not regularizer.built:
         regularizer.build(shape)
     if isinstance(initializer, tf.keras.layers.Layer):
-      with tf.name_scope(name):  # pyrefly: ignore[bad-instantiation]
-        weight = initializer(shape, dtype)  # pyrefly: ignore[not-callable]
+      with tf.name_scope(name):
+        weight = initializer(shape, dtype)
       if regularizer is not None:
         def loss_fn():
           """Creates a regularization loss `Tensor`."""
-          with tf.name_scope(name + '/Regularizer'):  # pyrefly: ignore[bad-instantiation, unsupported-operation]
-            return regularizer(initializer(shape, dtype))  # pyrefly: ignore[not-callable]
+          with tf.name_scope(name + '/Regularizer'):  # pyrefly: ignore[unsupported-operation]
+            return regularizer(initializer(shape, dtype))
         self.add_loss(loss_fn)
       return weight
     return super(cls, self).add_weight(name=name,

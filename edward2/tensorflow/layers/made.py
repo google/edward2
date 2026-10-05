@@ -125,7 +125,7 @@ class MADE(tf.keras.Model):
     self.network.add(tf.keras.layers.Reshape([length, self.units]))
     self.built = True
 
-  def call(self, inputs):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def call(self, inputs):  # pyrefly: ignore[bad-override]
     return self.network(inputs)
 
 
@@ -219,7 +219,7 @@ def create_masks(input_dim,
 def make_masked_initializer(mask):
   initializer = tf.keras.initializers.GlorotUniform()
   def masked_initializer(shape, dtype=None):
-    return mask * initializer(shape, dtype)  # pyrefly: ignore[not-callable]
+    return mask * initializer(shape, dtype)
   return masked_initializer
 
 

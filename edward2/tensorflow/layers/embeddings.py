@@ -92,7 +92,7 @@ class EmbeddingReparameterization(tf.keras.layers.Embedding):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.embeddings_initializer, tf.keras.layers.Layer):
-      self.embeddings = self.embeddings_initializer(self.embeddings.shape,  # pyrefly: ignore[not-callable]
+      self.embeddings = self.embeddings_initializer(self.embeddings.shape,
                                                     self.dtype)
 
   def call(self, *args, **kwargs):

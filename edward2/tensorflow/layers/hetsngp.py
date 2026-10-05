@@ -165,11 +165,11 @@ class HeteroscedasticSNGPLayer(MCSoftmaxDenseFA):
     self.sngp_var_weight = sngp_var_weight
     self.het_var_weight = het_var_weight
 
-  def _compute_loc_param(self, inputs, training):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def _compute_loc_param(self, inputs, training):  # pyrefly: ignore[bad-override]
     """Computes the mean logits as the mean-field logits of the SNGP."""
     return self.sngp_layer(inputs)
 
-  def _compute_scale_param(self, inputs, covmat_sngp, training):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def _compute_scale_param(self, inputs, covmat_sngp, training):  # pyrefly: ignore[bad-override]
     """Computes the variances for the logits."""
     low_rank, diag = super()._compute_scale_param(inputs)
     sngp_marginal_vars = tf.expand_dims(tf.linalg.diag_part(covmat_sngp), -1)
@@ -209,7 +209,7 @@ class HeteroscedasticSNGPLayer(MCSoftmaxDenseFA):
       if seed is not None:
         raise ValueError('Seed should not be provided when running in graph '
                          'mode, but %s was provided.' % seed)
-    with tf.name_scope(self._name):  # pyrefly: ignore[bad-instantiation]
+    with tf.name_scope(self._name):
       locs, covmat_sngp = self._compute_loc_param(inputs, training)  # pylint: disable=assignment-from-none
       scale = self._compute_scale_param(inputs, covmat_sngp, training)  # pylint: disable=assignment-from-none
 

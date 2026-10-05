@@ -86,9 +86,9 @@ class Conv2DReparameterization(tf.keras.layers.Conv2D):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute, not-callable]
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute]
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -154,9 +154,9 @@ class Conv1DReparameterization(tf.keras.layers.Conv1D):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.kernel_initializer, tf.keras.layers.Layer):
-      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)  # pyrefly: ignore[not-callable]
+      self.kernel = self.kernel_initializer(self.kernel.shape, self.dtype)
     if isinstance(self.bias_initializer, tf.keras.layers.Layer):
-      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute, not-callable]
+      self.bias = self.bias_initializer(self.bias.shape, self.dtype)  # pyrefly: ignore[missing-attribute]
 
   def call(self, *args, **kwargs):
     self.call_weights()
@@ -434,10 +434,10 @@ class Conv2DHierarchical(Conv2DFlipout):
   def call_weights(self):
     """Calls any weights if the initializer is itself a layer."""
     if isinstance(self.local_scale_initializer, tf.keras.layers.Layer):
-      self.local_scale = self.local_scale_initializer(self.local_scale.shape,  # pyrefly: ignore[not-callable]
+      self.local_scale = self.local_scale_initializer(self.local_scale.shape,
                                                       self.dtype)
     if isinstance(self.global_scale_initializer, tf.keras.layers.Layer):
-      self.global_scale = self.global_scale_initializer(self.global_scale.shape,  # pyrefly: ignore[not-callable]
+      self.global_scale = self.global_scale_initializer(self.global_scale.shape,
                                                         self.dtype)
     super().call_weights()
 
@@ -1448,7 +1448,7 @@ class CondConv2D(tf.keras.layers.Conv2D):
 
     self.built = True
 
-  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def call(self, inputs, routing_weights):  # pyrefly: ignore[bad-override]
     # Compute example dependent kernels
     kernels = tf.matmul(routing_weights, self.condconv_kernel)
     batch_size = self.batch_size
@@ -1665,7 +1665,7 @@ class DepthwiseCondConv2D(tf.keras.layers.DepthwiseConv2D):
         ndim=4, axes={channel_axis: input_dim})
     self.built = True
 
-  def call(self, inputs, routing_weights):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def call(self, inputs, routing_weights):  # pyrefly: ignore[bad-override]
     # Compute example dependent depthwise kernels
     depthwise_kernels = tf.matmul(routing_weights,
                                   self.depthwise_condconv_kernel)
@@ -1974,7 +1974,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(  # pyrefly: ignore[not-callable]
+          self.alpha_initializer(
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -1984,7 +1984,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
       alpha = tf.tile(self.alpha, [1, examples_per_model])
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(  # pyrefly: ignore[not-callable]
+          self.gamma_initializer(
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2005,7 +2005,7 @@ class Conv1DRank1(tf.keras.layers.Conv1D):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
+        bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])
@@ -2179,7 +2179,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
     # Sample parameters for each example.
     if isinstance(self.alpha_initializer, tf.keras.layers.Layer):
       alpha = tf.clip_by_value(
-          self.alpha_initializer(  # pyrefly: ignore[not-callable]
+          self.alpha_initializer(
               self.alpha_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2189,7 +2189,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
       alpha = tf.tile(self.alpha, [1, examples_per_model])
     if isinstance(self.gamma_initializer, tf.keras.layers.Layer):
       gamma = tf.clip_by_value(
-          self.gamma_initializer(  # pyrefly: ignore[not-callable]
+          self.gamma_initializer(
               self.gamma_shape,
               self.dtype).distribution.sample(examples_per_model),
           self.min_perturbation_value,
@@ -2212,7 +2212,7 @@ class Conv2DRank1(tf.keras.layers.Conv2D):
 
     if self.use_ensemble_bias:
       if isinstance(self.ensemble_bias_initializer, tf.keras.layers.Layer):
-        bias = self.ensemble_bias_initializer(  # pyrefly: ignore[not-callable]
+        bias = self.ensemble_bias_initializer(
             self.ensemble_bias_shape,
             self.dtype).distribution.sample(examples_per_model)
         bias = tf.transpose(bias, [1, 0, 2])

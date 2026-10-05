@@ -78,7 +78,7 @@ class ActNorm(tf.keras.layers.Layer):
           1. / (tf.sqrt(variance) + self.epsilon))
 
     if not isinstance(inputs, random_variable.RandomVariable):
-      return super(ActNorm, self).__call__(inputs, *args, **kwargs)  # pytype: disable=attribute-error  # typed-keras
+      return super(ActNorm, self).__call__(inputs, *args, **kwargs)
     return transformed_random_variable.TransformedRandomVariable(inputs, self)
 
   def call(self, inputs):
@@ -325,7 +325,7 @@ class SpectralNormalization(tf.keras.layers.Wrapper):
     super(SpectralNormalization, self).__init__(
         layer, name=wrapper_name, **kwargs)
 
-  def build(self, input_shape):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def build(self, input_shape):  # pyrefly: ignore[bad-override]
     super(SpectralNormalization, self).build(input_shape)
     self.layer.kernel._aggregation = self.aggregation  # pylint: disable=protected-access
     self._dtype = self.layer.kernel.dtype
@@ -440,7 +440,7 @@ class SpectralNormalizationConv2D(tf.keras.layers.Wrapper):
           .format(input=layer))
     super(SpectralNormalizationConv2D, self).__init__(layer, **kwargs)
 
-  def build(self, input_shape):  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def build(self, input_shape):  # pyrefly: ignore[bad-override]
     self.layer.build(input_shape)
     self.layer.kernel._aggregation = self.aggregation  # pylint: disable=protected-access
     self._dtype = self.layer.kernel.dtype

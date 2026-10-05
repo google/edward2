@@ -73,8 +73,8 @@ def kernel(target_log_prob_fn,
   if not tf.executing_eagerly():
     raise NotImplementedError("`kernel` is only available in Eager mode.")
 
-  with tf.name_scope(name):  # pyrefly: ignore[bad-instantiation]
-    with tf.name_scope("initialize"):  # pyrefly: ignore[bad-instantiation]
+  with tf.name_scope(name):
+    with tf.name_scope("initialize"):
       current_state = [tf.convert_to_tensor(s) for s in current_state]
       step_size = [tf.convert_to_tensor(s) for s in step_size]
       if (current_target_log_prob is None or
@@ -487,7 +487,7 @@ def _random_bernoulli(shape,
                       seed=None,
                       name="random_bernoulli"):
   """Returns samples from a Bernoulli distribution."""
-  with tf.name_scope(name):  # pyrefly: ignore[bad-instantiation]
+  with tf.name_scope(name):
     probs = tf.convert_to_tensor(probs)
     random_uniform = tf.random.uniform(shape, dtype=probs.dtype, seed=seed)
     return tf.cast(tf.less(random_uniform, probs), dtype)

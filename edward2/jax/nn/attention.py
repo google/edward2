@@ -188,7 +188,7 @@ class MultiHeadDotProductAttentionBE(nn.Module):
         broadcast_dropout=self.broadcast_dropout,  # pyrefly: ignore[unexpected-keyword]
         deterministic=deterministic,  # pyrefly: ignore[unexpected-keyword]
         dtype=self.dtype,  # pyrefly: ignore[unexpected-keyword]
-        precision=self.precision)  # pytype: disable=wrong-keyword-args
+        precision=self.precision)  # pyrefly: ignore[unexpected-keyword]
     # back to the original inputs dimensions
     def dense_fn2(name):
       dense_lyr = dense.DenseBatchEnsemble(

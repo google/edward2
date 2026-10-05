@@ -54,7 +54,7 @@ class PosteriorNetworkLayer(tf.keras.layers.Layer):
 
   def build(self, input_shape):
     """Builds the layer based on the passed input shape."""
-    with tf.name_scope(self.name):  # pyrefly: ignore[bad-instantiation]
+    with tf.name_scope(self.name):
       # Using the PyTorch default hyperparameters.
       self.batch_norm = tf.keras.layers.BatchNormalization(epsilon=1e-5,
                                                            momentum=0.9)
@@ -133,7 +133,7 @@ class ReversedRadialFlow(tfp.bijectors.Bijector):
         validate_args=validate_args,
         inverse_min_event_ndims=1,
         name=name)
-    with tf.name_scope(name) as name:  # pyrefly: ignore[bad-instantiation]
+    with tf.name_scope(name) as name:
       self._name = name
       if x0 is None:
         x0 = tf.zeros(dim)
