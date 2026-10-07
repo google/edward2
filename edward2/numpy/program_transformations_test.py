@@ -70,6 +70,17 @@ class ProgramTransformationsTest(absltest.TestCase):
     value = log_joint(features, prior_precision, y=y, beta=beta)
     self.assertAlmostEqual(value, true_value)
 
+  def testMakeLogJointUnnamedRandomVariable(self):
+    """Test `make_log_joint` raises a helpful error for unnamed variables."""
+    def normal_model():
+      x = ed.norm.rvs(loc=0., scale=1.)
+      return x
+
+    log_joint = ed.make_log_joint_fn(normal_model)
+
+    with self.assertRaisesRegex(KeyError, 'has no name in its arguments'):
+      log_joint()
+
 if __name__ == '__main__':
   np.random.seed(8327)
   absltest.main()
